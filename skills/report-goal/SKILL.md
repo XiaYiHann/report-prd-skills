@@ -57,7 +57,7 @@ The generated prompt must be safe for Claude Code Ralph Loop usage. Ralph Loop r
 Include a recommended invocation:
 
 ```bash
-/ralph-loop "$(cat docs/report/report-goal-prompt.md)" --max-iterations 20 --completion-promise "REPORT_GOAL_COMPLETE"
+/ralph-loop "$(cat docs/report/report-goal-prompt.md)" --completion-promise "REPORT_GOAL_COMPLETE"
 ```
 
 Require every iteration to read `report-goal/status.md`, `report-goal/gap-matrix.md`, `report-goal/decision-log.md`, recent git log, and current git status before choosing work. Require the agent to select only the earliest incomplete gate and never redo a gate that already has passing evidence plus a matching commit.
