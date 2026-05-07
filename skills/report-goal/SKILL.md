@@ -17,7 +17,7 @@ The canonical source is `docs/report/report.md` unless the user names another re
 2. Read `AGENTS.md` if present, then read the report file.
 3. Scan the repository for implementation evidence, tests, scripts, configs, artifacts, and existing modules related to the report.
 4. Compare report-required milestones against repo-observed implementation status.
-5. Generate one self-contained Goal prompt using the standard report-backed execution template: Ralph Loop Launch, Mission, Source Of Truth, Initial Discovery Phase, Gap Matrix, Gate Protocol, Ralph Loop Iteration Rules, Execution Rules, Scope Control, Web Search Policy, and Completion Criteria.
+5. Generate one self-contained Chinese Goal prompt whose concrete objective, gates, constraints, paths, commands, artifacts, and validations are extracted from the report and cross-checked against the current repository. The standard sections are only the carrier format, not the content source.
 6. Do not call `create_goal` unless the user explicitly asks to start the goal in this turn.
 
 ## Preferred Script
@@ -32,7 +32,23 @@ python3 ~/.agents/skills/report-goal/scripts/generate_report_goal_prompt.py \
 ```
 
 Use `--print` if the user wants the prompt in the chat. Use `--max-report-lines` to limit extracted report evidence for very large reports.
-The default output is a compact template prompt. Use `--style full` only when the user explicitly asks for a detailed scan prompt with long repository listings.
+The default output is a compact Chinese report-specific prompt. Use `--style full` only when the user explicitly asks for a detailed scan prompt with longer repository listings.
+
+## Core Principle
+
+Do not hardcode project-specific gates, module paths, datasets, models, or artifacts in the skill. The skill must infer them from the selected report and the current repository. If the report is CIGR, the output may contain CIGR-specific gates because they were extracted from that report. If the report is DAO, Ares, or another project, the output must naturally contain that project's gates, paths, commands, and validation evidence.
+
+The template is only a structure for Ralph Loop execution. The generated content must be concrete to the selected report:
+
+- Objective: derived from report title, summary, mission, contribution, next-step, or goal sections.
+- Gates: derived from report milestones, phases, acceptance criteria, implementation gates, stop rules, and progress tables.
+- Paths and commands: derived from inline code spans, script references, module paths, artifact names, and repo scan matches.
+- Constraints: derived from report non-goals, forbidden paths, phase restrictions, risk sections, and local `AGENTS.md` / `RTK.md`.
+- Completion evidence: derived from report validation commands, artifacts, manifests, test expectations, and render/self-check rules.
+
+## Language
+
+Generate the Goal prompt in Chinese by default. Keep command names, file paths, status labels, git commit messages, and the completion promise literal unchanged when they are machine-facing values.
 
 ## Ralph Loop Adaptation
 
@@ -74,6 +90,17 @@ The generated prompt must require the future agent to:
 - Update report progress only after observed implementation facts exist.
 
 For research PRDs that define custom implementation-phase constraints, the prompt must preserve those constraints when present in the report.
+
+## Anti-Patterns
+
+Avoid these failures:
+
+- Do not emit only a generic "scan repo and implement report" template.
+- Do not hardcode CIGR, OLMoE, GSM8K, DAO, Ares, or any other project into the script.
+- Do not use fake placeholder paths such as `src/core/module_a.py`.
+- Do not treat report prose as implementation proof.
+- Do not omit report line references for extracted goals and gates.
+- Do not let the generated prompt ask the future agent to rediscover everything without carrying forward the script's report extraction and scan summary.
 
 ## Output Shape
 
