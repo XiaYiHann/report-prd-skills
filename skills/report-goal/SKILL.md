@@ -63,7 +63,10 @@ The generated prompt must require the future agent to:
 - Require external references in `report-goal/sources.md` when web search is used.
 - Require a closeout in `report-goal/final-summary.md`.
 - Require strict sequential gates: Gate 0 discovery, Gate 1 contracts/scaffolding, Gate 2..N report milestones, Final Gate integration/closeout.
-- Require every gate to pass validation and produce a git commit before the next gate starts.
+- Require every gate to pass validation, receive Codex plugin gate-quality review, resolve blocking review findings, and produce a git commit before the next gate starts.
+- Require Codex review output to be saved under `report-goal/reviews/gate-<n>-codex-review.md`.
+- Require `/codex:adversarial-review --wait --scope working-tree` as the preferred gate-quality review path when the Codex plugin is available.
+- Require the future agent to stop for user decision if the Codex plugin is unavailable, unless the user explicitly allows a fallback reviewer.
 - Require clean commit hygiene: stage only current-gate files, preserve unrelated user changes, and stop for user input if unrelated dirty files prevent an isolated gate commit.
 - Avoid broad rewrites unless the report explicitly requires them.
 - Record gaps that remain blocked by missing model weights, hardware, credentials, or external services.

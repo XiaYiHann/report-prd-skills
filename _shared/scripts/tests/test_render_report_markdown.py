@@ -77,14 +77,14 @@ class LatexToMarkdownTests(unittest.TestCase):
             "\\endhead\n"
             "\\bottomrule\\noalign{}\n"
             "\\endlastfoot\n"
-            "CIG & gap artifact \\\\\n"
+            "Token & gap artifact \\\\\n"
             "\\end{longtable}\n"
         )
 
         markdown = latex_to_markdown(source)
 
         self.assertIn("| Claim | Evidence |", markdown)
-        self.assertIn("| CIG | gap artifact |", markdown)
+        self.assertIn("| Token | gap artifact |", markdown)
         self.assertNotIn("\\noalign", markdown)
         self.assertNotIn("\\endhead", markdown)
         self.assertNotIn("\\endlastfoot", markdown)

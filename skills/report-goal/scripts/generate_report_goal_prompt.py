@@ -13,18 +13,16 @@ from pathlib import Path
 
 
 DEFAULT_KEYWORDS = (
-    "Phase 0",
-    "full-forward",
-    "forced-router",
-    "Implementation semantics",
-    "value table",
-    "CIG",
-    "local reranking",
+    "Phase",
     "Milestone",
     "Recommended Execution Order",
     "下一步",
     "验收",
     "门禁",
+    "gate",
+    "acceptance",
+    "baseline",
+    "ablation",
 )
 
 
@@ -197,20 +195,22 @@ Do not implement before `report-goal/gap-matrix.md` exists. Classify every repor
 
 ## Gate Protocol
 
-Execute the work as strict sequential gates. A later gate cannot start until the current gate has passing validation, updated `report-goal/status.md`, updated `report-goal/gap-matrix.md`, and a git commit containing only that gate's related changes.
+Execute the work as strict sequential gates. A later gate cannot start until the current gate has passing validation, updated `report-goal/status.md`, updated `report-goal/gap-matrix.md`, a Codex plugin gate-quality review, all blocking review findings resolved, and a git commit containing only that gate's related changes.
 
 - Gate 0: Discovery and gap matrix. Produce `report-goal/gap-matrix.md`, `report-goal/status.md`, and `report-goal/decision-log.md`. Commit message: `docs(report-goal): complete gate 0 discovery`.
 - Gate 1: Contracts and scaffolding. Create the minimal modules, schemas, commands, and test skeletons required by the first report milestone. Commit message: `chore(report-goal): complete gate 1 scaffolding`.
 - Gate 2..N: Report milestones in order. For each milestone, write or update tests first, implement the smallest passing change, run validation, update gate docs, then commit with `feat(report-goal): complete gate <n> <short-name>`.
 - Final Gate: Integration and closeout. Run broad validation, verify key workflows, produce `report-goal/final-summary.md`, and commit with `docs(report-goal): complete final gate`.
 
-Commit rules: inspect `git status` before staging, stage only files changed for the current gate, preserve unrelated user changes, and do not commit failing work. If unrelated dirty files make a clean gate commit impossible, stop and ask the user.
+Review rules: after local validation passes and before the gate commit, invoke the Codex plugin to review current gate quality. Prefer `/codex:adversarial-review --wait --scope working-tree "Review Gate <n> quality against {report.as_posix()} and report-goal/gap-matrix.md"` when slash commands are available. If slash commands are unavailable but the plugin runtime is installed, run the equivalent Codex companion command. Save the review output to `report-goal/reviews/gate-<n>-codex-review.md`. Resolve every BLOCK, Critical, and Important finding, rerun validation, and rerun Codex review before committing. If the Codex plugin is unavailable, record the exact reason in `report-goal/status.md` and stop for user decision.
+
+Commit rules: inspect `git status` before staging, stage only files changed for the current gate, preserve unrelated user changes, and do not commit failing work or unreviewed gate work. If unrelated dirty files make a clean gate commit impossible, stop and ask the user.
 
 ## Ralph Loop Iteration Rules
 
 At the start of every iteration, read `report-goal/status.md`, `report-goal/gap-matrix.md`, `report-goal/decision-log.md`, recent `git log --oneline -5`, and `git status --short`. If these files do not exist, begin with Gate 0. Select only the earliest incomplete gate. Do not redo a gate that already has passing evidence and a matching git commit.
 
-At the end of each iteration, leave the repository in one of three states: a completed gate committed to git; a documented blocker in `report-goal/status.md`; or a user-decision stop. Never output `REPORT_GOAL_COMPLETE` until the Final Gate is complete, all validations have passed or been explicitly deferred, and `report-goal/final-summary.md` exists. If a completion promise is configured, output it only as the final line and only when it is unequivocally true.
+At the end of each iteration, leave the repository in one of three states: a completed gate reviewed by Codex and committed to git; a documented blocker in `report-goal/status.md`; or a user-decision stop. Never output `REPORT_GOAL_COMPLETE` until the Final Gate is complete, all validations and Codex gate reviews have passed or been explicitly deferred by the user, and `report-goal/final-summary.md` exists. If a completion promise is configured, output it only as the final line and only when it is unequivocally true.
 
 ## Execution Rules
 
@@ -293,20 +293,22 @@ Ralph Loop re-feeds the same prompt after each session exit while preserving fil
 
 ## Gate Protocol
 
-Execute the work as strict sequential gates. Do not start a later gate until the current gate has passing validation, updated `report-goal/status.md`, updated `report-goal/gap-matrix.md`, any required decision/source/final-summary updates, and a git commit containing only the current gate's related changes.
+Execute the work as strict sequential gates. Do not start a later gate until the current gate has passing validation, updated `report-goal/status.md`, updated `report-goal/gap-matrix.md`, any required decision/source/final-summary updates, a Codex plugin gate-quality review, all blocking review findings resolved, and a git commit containing only the current gate's related changes.
 
 1. Gate 0: Discovery and gap matrix. Produce `report-goal/gap-matrix.md`, `report-goal/status.md`, and `report-goal/decision-log.md`. Commit message: `docs(report-goal): complete gate 0 discovery`.
 2. Gate 1: Contracts and scaffolding. Create the minimal modules, schemas, commands, and test skeletons required by the first report milestone. Commit message: `chore(report-goal): complete gate 1 scaffolding`.
 3. Gate 2..N: Report milestones in order. For each milestone, write or update tests first, implement the smallest passing change, run validation, update gate docs, then commit with `feat(report-goal): complete gate <n> <short-name>`.
 4. Final Gate: Integration and closeout. Run broad validation, verify key workflows, produce `report-goal/final-summary.md`, and commit with `docs(report-goal): complete final gate`.
 
-Commit rules: inspect `git status` before staging, stage only files changed for the current gate, preserve unrelated user changes, and do not commit failing work. If unrelated dirty files make a clean gate commit impossible, stop and ask the user.
+Review rules: after local validation passes and before the gate commit, invoke the Codex plugin to review current gate quality. Prefer `/codex:adversarial-review --wait --scope working-tree "Review Gate <n> quality against {report.as_posix()} and report-goal/gap-matrix.md"` when slash commands are available. If slash commands are unavailable but the plugin runtime is installed, run the equivalent Codex companion command. Save the review output to `report-goal/reviews/gate-<n>-codex-review.md`. Resolve every BLOCK, Critical, and Important finding, rerun validation, and rerun Codex review before committing. If the Codex plugin is unavailable, record the exact reason in `report-goal/status.md` and stop for user decision.
+
+Commit rules: inspect `git status` before staging, stage only files changed for the current gate, preserve unrelated user changes, and do not commit failing work or unreviewed gate work. If unrelated dirty files make a clean gate commit impossible, stop and ask the user.
 
 ## Ralph Loop Iteration Rules
 
 At the start of every iteration, read `report-goal/status.md`, `report-goal/gap-matrix.md`, `report-goal/decision-log.md`, recent `git log --oneline -5`, and `git status --short`. If these files do not exist, begin with Gate 0. Select only the earliest incomplete gate. Do not redo a gate that already has passing evidence and a matching git commit.
 
-At the end of each iteration, leave the repository in one of three states: a completed gate committed to git; a documented blocker in `report-goal/status.md`; or a user-decision stop. Never output `REPORT_GOAL_COMPLETE` until the Final Gate is complete, all validations have passed or been explicitly deferred, and `report-goal/final-summary.md` exists. If a completion promise is configured, output it only as the final line and only when it is unequivocally true.
+At the end of each iteration, leave the repository in one of three states: a completed gate reviewed by Codex and committed to git; a documented blocker in `report-goal/status.md`; or a user-decision stop. Never output `REPORT_GOAL_COMPLETE` until the Final Gate is complete, all validations and Codex gate reviews have passed or been explicitly deferred by the user, and `report-goal/final-summary.md` exists. If a completion promise is configured, output it only as the final line and only when it is unequivocally true.
 
 ## Execution Order
 
@@ -321,8 +323,8 @@ At the end of each iteration, leave the repository in one of three states: a com
 ## Stop Rules
 
 - Stop training or optimization work if the report says an earlier evaluator, audit, diagnostic, or reranking gate has not passed.
-- Do not implement prefix/suffix/expert-output cache before a full-forward oracle and semantics gate pass.
-- Do not continue old Shapley runner patching if the report requires new module boundaries.
+- Do not implement any optimization before the report-defined earlier gate passes.
+- Do not continue legacy component patching if the report requires new module boundaries.
 - Do not claim completion from smoke tests when the report requires heldout, multi-seed, or artifact-level gates.
 - If GPU/model/data access is unavailable, create deterministic unit tests and document the exact blocked command, missing resource, and next executable command.
 
