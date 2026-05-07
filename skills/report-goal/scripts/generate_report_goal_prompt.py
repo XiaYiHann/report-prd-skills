@@ -253,7 +253,7 @@ def build_short_prompt(
 推荐 Claude Code 启动命令：
 
 ```bash
-/ralph-loop "$(cat {prompt_path})" --completion-promise "REPORT_GOAL_COMPLETE"
+/ralph-loop:ralph-loop "$(cat {prompt_path})" --completion-promise "REPORT_GOAL_COMPLETE"
 ```
 
 Ralph Loop 会在每次会话退出后重新投喂同一个 prompt，并保留文件修改与 git 历史。因此本 prompt 必须按幂等方式执行：每一轮都从仓库状态恢复，不依赖对话记忆。
@@ -361,7 +361,7 @@ def build_full_prompt(
 ## Ralph Loop 启动方式
 
 ```bash
-/ralph-loop "$(cat {prompt_path})" --completion-promise "REPORT_GOAL_COMPLETE"
+/ralph-loop:ralph-loop "$(cat {prompt_path})" --completion-promise "REPORT_GOAL_COMPLETE"
 ```
 
 Ralph Loop 会重复投喂同一 prompt。每轮必须从仓库状态、`report-goal/status.md`、`report-goal/gap-matrix.md`、`report-goal/decision-log.md`、`git log --oneline -5` 与 `git status --short` 恢复。
