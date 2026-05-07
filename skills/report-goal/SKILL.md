@@ -79,11 +79,17 @@ The generated prompt must require the future agent to:
 - Require external references in `report-goal/sources.md` when web search is used.
 - Require a closeout in `report-goal/final-summary.md`.
 - Require strict sequential gates: Gate 0 discovery, Gate 1 contracts/scaffolding, Gate 2..N report milestones, Final Gate integration/closeout.
-- Require every gate to pass validation, receive Codex plugin gate-quality review, resolve blocking review findings, and produce a git commit before the next gate starts.
+- Require inner gate before outer gate: every gate must have passing tests (inner gate) before invoking Codex plugin gate-quality review (outer gate). No outer review without inner gate pass, per ThoughtWorks methodology.
+- Require every gate to pass inner gate (tests), pass outer gate (Codex review), resolve blocking review findings, and produce a git commit before the next gate starts.
 - Require Codex review output to be saved under `report-goal/reviews/gate-<n>-codex-review.md`.
 - Require `/codex:adversarial-review --wait --scope working-tree` as the preferred gate-quality review path when the Codex plugin is available.
 - Require the future agent to stop for user decision if the Codex plugin is unavailable, unless the user explicitly allows a fallback reviewer.
 - Require clean commit hygiene: stage only current-gate files, preserve unrelated user changes, and stop for user input if unrelated dirty files prevent an isolated gate commit.
+- Require evidence over claims: test output must be saved to `report-goal/evidence/gate-<n>-test-output.txt`. Reject "should work" or "based on code structure" as verification.
+- Require independent test re-run after agent claims pass, not just agent self-report.
+- Require tautological test detection in Codex review: tests must validate the specification, not the implementation.
+- Require integration check: new code must be wired into call chains. Unconnected functions are a gate failure.
+- Require TODO/FIXME detection before gate commit: each TODO must be logged in `report-goal/decision-log.md`.
 - Avoid broad rewrites unless the report explicitly requires them.
 - Record gaps that remain blocked by missing model weights, hardware, credentials, or external services.
 - Run the smallest meaningful tests first, then broader verification.
