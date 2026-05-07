@@ -1,0 +1,182 @@
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,longtable,array,tabularx,xltabular,threeparttable,makecell}
+\usepackage{graphicx,float}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{caption,subcaption}
+\usepackage{xcolor}
+\usepackage{ulem}
+\normalem
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{titlesec}
+\usepackage{titling}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{parskip}
+\usepackage{setspace}
+\usepackage{needspace}
+\usepackage{pdflscape}
+\usepackage{etoolbox}
+
+\usetikzlibrary{
+  arrows.meta,
+  positioning,
+  calc,
+  decorations.markings,
+  decorations.pathmorphing,
+  backgrounds,
+  fit,
+  quotes,
+  shapes.geometric,
+  shapes.misc,
+  3d,
+  matrix
+}
+\usepgfplotslibrary{groupplots,fillbetween}
+\pgfplotsset{compat=1.18}
+
+\definecolor{ReportBlue}{HTML}{1F4E79}
+\definecolor{ReportBlueDark}{HTML}{12324F}
+\definecolor{ReportGray}{HTML}{5B6573}
+\definecolor{ReportRule}{HTML}{D7DEE7}
+\definecolor{ReportSoftBlue}{HTML}{E9F1F8}
+\definecolor{ReportSoftGreen}{HTML}{E7F4EC}
+\definecolor{ReportSoftYellow}{HTML}{F8F1D9}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.7em}
+\setlength{\headheight}{24pt}
+\onehalfspacing
+\setlist[itemize]{leftmargin=2em,itemsep=0.35em,topsep=0.35em}
+\setlist[enumerate]{leftmargin=2em,itemsep=0.35em,topsep=0.35em}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\LTpre}{0.6em}
+\setlength{\LTpost}{0.6em}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ReportBlue,
+  urlcolor=ReportBlue,
+  citecolor=ReportBlue
+}
+
+\newcommand{\ReportSubtitle}{}
+\providecommand{\subtitle}[1]{\gdef\ReportSubtitle{#1}}
+\providecommand{\thesubtitle}{\ReportSubtitle}
+\newcommand{\makecustomtitle}{
+  \begin{titlepage}
+    \thispagestyle{empty}
+    \begin{center}
+      \vspace*{2.5em}
+      {\color{ReportBlue}\rule{0.82\textwidth}{1.2pt}\par}
+      \vspace{5.2em}
+      {\fontsize{24}{30}\selectfont\bfseries\color{ReportBlueDark}\thetitle\par}
+      \ifstrempty{\thesubtitle}{}{{\vspace{1.6em}\Large\color{ReportGray}\thesubtitle\par}}
+      \vspace{3.2em}
+      {\large\theauthor\par}
+      \vspace{0.45em}
+      {\normalsize\color{ReportGray}\thedate\par}
+      \vfill
+      {\color{ReportBlue}\rule{0.82\textwidth}{0.8pt}\par}
+    \end{center}
+  \end{titlepage}
+}
+
+\titleformat{\section}
+  {\Large\bfseries\color{ReportBlueDark}}
+  {\thesection}{0.8em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{ReportBlue}}
+  {\thesubsection}{0.75em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{ReportBlueDark}}
+  {\thesubsubsection}{0.7em}{}
+
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+\titlespacing*{\subsection}{0pt}{1.1em}{0.45em}
+\titlespacing*{\subsubsection}{0pt}{0.9em}{0.35em}
+
+\preto\section{\Needspace{10\baselineskip}}
+\preto\subsection{\Needspace{8\baselineskip}}
+
+\captionsetup{
+  font=small,
+  labelfont={bf,color=ReportBlueDark},
+  textfont={color=ReportGray},
+  skip=8pt
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\color{ReportGray}\nouppercase{\leftmark}}
+\fancyhead[R]{\color{ReportGray}\thepage/\pageref*{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{ReportRule}\leaders\hrule height \headrulewidth\hfill}}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyhead[L]{\color{ReportGray}\nouppercase{\leftmark}}
+  \fancyhead[R]{\color{ReportGray}\thepage/\pageref*{LastPage}}
+  \renewcommand{\headrulewidth}{0.4pt}
+  \renewcommand{\headrule}{\hbox to\headwidth{\color{ReportRule}\leaders\hrule height \headrulewidth\hfill}}
+}
+
+\AtBeginDocument{
+  \setcounter{secnumdepth}{3}
+  \setcounter{tocdepth}{2}
+}
+
+% ----- Edit-preview markup (report-update diff mode) -----
+% \reportadd{X}        -> X rendered in blue (new content)
+% \reportdel{X}        -> X rendered in grey + strikethrough (removed content)
+% \reportchg{old}{new} -> old in grey strikethrough followed by new in blue
+%
+% After the user accepts the preview, run
+%   python3 ../_shared/scripts/accept_edits.py <report-dir>
+% which rewrites the source files: \reportadd -> content, \reportdel -> removed,
+% \reportchg{a}{b} -> b.
+\definecolor{ReportDiffAdd}{HTML}{1F4E79}
+\definecolor{ReportDiffDel}{HTML}{8A8F99}
+\newcommand{\reportadd}[1]{{\color{ReportDiffAdd}#1}}
+\newcommand{\reportdel}[1]{{\color{ReportDiffDel}\sout{#1}}}
+\newcommand{\reportchg}[2]{\reportdel{#1}\,\reportadd{#2}}
+
+\tikzset{
+  reportnode/.style={
+    rectangle,
+    draw=ReportBlueDark,
+    rounded corners=2pt,
+    minimum height=1cm,
+    minimum width=2.3cm,
+    align=center,
+    fill=ReportSoftBlue,
+    font=\small
+  },
+  reportprocess/.style={
+    reportnode,
+    fill=ReportSoftGreen
+  },
+  reportdecision/.style={
+    diamond,
+    aspect=2,
+    draw=ReportBlueDark,
+    fill=ReportSoftYellow,
+    align=center,
+    inner sep=1.5pt,
+    font=\small
+  },
+  reportgroup/.style={
+    draw=ReportBlue,
+    rounded corners=3pt,
+    inner sep=8pt
+  },
+  reportarrow/.style={
+    -{Latex[length=3mm,width=2mm]},
+    thick,
+    draw=ReportBlueDark
+  }
+}

@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import runpy
+from pathlib import Path
+
+
+if __name__ == "__main__":
+    shared_script = Path(__file__).resolve().parents[1] / "_shared" / "scripts" / "render_report.py"
+    runpy.run_path(str(shared_script), run_name="__main__")

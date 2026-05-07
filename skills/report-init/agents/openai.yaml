@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report Init"
+  short_description: "Initialize a single-source report workspace"
+  default_prompt: "Use $report-init to initialize a single-source design report workspace under docs/report and render report.pdf plus report.md."

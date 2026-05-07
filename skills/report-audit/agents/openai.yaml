@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report Audit"
+  short_description: "Audit report quality, gaps, and evidence boundaries"
+  default_prompt: "Use $report-audit to review a design report for structure, clarity, evidence boundaries, dual-artifact freshness, and execution readiness, then produce a prioritized gap list."
