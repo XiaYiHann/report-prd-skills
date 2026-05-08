@@ -1,0 +1,8 @@
+schema_version: "1.0"
+source_of_truth:
+  main: "main/"
+  paper: "paper/"
+  spec: "spec/"
+status: scaffold
+blocked: true
+blocker: "Compile concrete execution contracts from main before report-goal execution."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report Spec"
+  short_description: "Compile report main artifacts into executable AI specs"
+  default_prompt: "Use $report-spec to compile the current docs/report workspace main artifact into spec/task_graph.yaml, spec/harness.yaml, spec/evidence_contract.yaml, and related execution manifests without inventing missing experiments or results."

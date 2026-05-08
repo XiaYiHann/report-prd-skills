@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -30,6 +31,7 @@ SKILL_NAMES = [
     "report-audit",
     "report-goal",
     "report-paper",
+    "report-spec",
 ]
 
 
@@ -84,19 +86,41 @@ class InstallScriptTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(obsolete.exists())
+            self.assertTrue((target / "report-spec" / "SKILL.md").exists())
 
     def test_pipe_mode_clones_source_without_precloned_repo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "skills"
+            tmp_path = Path(tmp)
+            source_repo = tmp_path / "source"
+            shutil.copytree(REPO_ROOT / "skills", source_repo / "skills")
+            shutil.copy2(INSTALL_SCRIPT, source_repo / "install.sh")
+            subprocess.run(["git", "init", "-b", "main"], cwd=source_repo, check=True, stdout=subprocess.PIPE)
+            subprocess.run(["git", "add", "."], cwd=source_repo, check=True, stdout=subprocess.PIPE)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Report Spec Test",
+                    "-c",
+                    "user.email=report-spec-test@example.invalid",
+                    "commit",
+                    "-m",
+                    "fixture",
+                ],
+                cwd=source_repo,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            target = tmp_path / "skills"
             env = os.environ.copy()
             env.pop("REPORT_PRD_SKILLS_SOURCE_DIR", None)
-            env["REPORT_PRD_SKILLS_REPO_URL"] = str(REPO_ROOT)
+            env["REPORT_PRD_SKILLS_REPO_URL"] = str(source_repo)
             env["REPORT_PRD_SKILLS_TARGET_DIR"] = str(target)
 
             result = subprocess.run(
                 ["bash", "-s"],
                 input=INSTALL_SCRIPT.read_text(encoding="utf-8"),
-                cwd=Path(tmp),
+                cwd=tmp_path,
                 env=env,
                 text=True,
                 stdout=subprocess.PIPE,

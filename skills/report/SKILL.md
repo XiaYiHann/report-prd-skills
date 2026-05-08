@@ -1,6 +1,6 @@
 ---
 name: report
-description: "Use when the user wants a durable PRD-based single-source report under docs/report. Routes to initialization, brainstorming, update, audit, goal, or paper workflows. The report family supports research-prd and engineering-prd sources, rendered to both report.pdf and report.md."
+description: "Use when the user wants a durable PRD-based report workspace under docs/report. Routes to initialization, brainstorming, update, audit, paper, spec, or goal workflows. The report family supports research-prd and engineering-prd sources plus main/paper/spec products."
 ---
 
 # Report
@@ -11,7 +11,7 @@ Use this skill as the routing entry for the `report` family.
 
 The family maintains one durable LaTeX source workspace under `docs/report/<slug>/` and two rendered artifacts: `docs/report/report.pdf` and `docs/report/report.md`. Both artifacts are generated from the LaTeX source; neither artifact is the editable source of truth.
 
-The workspace also owns execution manifests: `report.manifest.yaml`, `tasks/task_graph.yaml`, `harness/harness.yaml`, `evidence/evidence_manifest.yaml`, and for `research-prd`, `experiments/experiment_manifest.yaml`. These manifests are the machine contract for `report-goal`.
+The workspace also owns three derived products: `main/`, `paper/`, and `spec/`. `main` is the human design truth, `paper` is the academic expression truth, and `spec` is the machine execution truth for `report-goal`.
 
 The report family is now PRD-first. All new reports must be one of:
 
@@ -28,8 +28,9 @@ Route to the narrowest matching skill:
 - `report-brainstorming`: discuss, compare, clarify, and structure a PRD before write-back.
 - `report-update`: write confirmed conclusions into the PRD, re-render `report.pdf` plus `report.md`, and run consistency checks. Use deep-spec mode for execution manifest write-back.
 - `report-audit`: review PRD structure, evidence boundaries, acceptance gates, readability, dual-artifact freshness, release readiness, and execution-readiness.
-- `report-goal`: generate a manifest-gated execution prompt; missing or invalid manifests produce a repair goal, not an implementation goal.
 - `report-paper`: derive a top-tier computer-science conference paper from the report, manifests, and evidence ledger. This is the only paper-specific report skill.
+- `report-spec`: compile `main` into `spec/` execution contracts: task graph, experiment manifest, harnesses, evidence contract, anti-mock policy, and Codex goal scaffold.
+- `report-goal`: generate a three-artifact-gated execution prompt; missing or invalid `spec/` produces a repair goal, not an implementation goal.
 
 Stay in this routing skill only when the user's intent is still ambiguous.
 
@@ -38,7 +39,7 @@ Stay in this routing skill only when the user's intent is still ambiguous.
 - Maintain LaTeX as the single source of truth.
 - Treat `report.pdf` and `report.md` as sibling rendered artifacts derived by `render_report.py`.
 - Keep brainstorming and write-back separate.
-- Keep prose report and execution manifests synchronized when deep-spec mode is active.
+- Keep `main`, `paper`, and `spec` synchronized. Execution authority belongs to `spec`.
 - New initialization must choose `research-prd` or `engineering-prd`.
 - Current implementation state, milestones, blockers, and run status belong in `项目进度`.
 - Keep `source claim`, `design intent`, `repo-observed fact`, and `report synthesis` distinct.
@@ -113,8 +114,9 @@ Read shared references only when needed.
 - “先讨论方向，不写回” -> `report-brainstorming`
 - “把确认内容写回 report” -> `report-update`
 - “审计是否可交付” -> `report-audit`
-- “生成执行 goal / Claude 或 Codex 自动执行 / harness / evidence ledger” -> `report-goal`
 - “生成论文 / 顶会论文 / NeurIPS / ICLR / AAAI / paper draft” -> `report-paper`
+- “生成 spec / 编译执行合同 / task graph / harness / evidence contract / anti-mock policy” -> `report-spec`
+- “生成执行 goal / Claude 或 Codex 自动执行 / harness / evidence ledger” -> `report-goal`
 - “某个 claim / 设计路线需要正反裁决 / 多视角审查” -> `report-audit`
 
 ## When Not To Stay Here

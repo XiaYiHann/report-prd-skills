@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 import unittest
@@ -163,6 +164,22 @@ class ReportFamilyContractDocsTests(unittest.TestCase):
         self.assertIn("Multi-Agent Audit Mode", audit_text)
         self.assertIn("No Separate Debate Skill", audit_text)
         self.assertIn("multi-agent audit", readme_text)
+
+    def test_report_spec_is_first_class_skill_in_router_readme_and_installer(self) -> None:
+        skill_root = _find_skills_root(SCRIPT_DIR)
+        router_text = (skill_root / "report" / "SKILL.md").read_text()
+        readme_text = (skill_root.parent / "README.md").read_text()
+        install_text = (skill_root.parent / "install.sh").read_text()
+
+        self.assertTrue((skill_root / "report-spec" / "SKILL.md").exists())
+        self.assertTrue((skill_root / "report-spec" / "scripts" / "generate_report_spec.py").exists())
+        self.assertTrue((skill_root / "report-spec" / "scripts" / "validate_report_spec.py").exists())
+        self.assertIn("report-spec", router_text)
+        self.assertIn("report-spec", readme_text)
+        self.assertIn("report-spec", install_text)
+        obsolete_block = re.search(r"OBSOLETE_SKILLS=\((.*?)\)", install_text, flags=re.S)
+        self.assertIsNotNone(obsolete_block)
+        self.assertNotIn("report-spec", obsolete_block.group(1))
 
 
 if __name__ == "__main__":

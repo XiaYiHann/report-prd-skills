@@ -17,7 +17,7 @@ The preferred report workspace is slug-local and has three derived products:
 
 `report-goal` must read all three products, but it must not give them equal execution authority. `main` and `paper` can create alignment work only. Implementation and experiment execution can proceed only from `spec`.
 
-If `spec/` is missing, structurally invalid, or not execution-ready, generate only a Chinese `spec 修复目标`. If `spec/` is ready but `main/` or `paper/` is missing or inconsistent with `spec/`, generate only a Chinese `三产物对齐目标`. Generate a Chinese long-running implementation goal only when the three products exist and `spec/` is execution-ready. Use `--allow-legacy-prose-goal` only when the user explicitly wants the older prose-derived behavior.
+If `spec/` is missing, structurally invalid, or not execution-ready, generate only a Chinese `spec 修复目标` that asks the agent to use `report-spec` or repair `spec/`. If `spec/` is ready but `main/` or `paper/` is missing or inconsistent with `spec/`, generate only a Chinese `三产物对齐目标`. Generate a Chinese long-running implementation goal only when the three products exist and `spec/` is execution-ready. Use `--allow-legacy-prose-goal` only when the user explicitly wants the older prose-derived behavior.
 
 ## Workflow
 

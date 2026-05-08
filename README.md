@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/XiaYiHann/report-prd-skills/main/in
 ~/.agents/skills
 ```
 
-安装脚本会在缺失时自动创建 `~/.agents/skills`。如果用户电脑上已经安装过旧版 report skill family，脚本会替换当前 report skills，并清理已废弃的拆分 skill，例如 `report-debate`、`report-paper-plan`、`report-paper-draft`、`report-ingest-results`、`report-spec`。
+安装脚本会在缺失时自动创建 `~/.agents/skills`。如果用户电脑上已经安装过旧版 report skill family，脚本会替换当前 report skills，并清理已废弃的拆分 skill，例如 `report-debate`、`report-paper-plan`、`report-paper-draft`、`report-ingest-results`。
 
 在线安装脚本依赖 `bash` 和 `git`。原因是它会先把本仓库 clone 到临时目录，再把 skill 目录复制到 `~/.agents/skills`。
 
@@ -54,6 +54,7 @@ REPORT_PRD_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 | [`report-audit`](skills/report-audit/SKILL.md) | 审计 PRD 结构、证据、争议 claim、执行就绪度和修复顺序。 |
 | [`report-goal`](skills/report-goal/SKILL.md) | 基于 `main` / `paper` / `spec` 生成三产物门禁的长期 AI 执行 prompt。 |
 | [`report-paper`](skills/report-paper/SKILL.md) | 从 report workspace 和 evidence ledger 生成顶会风格 CS 论文。 |
+| [`report-spec`](skills/report-spec/SKILL.md) | 把 `main` 编译成机器可读的 `spec/`：task graph、experiment manifest、harness、evidence contract 和 anti-mock policy。 |
 
 ## 架构
 
@@ -66,7 +67,7 @@ REPORT_PRD_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 └────┬────────┬────────┬──┘
      │        │        │
      ▼        ▼        ▼
- init    brainstorm  update    audit    goal    paper
+ init    brainstorm  update    audit    paper    spec    goal
      │        │        │
      └────────┴────────┘
               │
@@ -125,6 +126,26 @@ docs/report/<slug>/spec/
 只有 `spec` 可以定义可执行 milestone、gate、task、harness command、artifact 和 evidence contract。`main` 只解释设计，`paper` 只表达论文叙事和 placeholder。agent 不能从 `paper` 推断 experiment、baseline、metric、dataset、seed 或 result。
 
 仍使用 `report.manifest.yaml`、`tasks/task_graph.yaml`、`harness/harness.yaml`、`evidence/evidence_manifest.yaml` 的旧 workspace 保留兼容路径。`--allow-legacy-prose-goal` 只作为显式逃生口。
+
+`report-spec` 是 `main -> spec` 的一等编译入口。它负责生成或更新：
+
+```text
+execution_spec.yaml
+experiment_manifest.yaml
+task_graph.yaml
+harness.yaml
+dataset_manifest.yaml
+model_manifest.yaml
+baseline_manifest.yaml
+metric_manifest.yaml
+seed_protocol.yaml
+evidence_contract.yaml
+anti_mock_policy.yaml
+codex_goal.md
+spec_gap_report.md
+```
+
+如果 `main` 缺少必要执行信息，`report-spec` 必须把缺口写入 `spec_gap_report.md`，不能发明 dataset、baseline、metric、seed、command 或结果。
 
 ## Paper 输出
 

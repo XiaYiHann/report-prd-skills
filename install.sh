@@ -14,6 +14,7 @@ SKILLS=(
   report-audit
   report-goal
   report-paper
+  report-spec
 )
 
 OBSOLETE_SKILLS=(
@@ -21,7 +22,6 @@ OBSOLETE_SKILLS=(
   report-paper-plan
   report-paper-draft
   report-ingest-results
-  report-spec
 )
 
 log() {

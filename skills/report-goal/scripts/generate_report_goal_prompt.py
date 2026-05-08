@@ -612,7 +612,7 @@ def build_spec_repair_prompt(
 
 ## 任务
 
-当前 `spec` 缺失、无效或未达到 execution-ready。不要实现产品功能、实验代码或论文结果；本轮唯一目标是把 `main` 中的设计意图编译为可执行 `spec`，并保持 `paper` 只作为表达产物。
+当前 `spec` 缺失、无效或未达到 execution-ready。不要实现产品功能、实验代码或论文结果；本轮唯一目标是使用 `report-spec` 或等价修复流程，把 `main` 中的设计意图编译为可执行 `spec`，并保持 `paper` 只作为表达产物。
 
 ## 当前阻塞
 
