@@ -13,6 +13,8 @@ Use this skill to create a new PRD workspace from scratch.
 
 The source workspace lives under `docs/report/<slug>/`. The rendered artifacts live at `docs/report/report.pdf` and `docs/report/report.md`.
 
+Initialization also creates empty execution manifest scaffolds. They are machine-readable placeholders, not implementation authority until `report-update --mode deep-spec` fills real task, harness, experiment, and evidence contracts.
+
 ## Supported Types
 
 Only two report types are valid:
@@ -32,6 +34,9 @@ Do not initialize legacy types (`research`, `project`, `hybrid`, `teaching`, `ex
 - Keep current repo status in `项目进度`.
 - Compile warnings are not acceptable.
 - Markdown output is generated from the same LaTeX source; do not create a parallel Markdown source tree.
+- Create `report.manifest.yaml`, `tasks/task_graph.yaml`, `harness/harness.yaml`, and `evidence/evidence_manifest.yaml` for every PRD.
+- Create `experiments/experiment_manifest.yaml` for `research-prd`.
+- Do not insert fake tasks, fake experiments, fake metrics, or fake observed evidence into scaffold manifests.
 - If a meaningful choice affects the PRD type, audience, or scope, ask before initialization.
 
 ## Research PRD Requirements
@@ -100,6 +105,7 @@ python3 ~/.agents/skills/report/_shared/scripts/init_report.py \
 ```
 
 4. Review generated `brief.yaml`, `outline.md`, `sections/*.tex`, and `sources.md`.
+   Also review `report.manifest.yaml`, `tasks/task_graph.yaml`, `harness/harness.yaml`, and `evidence/evidence_manifest.yaml`.
 5. Render PDF, Markdown, and self-check:
 
 ```bash
@@ -117,4 +123,5 @@ python3 ~/.agents/skills/report/_shared/scripts/render_report.py /absolute/path/
 - `项目进度` exists.
 - The PRD type-specific gates are present.
 - The skeleton remains semi-empty and reusable.
+- Execution manifests exist and remain scaffold-only until deep-spec write-back.
 - No repo-observed facts are written outside `项目进度` unless explicitly needed and clearly marked.

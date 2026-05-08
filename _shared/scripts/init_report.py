@@ -7,6 +7,8 @@ import shutil
 from datetime import date
 from pathlib import Path
 
+import yaml
+
 from scan_repo import collect as collect_repo_scan
 
 
@@ -1508,6 +1510,98 @@ def build_section_order(section_specs: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def write_yaml_file(path: Path, payload: dict[str, object]) -> None:
+    write_file(path, yaml.safe_dump(payload, sort_keys=False, allow_unicode=True))
+
+
+def write_execution_manifest_scaffold(report_dir: Path, report_type: str, title: str, topic: str) -> None:
+    (report_dir / "tasks").mkdir()
+    (report_dir / "harness").mkdir()
+    (report_dir / "evidence").mkdir()
+
+    manifests: dict[str, str] = {
+        "task_graph": "tasks/task_graph.yaml",
+        "harness": "harness/harness.yaml",
+        "evidence": "evidence/evidence_manifest.yaml",
+    }
+    if report_type == "research-prd":
+        (report_dir / "experiments").mkdir()
+        manifests["experiments"] = "experiments/experiment_manifest.yaml"
+
+    write_yaml_file(
+        report_dir / "report.manifest.yaml",
+        {
+            "schema_version": "1.0",
+            "report_id": report_dir.name,
+            "report_type": report_type,
+            "title": title,
+            "topic": topic,
+            "status": "scaffold",
+            "source": {
+                "latex": "main.tex",
+                "markdown": "../report.md",
+                "pdf": "../report.pdf",
+            },
+            "manifests": manifests,
+            "execution_readiness": {
+                "state": "not_ready",
+                "reason": "Populate concrete module, task, harness, and evidence contracts through report-update --mode deep-spec.",
+            },
+        },
+    )
+    write_yaml_file(
+        report_dir / "tasks" / "task_graph.yaml",
+        {
+            "schema_version": "1.0",
+            "status": "scaffold",
+            "gates": [],
+            "tasks": [],
+            "placeholder_policy": {
+                "no_fake_tasks": True,
+                "next_step": "Use report-update --mode deep-spec to add real task contracts before report-goal execution.",
+            },
+        },
+    )
+    write_yaml_file(
+        report_dir / "harness" / "harness.yaml",
+        {
+            "schema_version": "1.0",
+            "status": "scaffold",
+            "harnesses": [],
+            "mock_policy": {
+                "allowed_for_unit_or_smoke": True,
+                "forbidden_for_final_or_research_claim": True,
+            },
+        },
+    )
+    write_yaml_file(
+        report_dir / "evidence" / "evidence_manifest.yaml",
+        {
+            "schema_version": "1.0",
+            "status": "scaffold",
+            "evidence_items": [],
+            "integrity_policy": {
+                "forbidden_final_evidence_kinds": ["mock", "toy", "synthetic", "cached", "stub", "proxy"],
+                "required_links": ["task_id", "harness_id", "artifact_path", "command", "git_commit"],
+            },
+        },
+    )
+    if report_type == "research-prd":
+        write_yaml_file(
+            report_dir / "experiments" / "experiment_manifest.yaml",
+            {
+                "schema_version": "1.0",
+                "status": "scaffold",
+                "claims": [],
+                "experiments": [],
+                "mock_policy": {
+                    "allowed_for_smoke_test": True,
+                    "allowed_for_claim_evidence": False,
+                },
+            },
+        )
+
+
 def create_workspace(
     report_dir: Path,
     title: str,
@@ -1589,6 +1683,8 @@ def create_workspace(
 
     if report_type == "engineering-prd":
         write_module_figures(report_dir, modules, diagram_depth)
+
+    write_execution_manifest_scaffold(report_dir, report_type, title, topic)
 
 
 def parse_args() -> argparse.Namespace:

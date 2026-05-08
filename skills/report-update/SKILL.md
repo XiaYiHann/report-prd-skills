@@ -9,7 +9,7 @@ description: "Update an existing PRD-based single-source report under docs/repor
 
 Use this skill for confirmed PRD write-back. The report workspace already exists and remains the single source of truth.
 
-If the writing direction is unclear, switch to `report-brainstorming`. If the claim is disputed, switch to `report-debate`.
+If the writing direction is unclear, switch to `report-brainstorming`. If the claim is disputed, run `report-audit` with multi-agent audit mode before write-back.
 
 ## Active Report Resolution
 
@@ -38,6 +38,22 @@ Legacy reports should be migrated before major write-back.
 - Run a global consistency sweep after any non-trivial update.
 - Compile warnings must be fixed.
 
+## Deep-Spec Mode
+
+Use deep-spec mode when the user asks for execution readiness, harness, task graph, anti-mock enforcement, experiment execution, or report-driven agent work.
+
+In deep-spec mode, every prose commitment must have a matching machine contract:
+
+- `report.manifest.yaml` records the report identity, type, rendered artifacts, and manifest paths.
+- `tasks/task_graph.yaml` records gates, task IDs, dependencies, allowed scope, acceptance criteria, and harness references.
+- `harness/harness.yaml` records exact commands, cwd, inputs, outputs, pass criteria, evidence capture, and explicit blockers.
+- `evidence/evidence_manifest.yaml` records allowable evidence entries and required links to task, harness, artifact, command, and commit.
+- `experiments/experiment_manifest.yaml` records claim, hypothesis, dataset, baseline, metric, seed, command, artifact, and falsification contracts for `research-prd`.
+
+No module, experiment, milestone, or task may appear only in prose. If it is not in the manifest layer, it is not execution-ready.
+
+Do not use mock, toy, synthetic, stub, proxy, or cached output as final gate, research claim, baseline, ablation, paper table/figure, or Go/No-Go evidence. These are allowed only for explicitly labeled unit or smoke harness plumbing.
+
 ## Edit Preview Mode
 
 正文 `.tex` 改动默认走 preview diff:
@@ -63,6 +79,8 @@ When updating `research-prd`, keep these structures current:
 
 If a claim becomes stronger, update the Evidence Ledger before strengthening prose.
 
+When deep-spec mode is active, also update `experiments/experiment_manifest.yaml` and `evidence/evidence_manifest.yaml` before strengthening research prose.
+
 ## Engineering PRD Write-back Gates
 
 When updating `engineering-prd`, keep these structures current:
@@ -79,6 +97,8 @@ When updating `engineering-prd`, keep these structures current:
 
 If a requirement changes, update its Acceptance Criteria and test/acceptance matrix in the same pass.
 
+When deep-spec mode is active, also update `tasks/task_graph.yaml`, `harness/harness.yaml`, and `evidence/evidence_manifest.yaml` in the same pass.
+
 ## Diagram Rules
 
 - Use one figure for one question.
@@ -94,15 +114,16 @@ If a requirement changes, update its Acceptance Criteria and test/acceptance mat
 3. Update `brief.yaml` only when objective, type, or constraints changed.
 4. Update `sections/*.tex` using Edit Preview Mode.
 5. Update `项目进度` if current state, artifact paths, blockers, or next gates changed.
-6. Sweep summary, terms, captions, table headers, evidence layers, and progress references.
-7. Render PDF, Markdown, and checks:
+6. If deep-spec mode is active, update execution manifests and run the manifest validator before rendering.
+7. Sweep summary, terms, captions, table headers, evidence layers, and progress references.
+8. Render PDF, Markdown, and checks:
 
 ```bash
 python3 ~/.agents/skills/report/_shared/scripts/render_report.py /absolute/path/to/report-dir
 ```
 
-8. Review `docs/report/report.pdf`, `docs/report/report.md`, `build/compile-review.md`, and `build/self-check.md`.
-9. Present diff summary and wait for acceptance before clearing preview macros.
+9. Review `docs/report/report.pdf`, `docs/report/report.md`, `build/compile-review.md`, and `build/self-check.md`.
+10. Present diff summary and wait for acceptance before clearing preview macros.
 
 ## Accepting Preview Edits
 
@@ -116,7 +137,7 @@ python3 ~/.agents/skills/report/_shared/scripts/render_report.py /absolute/path/
 
 ## When To Escalate
 
-Recommend `report-debate` when:
+Recommend `report-audit` multi-agent audit mode when:
 
 - a research claim is contentious.
 - a baseline or ablation choice may be unfair.

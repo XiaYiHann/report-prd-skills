@@ -15,6 +15,14 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 from render_report import export_markdown, latex_to_markdown  # noqa: E402
 
 
+def _find_skills_root(start: Path) -> Path:
+    for candidate in [start, *start.parents]:
+        skills_root = candidate / "skills"
+        if (skills_root / "report" / "SKILL.md").exists():
+            return skills_root
+    raise RuntimeError(f"cannot resolve skills root from {start}")
+
+
 class LatexToMarkdownTests(unittest.TestCase):
     def test_common_report_latex_is_converted_to_readable_markdown(self) -> None:
         source = (
@@ -113,20 +121,48 @@ class MarkdownExportTests(unittest.TestCase):
 
 class ReportFamilyContractDocsTests(unittest.TestCase):
     def test_primary_skill_docs_name_both_rendered_artifacts(self) -> None:
-        skill_root = SCRIPT_DIR.parents[3]
+        skill_root = _find_skills_root(SCRIPT_DIR)
         docs = [
             skill_root / "report" / "SKILL.md",
             skill_root / "report-init" / "SKILL.md",
             skill_root / "report-update" / "SKILL.md",
             skill_root / "report-audit" / "SKILL.md",
             skill_root / "report-brainstorming" / "SKILL.md",
-            skill_root / "report-debate" / "SKILL.md",
         ]
 
         for doc_path in docs:
             text = doc_path.read_text()
             self.assertIn("report.pdf", text, msg=doc_path.name)
             self.assertIn("report.md", text, msg=doc_path.name)
+
+    def test_report_paper_is_single_agent_driven_skill_without_parser(self) -> None:
+        skill_root = _find_skills_root(SCRIPT_DIR)
+        paper_skills = sorted(path.name for path in skill_root.glob("report-paper*") if path.is_dir())
+
+        self.assertEqual(paper_skills, ["report-paper"])
+
+        skill_text = (skill_root / "report-paper" / "SKILL.md").read_text()
+        router_text = (skill_root / "report" / "SKILL.md").read_text()
+        readme_text = (skill_root.parent / "README.md").read_text()
+
+        self.assertIn("docs/report/<slug>/paper", skill_text)
+        self.assertIn("Do not create a user-facing parser", skill_text)
+        self.assertFalse((skill_root / "report-paper" / "scripts").exists())
+        self.assertIn("report-paper", router_text)
+        self.assertIn("report-paper", readme_text)
+
+    def test_report_debate_skill_is_removed_and_audit_owns_multi_agent_review(self) -> None:
+        skill_root = _find_skills_root(SCRIPT_DIR)
+        debate_skills = sorted(path.name for path in skill_root.glob("report-debate*") if path.is_dir())
+        router_text = (skill_root / "report" / "SKILL.md").read_text()
+        audit_text = (skill_root / "report-audit" / "SKILL.md").read_text()
+        readme_text = (skill_root.parent / "README.md").read_text()
+
+        self.assertEqual(debate_skills, [])
+        self.assertNotIn("report-debate", router_text)
+        self.assertIn("Multi-Agent Audit Mode", audit_text)
+        self.assertIn("No Separate Debate Skill", audit_text)
+        self.assertIn("multi-agent audit", readme_text)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from manifest_validator import validate_execution_manifests
+
 
 SECTION_HEADING_PATTERN = re.compile(r"\\(?:chapter|section|subsection)\{([^}]+)\}")
 PLACEHOLDER_PATTERN = re.compile(r"本节待填")
@@ -636,6 +638,21 @@ def collect_operational_readiness_findings(report_dir: Path) -> list[Finding]:
     return findings
 
 
+def collect_execution_manifest_findings(report_dir: Path) -> list[Finding]:
+    result = validate_execution_manifests(report_dir)
+    findings: list[Finding] = []
+    for issue in result.issues:
+        findings.append(
+            Finding(
+                "warn",
+                "execution-readiness",
+                issue.message,
+                issue.location,
+            )
+        )
+    return findings
+
+
 def normalized_identifier(token: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", token.lower())
 
@@ -859,6 +876,7 @@ def build_report(report_dir: Path, findings: list[Finding]) -> str:
             "| --- | ---: | --- |",
             f"| 科研证据链 | {len(grouped.get('research-evidence', []))} | {'需补证据台账' if grouped.get('research-evidence') else '通过或不适用'} |",
             f"| 工程运行就绪 | {len(grouped.get('operational-readiness', []))} | {'需补运行矩阵' if grouped.get('operational-readiness') else '通过或不适用'} |",
+            f"| 执行 manifest / harness | {len(grouped.get('execution-readiness', []))} | {'需补机器合同' if grouped.get('execution-readiness') else '通过或不适用'} |",
             f"| 模块级设计 | {len(grouped.get('module-design', []))} | {'需补模块图表' if grouped.get('module-design') else '通过或不适用'} |",
             f"| Repo 事实外溢 | {len(grouped.get('repo-fact', []))} | {'需收回项目进度' if grouped.get('repo-fact') else '通过'} |",
         ]
@@ -873,6 +891,7 @@ def build_report(report_dir: Path, findings: list[Finding]) -> str:
         "visual": "图文并茂与 TikZ 检查",
         "research-evidence": "科研证据链检查",
         "operational-readiness": "工程运行就绪检查",
+        "execution-readiness": "执行 manifest 与 harness 检查",
         "module-design": "模块级设计检查",
         "terminology": "术语首次定义检查",
         "figure-ref": "图表引用检查",
@@ -888,6 +907,7 @@ def build_report(report_dir: Path, findings: list[Finding]) -> str:
         "visual",
         "research-evidence",
         "operational-readiness",
+        "execution-readiness",
         "module-design",
         "terminology",
         "figure-ref",
@@ -915,6 +935,7 @@ def build_report(report_dir: Path, findings: list[Finding]) -> str:
             "- 若关键章节尚未配图，优先补 TikZ / PGFPlots 图，而不是把结构信息继续压回长段落。",
             "- 若科研证据链缺口存在，先补 claim/evidence/source/limitation/confidence 台账，再补 baseline、ablation、reproducibility 与 failure-case 表。",
             "- 若工程运行就绪缺口存在，先补 source-of-truth、owner、runbook/rollback、接口边界与 compatibility bridge 退役条件。",
+            "- 若执行 manifest 或 harness 缺口存在，先用 `report-update --mode deep-spec` 补 task graph、harness command、artifact path 和 evidence link，再生成 implementation goal。",
             "- 若术语存在多种写法，统一摘要、标题、图注、表头和正文中的版本。",
             "",
         ]
@@ -945,6 +966,7 @@ def main() -> int:
     findings.extend(collect_visual_findings(report_dir))
     findings.extend(collect_research_evidence_findings(report_dir))
     findings.extend(collect_operational_readiness_findings(report_dir))
+    findings.extend(collect_execution_manifest_findings(report_dir))
     findings.extend(collect_module_design_findings(report_dir))
     findings.extend(collect_undefined_terms_findings(report_dir))
     findings.extend(collect_unreferenced_float_findings(report_dir))

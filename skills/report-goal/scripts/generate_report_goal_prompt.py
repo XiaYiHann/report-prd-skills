@@ -13,6 +13,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+SKILLS_DIR = SCRIPT_DIR.parents[1]
+SHARED_SCRIPT_DIR = SKILLS_DIR / "report" / "_shared" / "scripts"
+if SHARED_SCRIPT_DIR.exists():
+    sys.path.insert(0, str(SHARED_SCRIPT_DIR))
+
+from manifest_validator import ManifestValidationResult, validate_execution_manifests
+
+
 DEFAULT_KEYWORDS = (
     "Phase",
     "Milestone",
@@ -46,6 +55,17 @@ class ReportExtraction:
     constraint_lines: list[str]
     artifact_lines: list[str]
     path_hints: list[str]
+
+
+@dataclass(frozen=True)
+class ManifestInputs:
+    report_dir: Path | None
+    validation: ManifestValidationResult | None
+    resolution_issues: list[str]
+
+    @property
+    def execution_ready(self) -> bool:
+        return self.validation is not None and self.validation.execution_ready and not self.resolution_issues
 
 
 def run_command(repo: Path, args: list[str]) -> str:
@@ -217,6 +237,191 @@ def format_plain_list(items: list[str], empty: str = "未从报告中抽取到�
     if not items:
         return f"- {empty}"
     return "\n".join(f"- {item}" for item in items)
+
+
+def resolve_report_workspace(repo: Path, report: Path) -> tuple[Path | None, list[str]]:
+    candidates: list[Path] = []
+    issues: list[str] = []
+
+    if (report.parent / "report.manifest.yaml").exists():
+        candidates.append(report.parent)
+
+    docs_report_dir = repo / "docs" / "report"
+    if docs_report_dir.exists():
+        for manifest_path in sorted(docs_report_dir.glob("*/report.manifest.yaml")):
+            candidates.append(manifest_path.parent)
+
+    unique_candidates: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        unique_candidates.append(resolved)
+        seen.add(resolved)
+
+    if not unique_candidates:
+        issues.append(
+            "未找到 `report.manifest.yaml`。需要先运行 report-init 或通过 report-update --mode deep-spec 补齐 execution manifests。"
+        )
+        return None, issues
+    if len(unique_candidates) > 1:
+        issues.append(
+            "找到多个 report manifest，无法从 rendered report 自动判断目标工作区："
+            + ", ".join(candidate.as_posix() for candidate in unique_candidates)
+        )
+        return None, issues
+    return unique_candidates[0], issues
+
+
+def validate_manifest_inputs(repo: Path, report: Path) -> ManifestInputs:
+    report_dir, resolution_issues = resolve_report_workspace(repo, report)
+    if report_dir is None:
+        return ManifestInputs(report_dir=None, validation=None, resolution_issues=resolution_issues)
+    return ManifestInputs(
+        report_dir=report_dir,
+        validation=validate_execution_manifests(report_dir),
+        resolution_issues=resolution_issues,
+    )
+
+
+def format_manifest_issues(manifest_inputs: ManifestInputs) -> str:
+    lines: list[str] = []
+    for issue in manifest_inputs.resolution_issues:
+        lines.append(f"- [ERROR] {issue}")
+    if manifest_inputs.validation is not None:
+        for issue in manifest_inputs.validation.issues:
+            location = f" `{issue.location}`" if issue.location else ""
+            severity = "ERROR" if issue.severity == "error" else "READINESS"
+            lines.append(f"- [{severity}]{location} {issue.message}")
+    return "\n".join(lines) if lines else "- 无。"
+
+
+def _command_text(command: object) -> str:
+    if isinstance(command, list):
+        return " && ".join(str(item) for item in command if str(item).strip())
+    if command is None:
+        return ""
+    return str(command)
+
+
+def format_manifest_tasks(result: ManifestValidationResult) -> str:
+    harnesses = {
+        harness.get("harness_id"): harness
+        for harness in result.documents.get("harness", {}).get("harnesses", [])
+        if isinstance(harness, dict) and harness.get("harness_id")
+    }
+    lines: list[str] = []
+    for index, task in enumerate(result.task_order, start=1):
+        task_id = str(task.get("task_id", "")).strip()
+        title = str(task.get("title", "")).strip() or task_id
+        raw_harnesses = task.get("harnesses", [])
+        if not isinstance(raw_harnesses, list):
+            raw_harnesses = [raw_harnesses]
+        harness_ids = [str(item).strip() for item in raw_harnesses if str(item).strip()]
+        command_parts: list[str] = []
+        for harness_id in harness_ids:
+            harness = harnesses.get(harness_id, {})
+            command = _command_text(harness.get("command"))
+            if command:
+                command_parts.append(f"{harness_id}: `{command}`")
+            else:
+                command_parts.append(f"{harness_id}: <blocked>")
+        commands = "; ".join(command_parts) if command_parts else "无 harness"
+        lines.append(f"{index}. `{task_id}` - {title} - harness: {commands}")
+    return "\n".join(lines) if lines else "未声明 task。"
+
+
+def build_repair_prompt(
+    repo: Path,
+    report: Path,
+    extraction: ReportExtraction,
+    manifest_inputs: ManifestInputs,
+) -> str:
+    report_dir = manifest_inputs.report_dir.as_posix() if manifest_inputs.report_dir else "<unresolved report workspace>"
+    return f"""# report-repair goal: {extraction.title}
+
+仓库：`{repo.as_posix()}`
+源报告：`{report.as_posix()}`
+报告工作区：`{report_dir}`
+
+## 任务
+
+当前报告尚未达到 execution-ready。不要实现产品功能、实验代码、论文结果或业务逻辑；本轮唯一目标是补齐 execution manifests，使报告可以被后续 `report-goal` 编译成 implementation goal。
+
+必须补齐 execution manifests：
+- `report.manifest.yaml`
+- `tasks/task_graph.yaml`
+- `harness/harness.yaml`
+- `evidence/evidence_manifest.yaml`
+- research-prd 额外需要 `experiments/experiment_manifest.yaml`
+
+## 当前阻塞
+
+{format_manifest_issues(manifest_inputs)}
+
+## 修复规则
+
+- 从 `{report.as_posix()}` 读取设计意图，只做 deep-spec lowering，不做实现。
+- 每个 prose milestone / module / task / experiment commitment 必须落入对应 manifest。
+- 不得创建虚假的 task、实验、metric、artifact 或 observed result。
+- task 必须绑定 harness；harness 必须有 command 或显式 blocker；evidence 必须引用 task、harness、artifact、command 和 commit 的预期位置。
+- mock / toy / synthetic / cached 只能用于 unit 或 smoke，不能作为 final gate、research claim、baseline、ablation、paper table/figure 或 Go/No-Go 证据。
+- 修复后运行 manifest validator 和 report self-check，并把结果写入 `report-goal/status.md`。
+
+## 完成标准
+
+只有当 execution manifests 结构有效、task graph 与 harness 引用闭合、且不存在 execution-readiness 阻塞时，才允许后续重新运行 `report-goal` 生成 implementation goal。本 repair goal 不得输出 `REPORT_GOAL_COMPLETE`。
+"""
+
+
+def build_manifest_prompt(
+    repo: Path,
+    report: Path,
+    extraction: ReportExtraction,
+    manifest_inputs: ManifestInputs,
+    out_path: Path | None,
+) -> str:
+    assert manifest_inputs.validation is not None
+    result = manifest_inputs.validation
+    prompt_path = out_path.as_posix() if out_path else f"{repo.as_posix()}/docs/report/report-goal-prompt.md"
+    return f"""# manifest-gated implementation goal: {extraction.title}
+
+仓库：`{repo.as_posix()}`
+源报告：`{report.as_posix()}`
+报告工作区：`{result.report_dir.as_posix()}`
+
+## Ralph Loop 启动方式
+
+```bash
+/ralph-loop:ralph-loop "$(cat {prompt_path})" --completion-promise "REPORT_GOAL_COMPLETE"
+```
+
+## 真源顺序
+
+1. `{result.report_dir.as_posix()}/report.manifest.yaml` 定义报告与 manifest 边界。
+2. `{result.report_dir.as_posix()}/tasks/task_graph.yaml` 定义执行顺序。
+3. `{result.report_dir.as_posix()}/harness/harness.yaml` 定义完成判断器。
+4. `{result.report_dir.as_posix()}/evidence/evidence_manifest.yaml` 定义允许登记的证据。
+5. `{report.as_posix()}` 只作为设计解释来源；不得从 prose 猜测未在 manifest 中声明的 task。
+
+## 编译后的 Task Graph
+
+{format_manifest_tasks(result)}
+
+## 执行协议
+
+- 每轮先读取 `report-goal/status.md`、`report-goal/gap-matrix.md`、`report-goal/decision-log.md`、`git status --short` 和最近 git log。
+- 只选择 task graph 中最早未完成的 task；不得跳过依赖。
+- 每个 task 先写或更新测试，再执行对应 harness command；完整 stdout/stderr 保存到 `report-goal/evidence/`。
+- 每条 completion evidence 必须引用 manifest 中声明的 `task_id`、`harness_id`、artifact path、命令和 git commit。
+- mock / toy / synthetic / cached 结果不得作为 final gate、research claim、baseline、ablation、paper table/figure 或 Go/No-Go 证据。
+- 每个 task 完成后更新 `report-goal/status.md`、`gap-matrix.md`、`decision-log.md` 和 evidence manifest，再提交只包含当前 task 的 git commit。
+
+## 完成标准
+
+只有 task graph 全部完成、所有 harness 通过、evidence manifest 完整、独立复跑状态已记录、`report-goal/final-summary.md` 存在时，最终一行才允许输出 `REPORT_GOAL_COMPLETE`。
+"""
 
 
 def truncate_lines(text: str, max_lines: int) -> tuple[str, bool]:
@@ -490,7 +695,13 @@ def build_prompt(
     scan: ScanResult,
     style: str,
     out_path: Path | None,
+    manifest_inputs: ManifestInputs | None = None,
+    allow_legacy_prose_goal: bool = False,
 ) -> str:
+    if manifest_inputs is not None and not allow_legacy_prose_goal:
+        if not manifest_inputs.execution_ready:
+            return build_repair_prompt(repo, report, extraction, manifest_inputs)
+        return build_manifest_prompt(repo, report, extraction, manifest_inputs, out_path)
     if style == "full":
         return build_full_prompt(repo, report, evidence, extraction, scan, out_path)
     return build_short_prompt(repo, report, evidence, extraction, scan, out_path)
@@ -508,6 +719,11 @@ def parse_args() -> argparse.Namespace:
         choices=("short", "full"),
         default="short",
         help="Prompt length. short is the default few-hundred-word goal prompt.",
+    )
+    parser.add_argument(
+        "--allow-legacy-prose-goal",
+        action="store_true",
+        help="Bypass manifest gating and generate the legacy prose-derived implementation prompt.",
     )
     return parser.parse_args()
 
@@ -527,7 +743,18 @@ def main() -> int:
     extraction = extract_report_context(report)
     evidence = extract_report_evidence(report, args.max_report_lines)
     scan = scan_repo(repo, extraction.path_hints)
-    prompt = build_prompt(repo, report, evidence, extraction, scan, args.style, out)
+    manifest_inputs = validate_manifest_inputs(repo, report)
+    prompt = build_prompt(
+        repo,
+        report,
+        evidence,
+        extraction,
+        scan,
+        args.style,
+        out,
+        manifest_inputs,
+        args.allow_legacy_prose_goal,
+    )
 
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -542,6 +769,12 @@ def main() -> int:
             f"missing={len(scan.missing_paths)}, "
             f"tests={len(scan.test_files)}, scripts={len(scan.script_files)}"
         )
+        if args.allow_legacy_prose_goal:
+            print("Manifest gate: bypassed by --allow-legacy-prose-goal")
+        elif manifest_inputs.execution_ready:
+            print(f"Manifest gate: execution-ready ({manifest_inputs.report_dir})")
+        else:
+            print("Manifest gate: repair goal generated")
         print("How to use: pass this prompt file to Ralph Loop or Codex Goal as the objective.")
     if args.print or not args.out:
         print(prompt)

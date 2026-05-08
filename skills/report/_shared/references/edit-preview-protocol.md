@@ -2,7 +2,7 @@
 
 这份 reference 约束 `report-update` 在写回时的「可见 diff」流程。默认行为是：不直接覆盖原文，而是用三条宏把「新增」「删除」「替换」显式标记出来，让用户在 `report.pdf` 和派生的 `report.md` 里看清改了什么，再由用户主动说「接受修改」后由 `accept_edits.py` 一次性清理。
 
-本协议只应用于 `report-update`。`report-init` 生成新骨架时不需要 diff 标记；`report-debate` 的裁决写回默认也直接覆盖，如果需要先预览再接受，可参考本文件同样使用三条宏。
+本协议只应用于 `report-update`。`report-init` 生成新骨架时不需要 diff 标记；`report-audit` 的多智能体审计默认只输出 findings 与 repair order，若用户要求写回报告，应转入 `report-update` 并沿用本文件的三条宏。
 
 ## 三条宏
 
@@ -88,9 +88,9 @@
 - 若接受后渲染出现回归，从 `build/accept-edits-backup-<timestamp>/sections/` 复制回 `sections/` 即可恢复上一版。
 - 备份目录按时间戳命名，重复执行不会覆盖旧备份。
 
-## 与 `report-debate` / `report-audit` 的关系
+## 与 `report-audit` 多智能体审计的关系
 
-- `report-debate` 的「争议与裁决」写回默认直接覆盖；若用户希望先预览，可显式要求进入 diff 模式，然后沿用本协议的三条宏与 `accept_edits.py`。
+- `report-audit` 的多智能体审计结果默认不直接写回正文；若用户希望写回，应显式进入 `report-update`，然后沿用本协议的三条宏与 `accept_edits.py`。
 - `report-audit` 产生的修复建议本身不写回；若后续转给 `report-update`，仍按本协议执行。
 
 ## 自检

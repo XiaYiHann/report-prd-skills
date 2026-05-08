@@ -33,7 +33,7 @@ State the detected type and persona in the output.
 4. Surface evidence layers: `source claim`, `design intent`, `repo-observed fact`, `report synthesis`.
 5. Offer candidate directions with trade-offs.
 6. Recommend one direction and state what still needs user confirmation.
-7. Hand off to `report-update` once content is settled, or `report-debate` if the proposition is contested.
+7. Hand off to `report-update` once content is settled, or `report-audit` multi-agent audit mode if the proposition is contested.
 
 ## Output Shape
 
@@ -42,6 +42,6 @@ State the detected type and persona in the output.
 3. 候选方向
 4. 推荐方向与理由
 5. 仍需拍板的事项
-6. 下一步：`report-update` 或 `report-debate`
+6. 下一步：`report-update` 或 `report-audit`
 
 Do not silently turn brainstorming notes into report text.
