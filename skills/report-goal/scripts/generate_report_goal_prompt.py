@@ -19,7 +19,7 @@ SHARED_SCRIPT_DIR = SKILLS_DIR / "report" / "_shared" / "scripts"
 if SHARED_SCRIPT_DIR.exists():
     sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
-from manifest_validator import ManifestValidationResult, validate_execution_manifests
+from manifest_validator import ManifestValidationResult, validate_execution_manifests, validate_spec_manifests
 
 
 DEFAULT_KEYWORDS = (
@@ -66,6 +66,33 @@ class ManifestInputs:
     @property
     def execution_ready(self) -> bool:
         return self.validation is not None and self.validation.execution_ready and not self.resolution_issues
+
+
+@dataclass(frozen=True)
+class ArtifactInputs:
+    workspace_dir: Path | None
+    main_dir: Path | None
+    paper_dir: Path | None
+    spec_dir: Path | None
+    spec_validation: ManifestValidationResult | None
+    resolution_issues: list[str]
+    alignment_issues: list[str]
+
+    @property
+    def found(self) -> bool:
+        return self.workspace_dir is not None
+
+    @property
+    def spec_ready(self) -> bool:
+        return self.spec_validation is not None and self.spec_validation.execution_ready
+
+    @property
+    def alignment_ready(self) -> bool:
+        return self.found and not self.resolution_issues and not self.alignment_issues
+
+    @property
+    def implementation_ready(self) -> bool:
+        return self.spec_ready and self.alignment_ready
 
 
 def run_command(repo: Path, args: list[str]) -> str:
@@ -233,6 +260,14 @@ def format_list(items: list[str], empty: str = "none") -> str:
     return "\n".join(f"- `{item}`" for item in items)
 
 
+def _as_list(value: object) -> list[object]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
 def format_plain_list(items: list[str], empty: str = "未从报告中抽取到明确条目。") -> str:
     if not items:
         return f"- {empty}"
@@ -285,6 +320,167 @@ def validate_manifest_inputs(repo: Path, report: Path) -> ManifestInputs:
     )
 
 
+def _relative_parts(repo: Path, path: Path) -> tuple[str, ...]:
+    try:
+        return path.resolve().relative_to(repo.resolve()).parts
+    except ValueError:
+        return ()
+
+
+def resolve_artifact_workspace(repo: Path, report: Path) -> tuple[Path | None, list[str]]:
+    issues: list[str] = []
+    parts = _relative_parts(repo, report)
+    docs_report_dir = repo / "docs" / "report"
+
+    if len(parts) >= 3 and parts[0] == "docs" and parts[1] == "report":
+        candidate = repo / "docs" / "report" / parts[2]
+        if any((candidate / name).exists() for name in ("main", "paper", "spec")):
+            return candidate.resolve(), issues
+
+    candidates: list[Path] = []
+    if docs_report_dir.exists():
+        for candidate in sorted(path for path in docs_report_dir.iterdir() if path.is_dir()):
+            if any((candidate / name).exists() for name in ("main", "paper", "spec")):
+                candidates.append(candidate.resolve())
+
+    if not candidates:
+        return None, issues
+    if len(candidates) > 1:
+        issues.append(
+            "找到多个 main/paper/spec 报告工作区，无法自动判断 active slug："
+            + ", ".join(candidate.as_posix() for candidate in candidates)
+        )
+        return None, issues
+    return candidates[0], issues
+
+
+def _collect_paper_placeholders(paper_dir: Path) -> list[tuple[str, str]]:
+    placeholders: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    if not paper_dir.exists():
+        return placeholders
+    for path in sorted(paper_dir.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in {".md", ".tex"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = path.read_text(errors="replace")
+        for match in re.finditer(r"\{\{([^{}]+)\}\}", text):
+            value = match.group(1).strip()
+            key = (f"{{{{{value}}}}}", path.relative_to(paper_dir).as_posix())
+            if key in seen:
+                continue
+            placeholders.append(key)
+            seen.add(key)
+    return placeholders
+
+
+def _spec_experiment_ids(result: ManifestValidationResult) -> set[str]:
+    experiment_ids: set[str] = set()
+    experiments = result.documents.get("experiments", {}).get("experiments", [])
+    if isinstance(experiments, list):
+        experiment_ids.update(
+            str(item.get("experiment_id", "")).strip()
+            for item in experiments
+            if isinstance(item, dict) and str(item.get("experiment_id", "")).strip()
+        )
+    evidence_contract = result.documents.get("evidence_contract", {})
+    if isinstance(evidence_contract, dict):
+        for claim in evidence_contract.get("claims", []) or []:
+            if not isinstance(claim, dict):
+                continue
+            experiment_ids.update(
+                str(item).strip()
+                for item in _as_list(
+                    claim.get("required_experiments")
+                    or claim.get("experiment_ids")
+                    or claim.get("experiments")
+                    or claim.get("experiment_id")
+                )
+                if str(item).strip()
+            )
+    return experiment_ids
+
+
+def _spec_registered_placeholders(result: ManifestValidationResult) -> set[str]:
+    registered: set[str] = set()
+    evidence_contract = result.documents.get("evidence_contract", {})
+    if not isinstance(evidence_contract, dict):
+        return registered
+    for claim in evidence_contract.get("claims", []):
+        if not isinstance(claim, dict):
+            continue
+        for placeholder in claim.get("paper_placeholders", []) or []:
+            value = str(placeholder).strip()
+            if value:
+                registered.add(value)
+    for item in evidence_contract.get("placeholders", []) or []:
+        if isinstance(item, dict):
+            value = str(item.get("placeholder", "")).strip()
+        else:
+            value = str(item).strip()
+        if value:
+            registered.add(value)
+    return registered
+
+
+def _placeholder_experiment_id(placeholder: str) -> str:
+    inner = placeholder.strip().removeprefix("{{").removesuffix("}}").strip()
+    return inner.split(".", 1)[0].strip()
+
+
+def validate_artifact_inputs(repo: Path, report: Path) -> ArtifactInputs:
+    workspace_dir, resolution_issues = resolve_artifact_workspace(repo, report)
+    if workspace_dir is None:
+        return ArtifactInputs(
+            workspace_dir=None,
+            main_dir=None,
+            paper_dir=None,
+            spec_dir=None,
+            spec_validation=None,
+            resolution_issues=resolution_issues,
+            alignment_issues=[],
+        )
+
+    main_dir = workspace_dir / "main"
+    paper_dir = workspace_dir / "paper"
+    spec_dir = workspace_dir / "spec"
+    alignment_issues: list[str] = []
+    spec_validation: ManifestValidationResult | None = None
+
+    if not main_dir.exists():
+        alignment_issues.append(f"缺少 main 产物目录：`{main_dir.as_posix()}`。")
+    if not paper_dir.exists():
+        alignment_issues.append(f"缺少 paper 产物目录：`{paper_dir.as_posix()}`。")
+
+    if spec_dir.exists():
+        spec_validation = validate_spec_manifests(spec_dir)
+    else:
+        resolution_issues.append(f"缺少 spec 产物目录：`{spec_dir.as_posix()}`。")
+
+    if paper_dir.exists() and spec_validation is not None:
+        experiment_ids = _spec_experiment_ids(spec_validation)
+        registered_placeholders = _spec_registered_placeholders(spec_validation)
+        for placeholder, relative_path in _collect_paper_placeholders(paper_dir):
+            experiment_id = _placeholder_experiment_id(placeholder)
+            if placeholder in registered_placeholders or experiment_id in experiment_ids:
+                continue
+            alignment_issues.append(
+                f"paper placeholder `{placeholder}` in `paper/{relative_path}` 未映射到 spec experiment 或 evidence contract。"
+            )
+
+    return ArtifactInputs(
+        workspace_dir=workspace_dir,
+        main_dir=main_dir if main_dir.exists() else None,
+        paper_dir=paper_dir if paper_dir.exists() else None,
+        spec_dir=spec_dir if spec_dir.exists() else None,
+        spec_validation=spec_validation,
+        resolution_issues=resolution_issues,
+        alignment_issues=alignment_issues,
+    )
+
+
 def format_manifest_issues(manifest_inputs: ManifestInputs) -> str:
     lines: list[str] = []
     for issue in manifest_inputs.resolution_issues:
@@ -295,6 +491,35 @@ def format_manifest_issues(manifest_inputs: ManifestInputs) -> str:
             severity = "ERROR" if issue.severity == "error" else "READINESS"
             lines.append(f"- [{severity}]{location} {issue.message}")
     return "\n".join(lines) if lines else "- 无。"
+
+
+def format_artifact_issues(artifact_inputs: ArtifactInputs) -> str:
+    lines: list[str] = []
+    for issue in artifact_inputs.resolution_issues:
+        lines.append(f"- [ERROR] {issue}")
+    for issue in artifact_inputs.alignment_issues:
+        lines.append(f"- [ALIGNMENT] {issue}")
+    if artifact_inputs.spec_validation is not None:
+        for issue in artifact_inputs.spec_validation.issues:
+            location = f" `{issue.location}`" if issue.location else ""
+            severity = "ERROR" if issue.severity == "error" else "READINESS"
+            lines.append(f"- [{severity}]{location} {issue.message}")
+    return "\n".join(lines) if lines else "- 无。"
+
+
+def format_artifact_paths(artifact_inputs: ArtifactInputs) -> str:
+    if artifact_inputs.workspace_dir is None:
+        return "- 未解析到三产物 workspace。"
+    main_dir = artifact_inputs.workspace_dir / "main"
+    paper_dir = artifact_inputs.workspace_dir / "paper"
+    spec_dir = artifact_inputs.workspace_dir / "spec"
+    return "\n".join(
+        [
+            f"- main: `{main_dir.as_posix()}`",
+            f"- paper: `{paper_dir.as_posix()}`",
+            f"- spec: `{spec_dir.as_posix()}`",
+        ]
+    )
 
 
 def _command_text(command: object) -> str:
@@ -332,6 +557,175 @@ def format_manifest_tasks(result: ManifestValidationResult) -> str:
     return "\n".join(lines) if lines else "未声明 task。"
 
 
+def format_spec_milestones(result: ManifestValidationResult) -> str:
+    task_graph = result.documents.get("task_graph") or {}
+    gates = {
+        gate.get("gate_id"): gate
+        for gate in task_graph.get("gates", [])
+        if isinstance(gate, dict) and gate.get("gate_id")
+    }
+    milestones = task_graph.get("milestones", [])
+    if not isinstance(milestones, list) or not milestones:
+        return format_manifest_tasks(result)
+
+    task_by_id = {
+        task.get("task_id"): task
+        for task in task_graph.get("tasks", [])
+        if isinstance(task, dict) and task.get("task_id")
+    }
+    lines: list[str] = []
+    for index, milestone in enumerate(milestones, start=1):
+        if not isinstance(milestone, dict):
+            continue
+        milestone_id = str(milestone.get("milestone_id", "")).strip() or f"M{index:02d}"
+        title = str(milestone.get("title", "")).strip() or milestone_id
+        gate_ids = [
+            str(item).strip()
+            for item in _as_list(milestone.get("gate_id") or milestone.get("gate_ids") or milestone.get("gates"))
+            if str(item).strip()
+        ]
+        gate_text: list[str] = []
+        for gate_id in gate_ids:
+            gate = gates.get(gate_id, {})
+            task_ids = [str(item).strip() for item in _as_list(gate.get("tasks")) if str(item).strip()]
+            task_text = ", ".join(f"`{task_id}`" for task_id in task_ids if task_id in task_by_id) or "no tasks"
+            gate_text.append(f"`{gate_id}` -> {task_text}")
+        gates_rendered = "; ".join(gate_text) if gate_text else "no gate"
+        lines.append(f"{index}. `{milestone_id}` - {title} - gate: {gates_rendered}")
+    return "\n".join(lines) if lines else format_manifest_tasks(result)
+
+
+def build_spec_repair_prompt(
+    repo: Path,
+    report: Path,
+    extraction: ReportExtraction,
+    artifact_inputs: ArtifactInputs,
+) -> str:
+    workspace = artifact_inputs.workspace_dir.as_posix() if artifact_inputs.workspace_dir else "<unresolved artifact workspace>"
+    spec_dir = (artifact_inputs.workspace_dir / "spec").as_posix() if artifact_inputs.workspace_dir else "docs/report/<slug>/spec"
+    return f"""# spec 修复目标：{extraction.title}
+
+仓库：`{repo.as_posix()}`
+源报告：`{report.as_posix()}`
+三产物工作区：`{workspace}`
+目标 spec：`{spec_dir}`
+
+## 任务
+
+当前 `spec` 缺失、无效或未达到 execution-ready。不要实现产品功能、实验代码或论文结果；本轮唯一目标是把 `main` 中的设计意图编译为可执行 `spec`，并保持 `paper` 只作为表达产物。
+
+## 当前阻塞
+
+{format_artifact_issues(artifact_inputs)}
+
+## 修复规则
+
+- 从 `main/` 读取研究与工程设计；从 `paper/` 读取表达目标与 placeholder；不得从 `paper` 反向发明实验。
+- 补齐 `spec/task_graph.yaml`、`spec/harness.yaml`、`spec/evidence_contract.yaml`，以及需要时的 `spec/experiment_manifest.yaml`。
+- 每个 milestone 必须关联 gate；每个 gate 必须列出 task；每个 task 必须绑定 harness 和 acceptance criteria。
+- harness 必须有真实 command 或显式 blocker；final/research evidence 不得使用 mock、toy、synthetic、stub、proxy 或 cached 结果。
+- 修复后重新运行 `report-goal`。本 repair goal 不得输出 `REPORT_GOAL_COMPLETE`。
+"""
+
+
+def build_artifact_alignment_prompt(
+    repo: Path,
+    report: Path,
+    extraction: ReportExtraction,
+    artifact_inputs: ArtifactInputs,
+) -> str:
+    return f"""# 三产物对齐目标：{extraction.title}
+
+仓库：`{repo.as_posix()}`
+源报告：`{report.as_posix()}`
+三产物：
+{format_artifact_paths(artifact_inputs)}
+
+## 任务
+
+`spec` 已经可以作为执行真源，但 `main` / `paper` / `spec` 之间仍存在产物缺失或一致性阻塞。不要开始工程实现或实验执行；本轮只修复三产物边界，使后续 goal 可以按 `spec` 严格执行。
+
+## 当前阻塞
+
+{format_artifact_issues(artifact_inputs)}
+
+## 对齐规则
+
+- `main` 中的 RQ、claim、experiment、task、harness、paper plan 必须能映射到 `spec`。
+- `paper` 中的每个 placeholder 必须映射到 `spec` 中的 experiment 或 evidence contract。
+- `paper` 不能新增 `main` 和 `spec` 未定义的数据集、baseline、metric、seed、实验或 claim。
+- 对齐后只允许重新运行 `report-goal` 生成实现目标；本对齐目标不得输出 `REPORT_GOAL_COMPLETE`。
+"""
+
+
+def build_three_artifact_prompt(
+    repo: Path,
+    report: Path,
+    extraction: ReportExtraction,
+    artifact_inputs: ArtifactInputs,
+    out_path: Path | None,
+) -> str:
+    assert artifact_inputs.spec_validation is not None
+    assert artifact_inputs.workspace_dir is not None
+    result = artifact_inputs.spec_validation
+    prompt_path = out_path.as_posix() if out_path else f"{repo.as_posix()}/docs/report/report-goal-prompt.md"
+    main_dir = artifact_inputs.main_dir or artifact_inputs.workspace_dir / "main"
+    paper_dir = artifact_inputs.paper_dir or artifact_inputs.workspace_dir / "paper"
+    spec_dir = artifact_inputs.spec_dir or result.report_dir
+    return f"""# 三产物执行目标：{extraction.title}
+
+仓库：`{repo.as_posix()}`
+源报告：`{report.as_posix()}`
+main：`{main_dir.as_posix()}`
+paper：`{paper_dir.as_posix()}`
+spec：`{spec_dir.as_posix()}`
+
+## Ralph Loop 启动方式
+
+```bash
+/ralph-loop:ralph-loop "$(cat {prompt_path})" --completion-promise "REPORT_GOAL_COMPLETE"
+```
+
+## 权威边界
+
+1. `main/` 是人类设计真源：定义研究问题、方法、实验意图、任务拆分和教学解释。
+2. `paper/` 是学术表达真源：定义顶会论文叙事、placeholder 和表达完整性。
+3. `spec/` 是机器执行真源：唯一决定 milestone 顺序、gate、task、harness、artifact 和 evidence 准入。
+
+不得从 `paper` 推断实验、数据集、baseline、metric、seed、模型、任务或结果。不得从 `main` prose 创建未进入 `spec` 的执行任务。
+
+## Spec Milestone Order
+
+`{spec_dir.as_posix()}/task_graph.yaml` 定义唯一执行顺序：
+
+{format_spec_milestones(result)}
+
+## 编译后的 Task / Harness
+
+{format_manifest_tasks(result)}
+
+## 执行协议
+
+- 每轮先读取 `main/`、`paper/`、`spec/`、`report-goal/status.md`、`report-goal/gap-matrix.md`、`report-goal/decision-log.md`、`git status --short` 和最近 git log。
+- 只选择 `spec/task_graph.yaml` 中最早未完成的 milestone / gate；不得跳过依赖或并行推进后续 milestone。
+- 当前 milestone 的 task、harness、artifact、evidence、review、commit 全部完成后，才能进入下一个 milestone。
+- 每个 task 先写或更新测试，再执行对应 harness command；完整 stdout/stderr 保存到 `report-goal/evidence/`。
+- 每条 completion evidence 必须引用 `spec` 中声明的 `task_id`、`harness_id`、artifact path、命令和 git commit。
+- `paper` 只能根据 `main`、`spec` 和 evidence 更新；未验证实验结果必须保留绑定到 spec experiment 的 placeholder。
+- mock / toy / synthetic / cached 结果不得作为 final gate、research claim、baseline、ablation、paper table/figure 或 Go/No-Go 证据。
+
+## 三产物一致性完成标准
+
+- `main` 中声明的 RQ、claim、experiment、task、harness、paper plan 均已映射到 `spec`。
+- `paper` 中所有 placeholder 均映射到 `spec` 的 experiment 或 evidence contract。
+- `spec` 中每个 milestone 都有 gate；每个 gate 都有 task；每个 task 都有 harness、acceptance criteria 和 evidence contract。
+- 所有 declared harness 已通过，evidence contract 已登记真实证据，独立复跑状态已记录。
+- `report-goal/final-summary.md` 存在，并说明 main / paper / spec 的最终同步状态。
+
+只有上述条件真实满足时，最终一行才允许输出 `REPORT_GOAL_COMPLETE`。
+"""
+
+
 def build_repair_prompt(
     repo: Path,
     report: Path,
@@ -347,7 +741,7 @@ def build_repair_prompt(
 
 ## 任务
 
-当前报告尚未达到 execution-ready。不要实现产品功能、实验代码、论文结果或业务逻辑；本轮唯一目标是补齐 execution manifests，使报告可以被后续 `report-goal` 编译成 implementation goal。
+当前报告尚未达到 execution-ready。不要实现产品功能、实验代码、论文结果或业务逻辑；本轮唯一目标是补齐 execution manifests，使报告可以被后续 `report-goal` 编译成实现目标。
 
 必须补齐 execution manifests：
 - `report.manifest.yaml`
@@ -371,7 +765,7 @@ def build_repair_prompt(
 
 ## 完成标准
 
-只有当 execution manifests 结构有效、task graph 与 harness 引用闭合、且不存在 execution-readiness 阻塞时，才允许后续重新运行 `report-goal` 生成 implementation goal。本 repair goal 不得输出 `REPORT_GOAL_COMPLETE`。
+只有当 execution manifests 结构有效、task graph 与 harness 引用闭合、且不存在 execution-readiness 阻塞时，才允许后续重新运行 `report-goal` 生成实现目标。本修复目标不得输出 `REPORT_GOAL_COMPLETE`。
 """
 
 
@@ -385,7 +779,7 @@ def build_manifest_prompt(
     assert manifest_inputs.validation is not None
     result = manifest_inputs.validation
     prompt_path = out_path.as_posix() if out_path else f"{repo.as_posix()}/docs/report/report-goal-prompt.md"
-    return f"""# manifest-gated implementation goal: {extraction.title}
+    return f"""# manifest 门禁执行目标：{extraction.title}
 
 仓库：`{repo.as_posix()}`
 源报告：`{report.as_posix()}`
@@ -697,7 +1091,16 @@ def build_prompt(
     out_path: Path | None,
     manifest_inputs: ManifestInputs | None = None,
     allow_legacy_prose_goal: bool = False,
+    artifact_inputs: ArtifactInputs | None = None,
 ) -> str:
+    if artifact_inputs is not None and artifact_inputs.found and not allow_legacy_prose_goal:
+        if not artifact_inputs.spec_ready:
+            return build_spec_repair_prompt(repo, report, extraction, artifact_inputs)
+        if not artifact_inputs.alignment_ready:
+            return build_artifact_alignment_prompt(repo, report, extraction, artifact_inputs)
+        return build_three_artifact_prompt(repo, report, extraction, artifact_inputs, out_path)
+    if artifact_inputs is not None and artifact_inputs.resolution_issues and not allow_legacy_prose_goal:
+        return build_artifact_alignment_prompt(repo, report, extraction, artifact_inputs)
     if manifest_inputs is not None and not allow_legacy_prose_goal:
         if not manifest_inputs.execution_ready:
             return build_repair_prompt(repo, report, extraction, manifest_inputs)
@@ -743,6 +1146,7 @@ def main() -> int:
     extraction = extract_report_context(report)
     evidence = extract_report_evidence(report, args.max_report_lines)
     scan = scan_repo(repo, extraction.path_hints)
+    artifact_inputs = validate_artifact_inputs(repo, report)
     manifest_inputs = validate_manifest_inputs(repo, report)
     prompt = build_prompt(
         repo,
@@ -754,6 +1158,7 @@ def main() -> int:
         out,
         manifest_inputs,
         args.allow_legacy_prose_goal,
+        artifact_inputs,
     )
 
     if out:
@@ -771,6 +1176,10 @@ def main() -> int:
         )
         if args.allow_legacy_prose_goal:
             print("Manifest gate: bypassed by --allow-legacy-prose-goal")
+        elif artifact_inputs.implementation_ready:
+            print(f"Three-artifact gate: execution-ready ({artifact_inputs.workspace_dir})")
+        elif artifact_inputs.found:
+            print("Three-artifact gate: repair/alignment goal generated")
         elif manifest_inputs.execution_ready:
             print(f"Manifest gate: execution-ready ({manifest_inputs.report_dir})")
         else:

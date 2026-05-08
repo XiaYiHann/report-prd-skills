@@ -44,6 +44,65 @@ def _write_yaml(path: Path, payload: dict) -> None:
     path.write_text(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
+def _write_valid_spec(spec_dir: Path, experiment_id: str = "E01") -> None:
+    _write_yaml(
+        spec_dir / "task_graph.yaml",
+        {
+            "schema_version": "1.0",
+            "milestones": [{"milestone_id": "M01", "title": "Main milestone", "gate_id": "G01"}],
+            "gates": [{"gate_id": "G01", "title": "Run implementation gate", "tasks": ["T01"]}],
+            "tasks": [
+                {
+                    "task_id": "T01",
+                    "gate_id": "G01",
+                    "title": "Run declared harness",
+                    "harnesses": ["H01"],
+                    "acceptance_criteria": ["declared harness passes"],
+                }
+            ],
+        },
+    )
+    _write_yaml(
+        spec_dir / "harness.yaml",
+        {
+            "schema_version": "1.0",
+            "harnesses": [
+                {
+                    "harness_id": "H01",
+                    "type": "unit",
+                    "command": ["python3 -m pytest tests/test_manifest.py"],
+                    "required_outputs": [{"path": "report-goal/evidence/gate-1-test-output.txt"}],
+                }
+            ],
+        },
+    )
+    _write_yaml(
+        spec_dir / "experiment_manifest.yaml",
+        {
+            "schema_version": "1.0",
+            "experiments": [{"experiment_id": experiment_id, "title": "Main comparison"}],
+            "claims": [{"claim_id": "C01", "experiment_ids": [experiment_id]}],
+        },
+    )
+    _write_yaml(
+        spec_dir / "evidence_contract.yaml",
+        {
+            "schema_version": "1.0",
+            "claims": [
+                {
+                    "claim_id": "C01",
+                    "required_experiments": [experiment_id],
+                    "required_harnesses": ["H01"],
+                    "paper_placeholders": [f"{{{{{experiment_id}.OURS.primary_metric}}}}"],
+                }
+            ],
+            "evidence_rules": {
+                "forbidden_as_claim_evidence": ["mock_result", "toy_result", "smoke_test_only"]
+            },
+        },
+    )
+
+
 class InitExecutionManifestTests(unittest.TestCase):
     def test_research_prd_scaffolds_machine_contracts_without_fake_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -251,10 +310,132 @@ class ReportGoalManifestGateTests(unittest.TestCase):
             validation = goal_module.validate_manifest_inputs(repo, report)
             prompt = goal_module.build_prompt(repo, report, evidence, extraction, scan, "short", None, validation, False)
 
-            self.assertIn("manifest-gated implementation goal", prompt)
+            self.assertIn("manifest 门禁执行目标", prompt)
             self.assertIn("T01", prompt)
             self.assertIn("H01", prompt)
             self.assertIn("python3 -m pytest tests/test_manifest.py", prompt)
+
+
+class ReportGoalThreeArtifactTests(unittest.TestCase):
+    def _build_prompt(self, repo: Path, report: Path) -> str:
+        goal_module = _load_goal_module()
+        extraction = goal_module.extract_report_context(report)
+        evidence = goal_module.extract_report_evidence(report, 10)
+        scan = goal_module.scan_repo(repo, extraction.path_hints)
+        legacy_validation = goal_module.validate_manifest_inputs(repo, report)
+        artifact_validation = goal_module.validate_artifact_inputs(repo, report)
+        return goal_module.build_prompt(
+            repo,
+            report,
+            evidence,
+            extraction,
+            scan,
+            "short",
+            None,
+            legacy_validation,
+            False,
+            artifact_validation,
+        )
+
+    def test_missing_spec_generates_spec_repair_goal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            workspace = repo / "docs" / "report" / "slug"
+            main = workspace / "main" / "main.md"
+            paper = workspace / "paper" / "planned_paper.md"
+            main.parent.mkdir(parents=True)
+            paper.parent.mkdir(parents=True)
+            main.write_text("# Main\n\n## Research Questions\n\nRQ1.\n", encoding="utf-8")
+            paper.write_text("# Paper\n\nWe propose the method.\n", encoding="utf-8")
+
+            prompt = self._build_prompt(repo, main)
+
+            self.assertIn("spec 修复目标", prompt)
+            self.assertIn("docs/report/slug/spec", prompt)
+            self.assertNotIn("三产物执行目标", prompt)
+
+    def test_missing_paper_generates_artifact_alignment_goal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            workspace = repo / "docs" / "report" / "slug"
+            main = workspace / "main" / "main.md"
+            main.parent.mkdir(parents=True)
+            main.write_text("# Main\n\n## Paper Plan\n\nTable 1 uses E01.\n", encoding="utf-8")
+            _write_valid_spec(workspace / "spec")
+
+            prompt = self._build_prompt(repo, main)
+
+            self.assertIn("三产物对齐目标", prompt)
+            self.assertIn("paper", prompt)
+            self.assertNotIn("三产物执行目标", prompt)
+
+    def test_unmapped_paper_placeholder_generates_alignment_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            workspace = repo / "docs" / "report" / "slug"
+            main = workspace / "main" / "main.md"
+            paper = workspace / "paper" / "planned_paper.md"
+            main.parent.mkdir(parents=True)
+            paper.parent.mkdir(parents=True)
+            main.write_text("# Main\n\n## Experiment Design\n\nE01.\n", encoding="utf-8")
+            paper.write_text("# Paper\n\nTable 1 reports {{E99.OURS.primary_metric}}.\n", encoding="utf-8")
+            _write_valid_spec(workspace / "spec", experiment_id="E01")
+
+            prompt = self._build_prompt(repo, main)
+
+            self.assertIn("三产物对齐目标", prompt)
+            self.assertIn("E99.OURS.primary_metric", prompt)
+            self.assertIn("placeholder", prompt)
+
+    def test_spec_milestone_without_gate_rejects_implementation_goal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            workspace = repo / "docs" / "report" / "slug"
+            main = workspace / "main" / "main.md"
+            paper = workspace / "paper" / "planned_paper.md"
+            main.parent.mkdir(parents=True)
+            paper.parent.mkdir(parents=True)
+            main.write_text("# Main\n\n## Task Graph\n\nM01.\n", encoding="utf-8")
+            paper.write_text("# Paper\n\nExperiment E01 tests the claim.\n", encoding="utf-8")
+            _write_valid_spec(workspace / "spec")
+            _write_yaml(
+                workspace / "spec" / "task_graph.yaml",
+                {
+                    "schema_version": "1.0",
+                    "milestones": [{"milestone_id": "M01", "title": "Missing gate"}],
+                    "gates": [{"gate_id": "G01", "title": "Gate", "tasks": ["T01"]}],
+                    "tasks": [{"task_id": "T01", "title": "Run", "harnesses": ["H01"]}],
+                },
+            )
+
+            prompt = self._build_prompt(repo, main)
+
+            self.assertIn("spec 修复目标", prompt)
+            self.assertIn("milestone", prompt)
+            self.assertNotIn("三产物执行目标", prompt)
+
+    def test_valid_three_artifacts_compile_execution_goal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            workspace = repo / "docs" / "report" / "slug"
+            main = workspace / "main" / "main.md"
+            paper = workspace / "paper" / "planned_paper.md"
+            main.parent.mkdir(parents=True)
+            paper.parent.mkdir(parents=True)
+            main.write_text("# Main\n\n## Task Graph and Student Work Plan\n\nRun T01 through G01.\n", encoding="utf-8")
+            paper.write_text("# Paper\n\nTable 1 reports {{E01.OURS.primary_metric}}.\n", encoding="utf-8")
+            _write_valid_spec(workspace / "spec")
+
+            prompt = self._build_prompt(repo, main)
+
+            self.assertIn("三产物执行目标", prompt)
+            self.assertIn("docs/report/slug/main", prompt)
+            self.assertIn("docs/report/slug/paper", prompt)
+            self.assertIn("docs/report/slug/spec/task_graph.yaml", prompt)
+            self.assertIn("T01", prompt)
+            self.assertIn("H01", prompt)
+            self.assertIn("python3 -m pytest tests/test_manifest.py", prompt)
+            self.assertIn("三产物一致性", prompt)
 
 
 if __name__ == "__main__":

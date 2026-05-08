@@ -351,3 +351,244 @@ def validate_execution_manifests(report_dir: Path | str) -> ManifestValidationRe
             "experiments": experiment_manifest,
         },
     )
+
+
+def validate_spec_manifests(spec_dir: Path | str) -> ManifestValidationResult:
+    """Validate the slug-local `spec/` execution contract layout."""
+
+    spec_dir = Path(spec_dir).resolve()
+    issues: list[ManifestIssue] = []
+
+    task_graph = _read_yaml(spec_dir / "task_graph.yaml", issues, "task_graph")
+    harness_manifest = _read_yaml(spec_dir / "harness.yaml", issues, "harness")
+    evidence_contract = _read_yaml(spec_dir / "evidence_contract.yaml", issues, "evidence_contract")
+    experiment_manifest: dict[str, Any] = {}
+    if (spec_dir / "experiment_manifest.yaml").exists():
+        experiment_manifest = _read_yaml(spec_dir / "experiment_manifest.yaml", issues, "experiments")
+
+    tasks = _validate_list(task_graph, "tasks", issues, "spec/task_graph.yaml") if task_graph else []
+    gates = _validate_list(task_graph, "gates", issues, "spec/task_graph.yaml") if task_graph else []
+    milestones = _validate_list(task_graph, "milestones", issues, "spec/task_graph.yaml") if task_graph else []
+    harnesses = _validate_list(harness_manifest, "harnesses", issues, "spec/harness.yaml") if harness_manifest else []
+    evidence_claims = (
+        _validate_list(evidence_contract, "claims", issues, "spec/evidence_contract.yaml")
+        if evidence_contract
+        else []
+    )
+    evidence_items = (
+        _validate_list(evidence_contract, "evidence_items", issues, "spec/evidence_contract.yaml")
+        if evidence_contract
+        else []
+    )
+    experiments = (
+        _validate_list(experiment_manifest, "experiments", issues, "spec/experiment_manifest.yaml")
+        if experiment_manifest
+        else []
+    )
+    experiment_claims = (
+        _validate_list(experiment_manifest, "claims", issues, "spec/experiment_manifest.yaml")
+        if experiment_manifest
+        else []
+    )
+
+    task_ids = {str(task.get("task_id", "")).strip() for task in tasks if str(task.get("task_id", "")).strip()}
+    gate_ids = {str(gate.get("gate_id", "")).strip() for gate in gates if str(gate.get("gate_id", "")).strip()}
+    harness_ids = {str(harness.get("harness_id", "")).strip() for harness in harnesses if str(harness.get("harness_id", "")).strip()}
+    experiment_ids = {
+        str(experiment.get("experiment_id", "")).strip()
+        for experiment in experiments
+        if str(experiment.get("experiment_id", "")).strip()
+    }
+
+    for id_key, items, location in [
+        ("milestone_id", milestones, "spec/task_graph.yaml"),
+        ("task_id", tasks, "spec/task_graph.yaml"),
+        ("gate_id", gates, "spec/task_graph.yaml"),
+        ("harness_id", harnesses, "spec/harness.yaml"),
+        ("experiment_id", experiments, "spec/experiment_manifest.yaml"),
+        ("claim_id", evidence_claims, "spec/evidence_contract.yaml"),
+        ("claim_id", experiment_claims, "spec/experiment_manifest.yaml"),
+    ]:
+        for duplicate in _duplicate_ids(items, id_key):
+            issues.append(ManifestIssue("error", "schema", f"`{id_key}` 重复：`{duplicate}`。", location))
+
+    if task_graph and not tasks:
+        issues.append(
+            ManifestIssue(
+                "readiness",
+                "execution-readiness",
+                "`spec/task_graph.yaml` 没有 task；不能生成 implementation goal。",
+                (spec_dir / "task_graph.yaml").as_posix(),
+            )
+        )
+    if task_graph and not gates:
+        issues.append(
+            ManifestIssue(
+                "readiness",
+                "execution-readiness",
+                "`spec/task_graph.yaml` 没有 gate；每个 milestone 必须通过 gate 进入下一阶段。",
+                (spec_dir / "task_graph.yaml").as_posix(),
+            )
+        )
+    if harness_manifest and not harnesses:
+        issues.append(
+            ManifestIssue(
+                "readiness",
+                "execution-readiness",
+                "`spec/harness.yaml` 没有 harness；每个 task 必须绑定完成判断器。",
+                (spec_dir / "harness.yaml").as_posix(),
+            )
+        )
+    if evidence_contract and not evidence_contract.get("evidence_rules") and not evidence_claims:
+        issues.append(
+            ManifestIssue(
+                "readiness",
+                "execution-readiness",
+                "`spec/evidence_contract.yaml` 缺少 evidence rules 或 claim evidence contract。",
+                (spec_dir / "evidence_contract.yaml").as_posix(),
+            )
+        )
+
+    for milestone in milestones:
+        milestone_id = str(milestone.get("milestone_id", "")).strip() or "<missing milestone_id>"
+        linked_gate_ids = [
+            str(item).strip()
+            for item in _as_list(milestone.get("gate_id") or milestone.get("gate_ids") or milestone.get("gates"))
+            if str(item).strip()
+        ]
+        if not linked_gate_ids:
+            issues.append(
+                ManifestIssue(
+                    "readiness",
+                    "execution-readiness",
+                    f"milestone `{milestone_id}` 没有关联 gate；不能进入严格里程碑执行。",
+                    "spec/task_graph.yaml",
+                )
+            )
+        for gate_id in linked_gate_ids:
+            if gate_id not in gate_ids:
+                issues.append(
+                    ManifestIssue(
+                        "error",
+                        "schema",
+                        f"milestone `{milestone_id}` 引用了不存在的 gate `{gate_id}`。",
+                        "spec/task_graph.yaml",
+                    )
+                )
+
+    for gate in gates:
+        gate_id = str(gate.get("gate_id", "")).strip()
+        if not gate_id:
+            issues.append(ManifestIssue("error", "schema", "gate 缺少 `gate_id`。", "spec/task_graph.yaml"))
+            continue
+        gate_tasks = [str(item).strip() for item in _as_list(gate.get("tasks")) if str(item).strip()]
+        if not gate_tasks:
+            issues.append(
+                ManifestIssue(
+                    "readiness",
+                    "execution-readiness",
+                    f"gate `{gate_id}` 没有 task；不能作为 milestone gate。",
+                    "spec/task_graph.yaml",
+                )
+            )
+        for task_id in gate_tasks:
+            if task_id not in task_ids:
+                issues.append(ManifestIssue("error", "schema", f"gate `{gate_id}` 引用了不存在的 task `{task_id}`。", "spec/task_graph.yaml"))
+
+    for task in tasks:
+        task_id = str(task.get("task_id", "")).strip()
+        if not task_id:
+            issues.append(ManifestIssue("error", "schema", "task 缺少 `task_id`。", "spec/task_graph.yaml"))
+            continue
+        task_harnesses = [str(item).strip() for item in _as_list(task.get("harnesses")) if str(item).strip()]
+        if not task_harnesses:
+            issues.append(
+                ManifestIssue(
+                    "readiness",
+                    "execution-readiness",
+                    f"task `{task_id}` 没有绑定 harness；不能进入 implementation goal。",
+                    "spec/task_graph.yaml",
+                )
+            )
+        if not _as_list(task.get("acceptance_criteria")):
+            issues.append(
+                ManifestIssue(
+                    "readiness",
+                    "execution-readiness",
+                    f"task `{task_id}` 缺少 acceptance_criteria；完成标准不能只靠 prose。",
+                    "spec/task_graph.yaml",
+                )
+            )
+        for harness_id in task_harnesses:
+            if harness_id not in harness_ids:
+                issues.append(ManifestIssue("error", "schema", f"task `{task_id}` 引用了不存在的 harness `{harness_id}`。", "spec/task_graph.yaml"))
+        for dep_id in [str(item).strip() for item in _as_list(task.get("depends_on")) if str(item).strip()]:
+            if dep_id not in task_ids:
+                issues.append(ManifestIssue("error", "schema", f"task `{task_id}` 依赖不存在的 task `{dep_id}`。", "spec/task_graph.yaml"))
+
+    for harness in harnesses:
+        harness_id = str(harness.get("harness_id", "")).strip()
+        if not harness_id:
+            issues.append(ManifestIssue("error", "schema", "harness 缺少 `harness_id`。", "spec/harness.yaml"))
+            continue
+        if not _has_command_or_blocker(harness):
+            issues.append(
+                ManifestIssue(
+                    "readiness",
+                    "execution-readiness",
+                    f"harness `{harness_id}` 缺少 command 或显式 blocker。",
+                    "spec/harness.yaml",
+                )
+            )
+
+    for item in evidence_items:
+        evidence_id = str(item.get("evidence_id", "")).strip() or "<missing evidence_id>"
+        source_kind = _evidence_source_kind(item)
+        roles = _evidence_roles(item)
+        if roles & FINAL_EVIDENCE_ROLES and source_kind in FORBIDDEN_FINAL_EVIDENCE_KINDS:
+            issues.append(
+                ManifestIssue(
+                    "error",
+                    "academic-integrity",
+                    f"evidence `{evidence_id}` 用 `{source_kind}` 标记 final/research evidence；这不能作为最终或科研 claim 证据。",
+                    "spec/evidence_contract.yaml",
+                )
+            )
+
+    for claim in [*experiment_claims, *evidence_claims]:
+        claim_id = str(claim.get("claim_id", "")).strip()
+        if not claim_id:
+            issues.append(ManifestIssue("error", "schema", "claim 缺少 `claim_id`。", "spec/evidence_contract.yaml"))
+            continue
+        linked_experiments = [
+            str(item).strip()
+            for item in _as_list(
+                claim.get("experiment_ids")
+                or claim.get("experiments")
+                or claim.get("experiment_id")
+                or claim.get("required_experiments")
+            )
+            if str(item).strip()
+        ]
+        for experiment_id in linked_experiments:
+            if experiment_ids and experiment_id not in experiment_ids:
+                issues.append(
+                    ManifestIssue(
+                        "error",
+                        "schema",
+                        f"claim `{claim_id}` 引用了不存在的 experiment `{experiment_id}`。",
+                        "spec/evidence_contract.yaml",
+                    )
+                )
+
+    return ManifestValidationResult(
+        report_dir=spec_dir,
+        report_type="spec",
+        issues=issues,
+        documents={
+            "task_graph": task_graph,
+            "harness": harness_manifest,
+            "evidence_contract": evidence_contract,
+            "experiments": experiment_manifest,
+        },
+    )
