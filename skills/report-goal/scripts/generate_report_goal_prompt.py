@@ -714,11 +714,28 @@ spec：`{spec_dir.as_posix()}`
 - `paper` 只能根据 `main`、`spec` 和 evidence 更新；未验证实验结果必须保留绑定到 spec experiment 的 placeholder。
 - mock / toy / synthetic / cached 结果不得作为 final gate、research claim、baseline、ablation、paper table/figure 或 Go/No-Go 证据。
 
+## Codex 审查门禁
+
+每一个 milestone / gate 在标记完成之前，都必须先调用 Codex plugin 做 gate-quality review。只有 Codex 审查成功后，才可以把该 gate 记为完成、写入完成状态、创建 gate commit，并进入下一个 milestone。
+
+- 内部门禁：先运行该 gate 声明的 harness command，并把 stdout / stderr / artifact / evidence 写入 `report-goal/evidence/`。
+- 外部门禁：内部 harness 通过后，调用 Codex plugin。优先使用：
+
+```bash
+/codex:adversarial-review --wait --scope working-tree "Review the current gate against spec/task_graph.yaml, spec/harness.yaml, spec/evidence_contract.yaml, main/, paper/, and report-goal/status.md"
+```
+
+- 将 Codex 审查输出保存到 `report-goal/reviews/gate-<gate_id>-codex-review.md`。
+- 如果 Codex plugin 不可用，必须把原因写入 `report-goal/status.md` 并停止等待用户决策；不得把该 gate 标记为完成。
+- 如果 Codex 审查发现 BLOCK、Critical、Important 或等价阻塞问题，必须修复问题、重新运行该 gate 的 harness，再重新调用 Codex 审查。
+- 只有 Codex 审查成功且没有未解决阻塞问题时，才允许进入下一 gate。
+
 ## 三产物一致性完成标准
 
 - `main` 中声明的 RQ、claim、experiment、task、harness、paper plan 均已映射到 `spec`。
 - `paper` 中所有 placeholder 均映射到 `spec` 的 experiment 或 evidence contract。
 - `spec` 中每个 milestone 都有 gate；每个 gate 都有 task；每个 task 都有 harness、acceptance criteria 和 evidence contract。
+- 每个 gate 都有保存的 Codex 审查记录，并且 Codex 审查成功。
 - 所有 declared harness 已通过，evidence contract 已登记真实证据，独立复跑状态已记录。
 - `report-goal/final-summary.md` 存在，并说明 main / paper / spec 的最终同步状态。
 

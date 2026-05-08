@@ -109,6 +109,7 @@ The generated prompt must require the future agent to:
 - Require Codex review output to be saved under `report-goal/reviews/gate-<n>-codex-review.md`.
 - Require `/codex:adversarial-review --wait --scope working-tree` as the preferred gate-quality review path when the Codex plugin is available.
 - Require the future agent to stop for user decision if the Codex plugin is unavailable, unless the user explicitly allows a fallback reviewer.
+- Require every milestone / gate to call Codex plugin review before it is marked complete. A gate is incomplete until the Codex review succeeds and all BLOCK / Critical / Important findings are resolved.
 - Require clean commit hygiene: stage only current-gate files, preserve unrelated user changes, and stop for user input if unrelated dirty files prevent an isolated gate commit.
 - Require evidence over claims: test output must be saved to `report-goal/evidence/gate-<n>-test-output.txt`. Reject "should work" or "based on code structure" as verification.
 - Require every evidence entry to link to a manifest-declared `task_id`, `harness_id`, artifact path, command, and commit.

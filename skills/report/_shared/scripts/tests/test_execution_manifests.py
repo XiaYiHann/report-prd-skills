@@ -436,6 +436,10 @@ class ReportGoalThreeArtifactTests(unittest.TestCase):
             self.assertIn("H01", prompt)
             self.assertIn("python3 -m pytest tests/test_manifest.py", prompt)
             self.assertIn("三产物一致性", prompt)
+            self.assertIn("Codex plugin", prompt)
+            self.assertIn("/codex:adversarial-review --wait --scope working-tree", prompt)
+            self.assertIn("Codex 审查成功", prompt)
+            self.assertIn("不得把该 gate 标记为完成", prompt)
 
 
 if __name__ == "__main__":
