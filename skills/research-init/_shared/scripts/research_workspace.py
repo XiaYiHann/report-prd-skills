@@ -8,6 +8,7 @@ import datetime as dt
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -29,21 +30,21 @@ REPRODUCTION_MODES = {"official_code_reuse", "official_code_adaptation", "paper_
 
 
 PRD_SECTIONS = [
-    "## 1. Executive Summary",
-    "## 2. Background Tutorial",
-    "## 3. Related Work Map",
-    "## 4. Benchmark and Reproduction Plan",
-    "## 5. Problem Statement",
-    "## 6. Research Questions and Hypotheses",
-    "## 7. Formalization",
-    "## 8. Proposed Method",
-    "## 9. System and Implementation Design",
-    "## 10. Experiment Design",
-    "## 11. Task Graph and Student Work Plan",
-    "## 12. Harness and Acceptance Criteria",
-    "## 13. Evidence Ledger",
-    "## 14. Paper Plan",
-    "## 15. Risks, Limitations, and Ethics",
+    "## 1. 执行摘要（Executive Summary）",
+    "## 2. 背景教程（Background Tutorial）",
+    "## 3. 相关工作地图（Related Work Map）",
+    "## 4. 基准与复现计划（Benchmark and Reproduction Plan）",
+    "## 5. 问题陈述（Problem Statement）",
+    "## 6. 研究问题与假设（Research Questions and Hypotheses）",
+    "## 7. 形式化定义（Formalization）",
+    "## 8. 拟议方法（Proposed Method）",
+    "## 9. 系统与实现设计（System and Implementation Design）",
+    "## 10. 实验设计（Experiment Design）",
+    "## 11. 任务图与学生工作计划（Task Graph and Student Work Plan）",
+    "## 12. Harness 与验收标准（Harness and Acceptance Criteria）",
+    "## 13. 证据台账（Evidence Ledger）",
+    "## 14. 论文计划（Paper Plan）",
+    "## 15. 风险、局限与伦理（Risks, Limitations, and Ethics）",
 ]
 
 
@@ -156,177 +157,1023 @@ def slugify(text: str) -> str:
     return value or "research-run"
 
 
-def minimal_pdf_bytes(title: str) -> bytes:
-    safe_title = title.encode("ascii", "ignore").decode("ascii") or "Research Artifact"
-    content = f"BT /F1 18 Tf 72 720 Td ({safe_title}) Tj ET"
-    objects = [
-        "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-        "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-        "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj",
-        "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
-        f"5 0 obj << /Length {len(content)} >> stream\n{content}\nendstream endobj",
-    ]
-    offsets: list[int] = []
-    body = b"%PDF-1.4\n"
-    for obj in objects:
-        offsets.append(len(body))
-        body += obj.encode("ascii") + b"\n"
-    xref_offset = len(body)
-    xref = ["xref", f"0 {len(objects) + 1}", "0000000000 65535 f "]
-    xref.extend(f"{offset:010d} 00000 n " for offset in offsets)
-    trailer = f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n"
-    return body + ("\n".join(xref) + "\n" + trailer).encode("ascii")
+def latex_escape(text: str) -> str:
+    replacements = {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
+    return "".join(replacements.get(char, char) for char in text)
 
 
-def write_pdf(path: Path, title: str, force: bool = False) -> None:
-    if path.exists() and not force:
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(minimal_pdf_bytes(title))
+def render_pdf_from_tex(tex_path: Path, pdf_path: Path, force: bool = False) -> bool:
+    """Render a real PDF when a LaTeX engine exists; otherwise write a blocker."""
+    if pdf_path.exists() and not force:
+        return True
+    if pdf_path.exists() and force:
+        pdf_path.unlink()
+    blocker_path = tex_path.parent / "render_blocker.md"
+    latexmk = shutil.which("latexmk")
+    xelatex = shutil.which("xelatex")
+    if not latexmk and not xelatex:
+        write_text(
+            blocker_path,
+            "\n".join(
+                [
+                    "# PDF 渲染阻塞",
+                    "",
+                    "未生成 PDF：未检测到可用的 LaTeX 引擎。",
+                    "",
+                    "需要安装 `latexmk` 或 `xelatex` 后重新渲染。本初始化器不会写入伪造 PDF，因为 PDF 必须来自 `research_prd.tex` 或 `planned_paper.tex` 的真实编译结果。",
+                    "",
+                ]
+            ),
+            force=True,
+        )
+        return False
+
+    build_dir = tex_path.parent / "build"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    if latexmk:
+        commands = [[latexmk, "-xelatex", "-interaction=nonstopmode", "-halt-on-error", f"-outdir={build_dir}", tex_path.name]]
+    else:
+        commands = [
+            [xelatex, "-interaction=nonstopmode", "-halt-on-error", f"-output-directory={build_dir}", tex_path.name],
+            [xelatex, "-interaction=nonstopmode", "-halt-on-error", f"-output-directory={build_dir}", tex_path.name],
+        ]
+
+    stdout_parts: list[str] = []
+    stderr_parts: list[str] = []
+    for command in commands:
+        result = subprocess.run(
+            command,
+            cwd=tex_path.parent,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=90,
+        )
+        stdout_parts.append(result.stdout)
+        stderr_parts.append(result.stderr)
+        if result.returncode != 0:
+            write_text(
+                blocker_path,
+                "# PDF 渲染阻塞\n\n"
+                "检测到 LaTeX 引擎，但真实编译失败。请根据下方日志修复 `.tex` 后重新渲染。\n\n"
+                "## stdout\n\n```text\n"
+                + "\n".join(stdout_parts)[-8000:]
+                + "\n```\n\n## stderr\n\n```text\n"
+                + "\n".join(stderr_parts)[-4000:]
+                + "\n```\n",
+                force=True,
+            )
+            return False
+
+    rendered_pdf = build_dir / f"{tex_path.stem}.pdf"
+    if rendered_pdf.exists():
+        shutil.copy2(rendered_pdf, pdf_path)
+        if blocker_path.exists():
+            blocker_path.unlink()
+        return True
+    write_text(
+        blocker_path,
+        "# PDF 渲染阻塞\n\nLaTeX 命令结束但未找到预期 PDF 输出，请检查构建目录。\n",
+        force=True,
+    )
+    return False
 
 
 def prd_markdown(title: str, purpose: str) -> str:
     return f"""# Research PRD
 
-## 1. Executive Summary
-- One-sentence project summary: {title}.
-- Core research problem: TODO.
-- Expected contribution: TODO.
-- Minimum viable research goal: {purpose}.
-- Current project status: scaffold.
+> 本文件是中文 Research PRD 伴随稿。LaTeX 真源是 `research_prd.tex`；Markdown 用于快速审阅、搜索和给 AI agent 提供轻量上下文。
+> 当前模板面向能够执行研究项目但不一定熟悉完整背景的硕士学生。模板只提供结构化占位，不发明数据集、基线、实验结果或论文结论。
 
-## 2. Background Tutorial
-- Domain background: TODO.
-- Fundamental concepts: TODO.
-- Required math / systems / ML / security background, as applicable: TODO.
-- Common beginner misunderstandings: TODO.
-- Why this project is worth doing: TODO.
+## 1. 执行摘要（Executive Summary）
 
-## 3. Related Work Map
-- Research lineage: TODO.
-- Representative methods: TODO.
-- What each method solves: TODO.
-- What each method does not solve: TODO.
-- Closest baselines: TODO.
-- Differences between our work and prior work: TODO.
+**章节目标**：用一页说明研究想解决什么问题、为什么值得做、最低可行研究目标是什么，以及哪些结论仍需要证据。
 
-## 4. Benchmark and Reproduction Plan
-- Benchmark selection criteria: TODO.
-- Candidate benchmark paper matrix: TODO.
-- Selected reproduction targets: TODO.
-- Official-code reuse / official-code adaptation / paper-based reimplementation classification: TODO.
-- Reproduction protocol: TODO.
-- Reproduction risks: TODO.
-- Scaffold reuse plan: TODO.
+**必须填写的信息**
+- 项目一句话摘要：`{title}`。
+- 核心研究问题：`【待填写：核心研究问题，用一句可证伪命题表达】`。
+- 预期贡献：`【待填写：方法、基准、系统、理论或分析贡献】`。
+- 最低可行研究目标：`{purpose}`。
+- 当前状态：`【待填写：scaffold / planning / implementation / experiment / paper-update】`。
 
-## 5. Problem Statement
-- Informal problem description: TODO.
-- Formal problem definition: TODO.
-- Scope: TODO.
-- Non-goals: TODO.
-- Threat model / assumptions if applicable: TODO.
+**推荐图表**：研究问题到证据链图；What / Why / How / So What 摘要表。
 
-## 6. Research Questions and Hypotheses
-- RQ table: TODO.
-- Hypothesis table: TODO.
-- Expected claim for each RQ: TODO.
-- Falsification conditions: TODO.
+| 维度 | 内容 |
+| --- | --- |
+| What | 【待填写：研究对象与核心问题】 |
+| Why | 【待填写：科学缺口、应用价值、审稿人会关心的理由】 |
+| How | 【待填写：核心方法、数据、复现与实验路径】 |
+| So What | 【待填写：预期学术贡献和可交付物】 |
 
-## 7. Formalization
-- Notation: TODO.
-- Objective: TODO.
-- Constraints: TODO.
-- Optimization target / system target: TODO.
-- Theoretical rationale: TODO.
-- Expected properties: TODO.
+**常见错误**：把愿景写成已经证明的结论；把论文宣传语当成研究问题；不说明最小可行目标。
 
-## 8. Proposed Method
-- Method overview: TODO.
-- Key idea: TODO.
-- Module breakdown: TODO.
-- Algorithm / workflow: TODO.
-- Complexity: TODO.
-- Failure modes: TODO.
+**证据边界**：本章只能写设计意图、研究假设和计划贡献；未执行实验不得写成经验结论。
 
-## 9. System and Implementation Design
-- Code architecture: TODO.
-- Data flow: TODO.
-- Config design: TODO.
-- Module interfaces: TODO.
-- Inputs and outputs: TODO.
-- Reproducibility design: TODO.
+**验收标准**：读者能用两句话复述项目问题、方法方向、最小目标和当前证据状态。
 
-## 10. Experiment Design
-- Dataset plan: TODO.
-- Baseline plan: TODO.
-- Metric definitions: TODO.
-- Main experiments: TODO.
-- Ablation studies: TODO.
-- Sensitivity analysis: TODO.
-- Failure-case analysis: TODO.
-- Statistical protocol: TODO.
+## 2. 背景教程（Background Tutorial）
 
-## 11. Task Graph and Student Work Plan
-- Phase breakdown: TODO.
-- Task list: TODO.
-- Task dependencies: TODO.
-- Task inputs / outputs / acceptance criteria: TODO.
-- Weekly milestones: TODO.
-- Go / No-Go checkpoints: TODO.
+**章节目标**：补齐学生理解后续章节所需的领域背景、基本概念、数学或系统知识。
 
-## 12. Harness and Acceptance Criteria
-- Unit harness: TODO.
-- Integration harness: TODO.
-- Experiment harness: TODO.
-- Reproduction harness: TODO.
-- Evidence requirements: TODO.
-- Anti-mock policy: TODO.
+**必须填写的信息**
+- 领域背景：`【待填写：最近 3 到 5 年的关键上下文】`。
+- 基本概念：`【待填写：术语表，包含大白话解释和正式定义】`。
+- 必备数学 / 系统 / ML / 安全背景：`【待填写：只列后文真正会用到的知识】`。
+- 常见初学者误解：`【待填写：至少 3 条误解及纠正】`。
+- 为什么值得做：`【待填写：问题未解决会造成什么科学或工程代价】`。
 
-## 13. Evidence Ledger
-- Claim-to-evidence mapping: TODO.
-- Experiment-to-claim mapping: TODO.
-- Current evidence status: TODO.
-- Missing evidence: TODO.
-- Which results may enter paper: TODO.
+| 概念 | 大白话解释 | 正式定义 | 后文用途 |
+| --- | --- | --- | --- |
+| 【待填写：概念 A】 | 【待填写】 | 【待填写】 | 【待填写】 |
 
-## 14. Paper Plan
-- Planned title: {title}.
-- Planned abstract logic: TODO.
-- Planned contributions: TODO.
-- Planned figures and tables: TODO.
-- Planned experiment-to-section mapping: TODO.
-- What can be written before experiments: TODO.
-- What must wait for evidence: TODO.
+**常见错误**：背景只堆论文名；公式前不解释直觉；术语首次出现没有定义。
 
-## 15. Risks, Limitations, and Ethics
-- Technical risks: TODO.
-- Experiment risks: TODO.
-- Theory risks: TODO.
-- Academic integrity risks: TODO.
-- Data / ethics / reproducibility risks: TODO.
-- Limitation plan: TODO.
+**证据边界**：背景中的事实需要在 `sources.md` 或文献表中登记；本章不提出未经验证的新 claim。
+
+**验收标准**：学生读完后能解释关键术语，并知道每个概念会在方法或实验中承担什么角色。
+
+## 3. 相关工作地图（Related Work Map）
+
+**章节目标**：把研究谱系、代表方法、未解决问题和最接近基线组织成 reviewer 可检查的地图。
+
+**必须填写的信息**
+- Research lineage：`【待填写：问题从哪些工作演化而来】`。
+- Representative methods：`【待填写：代表性方法及其解决的问题】`。
+- Closest baselines：`【待填写：最接近且必须比较的 baseline】`。
+- Difference from prior work：`【待填写：我们的边界差异，不夸大 novelty】`。
+
+| 工作 / 方法 | 解决了什么 | 没解决什么 | 与本研究的关系 |
+| --- | --- | --- | --- |
+| 【待填写：P01】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：只写“我们不同”；没有说明为什么这些 baseline 对审稿人是公平的。
+
+**证据边界**：相关工作只能支持“已有方法声称什么”和“仍缺什么”，不能替代本项目实验证据。
+
+**验收标准**：读者能指出最接近的 3 个 baseline，以及本项目与它们的最小可辩护差异。
+
+## 4. 基准与复现计划（Benchmark and Reproduction Plan）
+
+**章节目标**：定义 benchmark 选择标准、候选论文矩阵、复现模式和复现失败时的降级策略。
+
+**必须填写的信息**
+- Benchmark selection criteria：`【待填写：数据集、任务、指标、代码可得性、审稿预期】`。
+- Selected reproduction targets：`【待填写：R_B01 / R_B02 等复现目标】`。
+- Reproduction mode：`official_code_reuse` / `official_code_adaptation` / `paper_based_reimplementation`。
+- Reproduction protocol：`【待填写：环境、命令、seed、metric tolerance、artifact schema】`。
+- Scaffold reuse plan：`【待填写：哪些 official code 只作为 baseline，哪些可复用为 harness】`。
+
+**Benchmark Candidate Matrix**
+
+| paper_id | baseline_id | 选择理由 | 复现模式 | 主要风险 | 进入主实验条件 |
+| --- | --- | --- | --- | --- | --- |
+| 【待填写：P01】 | 【待填写：B01】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：把 paper-based reimplementation 写成 official reproduction；悄悄改 baseline 核心算法；没有记录 commit 和 license。
+
+**证据边界**：复现证据支持 baseline comparability，不直接证明我们的方法 claim。
+
+**验收标准**：每个 baseline 都有复现模式、输入数据、metric tolerance、命令、artifact 和失败解释路径。
+
+## 5. 问题陈述（Problem Statement）
+
+**章节目标**：把研究问题从直觉陈述收敛为可形式化、可实验、可证伪的问题定义。
+
+**必须填写的信息**
+- Informal problem：`【待填写：用学生能理解的语言描述问题】`。
+- Formal problem：`【待填写：输入、输出、约束、目标函数或系统目标】`。
+- Scope：`【待填写：本 PRD 覆盖的任务和数据边界】`。
+- Non-goals：`【待填写：明确不做什么以及原因】`。
+- Threat model / assumptions：`【待填写：适用场景与失效场景】`。
+
+| 边界项 | In Scope | Out of Scope | 原因 |
+| --- | --- | --- | --- |
+| 【待填写：任务边界】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：问题定义过宽；Non-goals 缺失；把实现便利性当成研究边界。
+
+**证据边界**：问题定义可以来自理论和文献，但主张有效性仍必须由后续实验或证明支持。
+
+**验收标准**：学生能判断一个新任务、新数据集或新 claim 是否属于本项目范围。
+
+## 6. 研究问题与假设（Research Questions and Hypotheses）
+
+**章节目标**：把 RQ、Hypothesis、Expected Claim、Experiment、Falsification 绑定起来。
+
+**RQ / Hypothesis / Claim 映射表**
+
+| rq_id | research_question | hypothesis_id | expected_claim | falsification_condition | planned_experiment |
+| --- | --- | --- | --- | --- | --- |
+| RQ1 | 【待填写：开放但可回答的问题】 | H1 | 【待填写：预期 claim】 | 【待填写：何种结果推翻该 claim】 | E01 |
+
+**常见错误**：RQ 写成 yes/no 宣传句；假设不可证伪；expected claim 没有实验绑定。
+
+**证据边界**：Expected claim 只表示计划主张；执行前不得写成 “results show”。
+
+**验收标准**：每个 RQ 都能追踪到 hypothesis、claim、experiment 或 proof task。
+
+## 7. 形式化定义（Formalization）
+
+**章节目标**：给出 notation、objective、constraints、optimization target / system target 和理论直觉。
+
+| 符号 | 含义 | 取值范围 | 直觉解释 |
+| --- | --- | --- | --- |
+| 【待填写：x】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**必须填写的信息**：目标函数、约束、理论依据、预期性质、适用条件和不适用条件。
+
+**常见错误**：公式没有解释每个符号；理论直觉与实验设计脱节。
+
+**证据边界**：形式化提供可检验结构，不自动证明方法有效。
+
+**验收标准**：学生能从符号表读到目标函数，并解释每个约束如何影响实现或实验。
+
+## 8. 拟议方法（Proposed Method）
+
+**章节目标**：描述 method overview、key idea、module breakdown、algorithm / workflow、complexity 和 failure modes。
+
+| module_id | 模块职责 | 输入 | 输出 | 失败模式 | 验收方式 |
+| --- | --- | --- | --- | --- | --- |
+| M01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**推荐图表**：方法模块图。
+
+**常见错误**：只写概念不写模块接口；忽略复杂度和失败模式；把工程 trick 写成主要科学贡献。
+
+**证据边界**：方法可以用 “我们提出 / 我们设计”，但不得声称优于 baseline。
+
+**验收标准**：学生能按模块拆分实现任务，并知道每个模块的输入输出和失败条件。
+
+## 9. 系统与实现设计（System and Implementation Design）
+
+**章节目标**：把方法转换成可实现的代码结构、数据流、配置系统和可复现工程边界。
+
+| component | path_hint | responsibility | input | output | test_or_harness |
+| --- | --- | --- | --- | --- | --- |
+| 【待填写：组件】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：实验脚本、训练代码和评估代码职责混乱；没有配置版本；artifact schema 不稳定。
+
+**证据边界**：实现完成不等于研究 claim 成立，claim 仍由 harness 和 evidence contract 决定。
+
+**验收标准**：学生能据此创建模块、配置、日志、artifact，并知道哪些文件不能手工伪造。
+
+## 10. 实验设计（Experiment Design）
+
+**章节目标**：定义 dataset、baseline、metric、main experiments、ablation、sensitivity、failure-case 和 statistical protocol。
+
+| experiment_id | linked_rq | dataset | baselines | metrics | seeds | support_condition | falsification_condition |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| E01 | RQ1 | D01 | B01 | M01 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：没有 frozen split；只跑一个 seed；ablation 同时改变多个变量；失败案例不记录。
+
+**证据边界**：smoke test 不能支持 research claim；主实验必须完成所有声明 seed、baseline、metric 和 artifact hash。
+
+**验收标准**：每个实验都有可执行命令、artifact、harness、统计协议和证伪条件。
+
+## 11. 任务图与学生工作计划（Task Graph and Student Work Plan）
+
+**章节目标**：把研究拆成可执行 phase、task、dependencies、acceptance criteria、weekly milestones 和 Go / No-Go checkpoint。
+
+| task_id | phase | dependency | input | output | acceptance_criteria | owner |
+| --- | --- | --- | --- | --- | --- | --- |
+| T01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate。
+
+**证据边界**：任务完成只能由对应 harness、artifact 和日志证明。
+
+**验收标准**：学生能按依赖顺序执行任务，并在阻塞时写出 blocker 而不是编造结果。
+
+## 12. Harness 与验收标准（Harness and Acceptance Criteria）
+
+**章节目标**：定义 unit、integration、experiment、reproduction harness，以及证据要求和 anti-mock policy。
+
+| harness_id | type | linked_target | command_or_blocker | required_output | pass_criteria | may_support_claim |
+| --- | --- | --- | --- | --- | --- | --- |
+| H01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | false |
+
+**常见错误**：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim。
+
+**证据边界**：mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke，不能用于论文表格或 Go / No-Go。
+
+**验收标准**：每个 task 和 experiment 都有 harness；每个 harness 都有输入、输出、schema、pass criteria 和 evidence capture。
+
+## 13. 证据台账（Evidence Ledger）
+
+**章节目标**：维护 claim-to-evidence、experiment-to-claim、current evidence status、missing evidence 和 paper admission rule。
+
+**Evidence Ledger**
+
+| claim_id | claim | evidence_status | required_experiment | source_artifact | limitation | paper_allowed |
+| --- | --- | --- | --- | --- | --- | --- |
+| C01 | 【待填写】 | planned | E01 | 【待填写】 | 【待填写】 | false |
+
+**常见错误**：paper claim 先于 evidence；缺失证据没有进入 gap report；负结果被隐藏。
+
+**证据边界**：只有 evidence_status 为 observed 且通过独立复跑要求的结果，才可进入论文实证结论。
+
+**验收标准**：任何论文 claim 都能追踪到实验、artifact、harness、限制和是否允许入文。
+
+## 14. 论文计划（Paper Plan）
+
+**章节目标**：规划 title、abstract logic、contributions、figures/tables、experiment-to-section mapping 和哪些内容必须等证据。
+
+| paper_section | planned_content | required_evidence | placeholder |
+| --- | --- | --- | --- |
+| Main Results | 【待填写】 | E01 | `{{{{E01.OURS.primary_metric}}}}` |
+
+**常见错误**：把 planned paper 写成 observed paper；使用未注册 placeholder；发明实验数值。
+
+**证据边界**：可以写 “We propose / formulate / design / evaluate”，不能写 “Experiments show / outperforms / state-of-the-art”。
+
+**验收标准**：每个未观察结果都绑定 placeholder_map.yaml，缺失内容进入 paper_gap_report.md。
+
+## 15. 风险、局限与伦理（Risks, Limitations, and Ethics）
+
+**章节目标**：记录 technical、experiment、theory、academic integrity、data / ethics / reproducibility risks，并给出 limitation plan。
+
+| risk_id | risk | probability | impact | mitigation | fallback |
+| --- | --- | --- | --- | --- | --- |
+| RISK01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**常见错误**：只写工程风险，不写学术诚信和可复现风险；没有降级路径；伦理风险空泛。
+
+**证据边界**：风险章节不能用来掩盖证据不足，必须明确哪些 claim 因风险只能降级。
+
+**验收标准**：每个高风险项都有监控信号、缓解动作、fallback 和 Go / No-Go 影响。
+"""
+
+
+def research_prd_tex(title: str, purpose: str) -> str:
+    escaped_title = latex_escape(title)
+    escaped_purpose = latex_escape(purpose)
+    placeholder_tex = r"\makecell[l]{\texttt{\{\{E01.OURS.}\\\texttt{primary\_metric\}\}}}"
+    return rf"""\documentclass[UTF8,11pt]{{ctexrep}}
+\usepackage[a4paper,left=25mm,right=25mm,top=24mm,bottom=26mm]{{geometry}}
+\usepackage{{amsmath,amssymb}}
+\usepackage{{booktabs,tabularx,array,longtable}}
+\usepackage{{makecell}}
+\usepackage{{xcolor}}
+\usepackage{{hyperref}}
+\usepackage{{tikz}}
+\usepackage{{float}}
+\usetikzlibrary{{arrows.meta,positioning,fit,shapes.geometric}}
+\definecolor{{ResearchBlue}}{{HTML}}{{1F4E79}}
+\definecolor{{ResearchGreen}}{{HTML}}{{E7F4EC}}
+\definecolor{{ResearchSoftBlue}}{{HTML}}{{E9F1F8}}
+\definecolor{{ResearchYellow}}{{HTML}}{{F8F1D9}}
+\newcolumntype{{Y}}{{>{{\raggedright\arraybackslash}}X}}
+\newcolumntype{{L}}[1]{{>{{\raggedright\arraybackslash}}p{{#1}}}}
+\tikzset{{
+  researchnode/.style={{rectangle, rounded corners=2pt, draw=ResearchBlue, fill=ResearchSoftBlue, align=center, minimum height=8mm, minimum width=20mm, text width=20mm, font=\scriptsize}},
+  researchprocess/.style={{researchnode, fill=ResearchGreen}},
+  researchdecision/.style={{diamond, aspect=2, draw=ResearchBlue, fill=ResearchYellow, align=center, inner sep=1.5pt, font=\small}},
+  researcharrow/.style={{-{{Latex[length=2.6mm,width=1.8mm]}}, thick, draw=ResearchBlue}}
+}}
+\hypersetup{{colorlinks=true, linkcolor=ResearchBlue, urlcolor=ResearchBlue, citecolor=ResearchBlue}}
+\title{{{escaped_title}}}
+\author{{Research Execution Skills}}
+\date{{\today}}
+\begin{{document}}
+\maketitle
+\tableofcontents
+\clearpage
+
+\chapter{{执行摘要（Executive Summary）}}
+\textbf{{章节目标}}：用一页说明研究问题、预期贡献、最低可行目标与当前证据状态。
+
+\begin{{table}}[H]
+\centering
+\caption{{What / Why / How / So What 摘要表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.18\textwidth}}Y}}
+\toprule
+维度 & 内容 \\
+\midrule
+What & 【待填写：研究对象与核心问题】 \\
+Why & 【待填写：科学缺口、应用价值、审稿人会关心的理由】 \\
+How & 【待填写：核心方法、数据、复现与实验路径】 \\
+So What & 【待填写：预期学术贡献和可交付物】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+图 \ref{{fig:problem-evidence-chain}} 回答从研究问题到证据准入的主链路。读者应关注 Evidence Gate，因为它决定哪些结果可以进入论文。
+\begin{{figure}}[H]
+\centering
+\begin{{tikzpicture}}[node distance=0.65cm]
+\node[researchnode] (problem) {{研究问题}};
+\node[researchprocess, right=of problem] (hypothesis) {{可证伪假设}};
+\node[researchprocess, right=of hypothesis] (experiment) {{实验 / 复现}};
+\node[researchdecision, right=of experiment] (gate) {{Evidence\\Gate}};
+\node[researchnode, right=of gate] (paper) {{论文主张}};
+\draw[researcharrow] (problem) -- (hypothesis);
+\draw[researcharrow] (hypothesis) -- (experiment);
+\draw[researcharrow] (experiment) -- (gate);
+\draw[researcharrow] (gate) -- (paper);
+\end{{tikzpicture}}
+\caption{{研究问题到证据链：突出论文主张必须通过证据门禁。}}
+\label{{fig:problem-evidence-chain}}
+\end{{figure}}
+
+\textbf{{常见错误}}：把愿景写成已证明结论；把论文宣传语当成研究问题；不说明最低可行目标。
+
+\textbf{{证据边界}}：本章只能写设计意图、研究假设和计划贡献；未执行实验不得写成经验结论。
+
+\textbf{{验收标准}}：读者能用两句话复述项目问题、方法方向、最低目标和当前证据状态。最低可行研究目标：{escaped_purpose}。
+
+\chapter{{背景教程（Background Tutorial）}}
+\textbf{{章节目标}}：补齐学生理解后续章节所需的领域背景、基本概念、数学或系统知识。
+
+\begin{{table}}[H]
+\centering
+\caption{{术语与前置知识表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.18\textwidth}}Y Y Y}}
+\toprule
+概念 & 大白话解释 & 正式定义 & 后文用途 \\
+\midrule
+【待填写：概念 A】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{必须填写的信息}}：领域背景、基本概念、必备数学 / 系统 / ML / 安全背景、常见初学者误解和研究价值。
+
+\textbf{{常见错误}}：背景只堆论文名；公式前不解释直觉；术语首次出现没有定义。
+
+\textbf{{证据边界}}：背景事实需要登记来源；本章不提出未经验证的新 claim。
+
+\textbf{{验收标准}}：学生读完后能解释关键术语，并知道每个概念在方法或实验中的角色。
+
+\chapter{{相关工作地图（Related Work Map）}}
+\textbf{{章节目标}}：把研究谱系、代表方法、未解决问题和最接近基线组织成 reviewer 可检查的地图。
+
+\begin{{table}}[H]
+\centering
+\caption{{相关工作差异表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.2\textwidth}}Y Y Y}}
+\toprule
+工作 / 方法 & 解决了什么 & 没解决什么 & 与本研究的关系 \\
+\midrule
+【待填写：P01】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：只写“我们不同”；没有说明为什么 baseline 对审稿人是公平的。
+\textbf{{证据边界}}：相关工作支持已有方法边界，不能替代本项目实验证据。
+\textbf{{验收标准}}：读者能指出最接近的 baseline 及本项目的最小可辩护差异。
+
+\chapter{{基准与复现计划（Benchmark and Reproduction Plan）}}
+\textbf{{章节目标}}：定义 benchmark 选择标准、候选论文矩阵、复现模式和失败降级策略。
+
+\begin{{table}}[H]
+\centering
+\caption{{Benchmark Candidate Matrix}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}L{{0.12\textwidth}}Y L{{0.18\textwidth}}Y}}
+\toprule
+paper\_id & baseline\_id & 选择理由 & 复现模式 & 主要风险 \\
+\midrule
+【待填写：P01】 & 【待填写：B01】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+图 \ref{{fig:reproduction-flow}} 将 baseline 复现和主实验分开。读者应注意：复现证据只证明 baseline comparability，不直接证明我们的方法 claim。
+\begin{{figure}}[H]
+\centering
+\begin{{tikzpicture}}[node distance=1.15cm]
+\node[researchnode] (paper) {{候选论文}};
+\node[researchprocess, right=of paper] (mode) {{复现模式\\分类}};
+\node[researchprocess, right=of mode] (run) {{运行官方 / 适配代码}};
+\node[researchprocess, below=of run] (convert) {{转换到\\artifact schema}};
+\node[researchdecision, left=of convert] (tolerance) {{metric\\tolerance}};
+\node[researchnode, left=of tolerance] (ready) {{可比较\\baseline}};
+\draw[researcharrow] (paper) -- (mode);
+\draw[researcharrow] (mode) -- (run);
+\draw[researcharrow] (run) -- (convert);
+\draw[researcharrow] (convert) -- (tolerance);
+\draw[researcharrow] (tolerance) -- (ready);
+\end{{tikzpicture}}
+\caption{{实验与复现流程图：突出复现证据与主实验 claim 的边界。}}
+\label{{fig:reproduction-flow}}
+\end{{figure}}
+
+\textbf{{常见错误}}：把 paper-based reimplementation 写成 official reproduction；悄悄改 baseline 核心算法。
+\textbf{{证据边界}}：复现证据支持 baseline comparability，不直接证明我们的方法 claim。
+\textbf{{验收标准}}：每个 baseline 都有复现模式、输入数据、metric tolerance、命令、artifact 和失败解释路径。
+
+\chapter{{问题陈述（Problem Statement）}}
+\textbf{{章节目标}}：把研究问题从直觉陈述收敛为可形式化、可实验、可证伪的问题定义。
+
+\begin{{table}}[H]
+\centering
+\caption{{范围与非目标表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.18\textwidth}}Y Y Y}}
+\toprule
+边界项 & In Scope & Out of Scope & 原因 \\
+\midrule
+【待填写：任务边界】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：问题定义过宽；Non-goals 缺失；把实现便利性当成研究边界。
+\textbf{{证据边界}}：问题定义可以来自理论和文献，但有效性由实验或证明支持。
+\textbf{{验收标准}}：学生能判断一个新任务、新数据集或新 claim 是否属于本项目范围。
+
+\chapter{{研究问题与假设（Research Questions and Hypotheses）}}
+\textbf{{章节目标}}：把 RQ、Hypothesis、Expected Claim、Experiment、Falsification 绑定起来。
+
+\begin{{table}}[H]
+\centering
+\caption{{RQ / Hypothesis / Claim 映射表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.09\textwidth}}Y L{{0.1\textwidth}}Y Y L{{0.12\textwidth}}}}
+\toprule
+RQ & 研究问题 & 假设 & 预期 claim & 证伪条件 & 实验 \\
+\midrule
+RQ1 & 【待填写：开放但可回答的问题】 & H1 & 【待填写】 & 【待填写】 & E01 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：RQ 写成 yes/no 宣传句；假设不可证伪；expected claim 没有实验绑定。
+\textbf{{证据边界}}：Expected claim 只表示计划主张；执行前不得写成经验结论。
+\textbf{{验收标准}}：每个 RQ 都能追踪到 hypothesis、claim、experiment 或 proof task。
+
+\chapter{{形式化定义（Formalization）}}
+\textbf{{章节目标}}：给出 notation、objective、constraints、optimization target / system target 和理论直觉。
+
+\begin{{table}}[H]
+\centering
+\caption{{符号表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.14\textwidth}}Y Y Y}}
+\toprule
+符号 & 含义 & 取值范围 & 直觉解释 \\
+\midrule
+【待填写：x】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：公式没有解释符号；理论直觉与实验设计脱节。
+\textbf{{证据边界}}：形式化提供可检验结构，不自动证明方法有效。
+\textbf{{验收标准}}：学生能从符号表读到目标函数，并解释约束如何影响实现或实验。
+
+\chapter{{拟议方法（Proposed Method）}}
+\textbf{{章节目标}}：描述 method overview、key idea、module breakdown、algorithm / workflow、complexity 和 failure modes。
+
+图 \ref{{fig:method-modules}} 展示方法模块拆分。读者应关注模块输入输出，而不是把方法当成一个不可拆的黑盒。
+\begin{{figure}}[H]
+\centering
+\begin{{tikzpicture}}[node distance=0.65cm]
+\node[researchnode] (input) {{输入数据}};
+\node[researchprocess, right=of input] (encoder) {{模块 M01\\表示 / 解析}};
+\node[researchprocess, right=of encoder] (reasoner) {{模块 M02\\优化 / 推理}};
+\node[researchprocess, right=of reasoner] (validator) {{模块 M03\\验证 / 约束}};
+\node[researchnode, right=of validator] (output) {{输出 artifact}};
+\draw[researcharrow] (input) -- (encoder);
+\draw[researcharrow] (encoder) -- (reasoner);
+\draw[researcharrow] (reasoner) -- (validator);
+\draw[researcharrow] (validator) -- (output);
+\end{{tikzpicture}}
+\caption{{方法模块图：突出拟议方法的输入、模块边界与输出 artifact。}}
+\label{{fig:method-modules}}
+\end{{figure}}
+
+\begin{{table}}[H]
+\centering
+\caption{{方法模块契约表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.14\textwidth}}Y Y Y Y}}
+\toprule
+module\_id & 模块职责 & 输入 & 输出 & 失败模式 \\
+\midrule
+M01 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：只写概念不写模块接口；忽略复杂度和失败模式；把工程 trick 写成主要科学贡献。
+\textbf{{证据边界}}：方法可以用“我们提出 / 我们设计”，但不得声称优于 baseline。
+\textbf{{验收标准}}：学生能按模块拆分实现任务，并知道每个模块的输入输出和失败条件。
+
+\chapter{{系统与实现设计（System and Implementation Design）}}
+\textbf{{章节目标}}：把方法转换成可实现的代码结构、数据流、配置系统和可复现工程边界。
+
+\begin{{table}}[H]
+\centering
+\caption{{组件实现契约表}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.16\textwidth}}Y Y Y Y}}
+\toprule
+component & path\_hint & responsibility & input / output & harness \\
+\midrule
+【待填写：组件】 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：实验脚本、训练代码和评估代码职责混乱；没有配置版本；artifact schema 不稳定。
+\textbf{{证据边界}}：实现完成不等于研究 claim 成立，claim 由 harness 和 evidence contract 决定。
+\textbf{{验收标准}}：学生能据此创建模块、配置、日志、artifact，并知道哪些文件不能手工伪造。
+
+\chapter{{实验设计（Experiment Design）}}
+\textbf{{章节目标}}：定义 dataset、baseline、metric、main experiments、ablation、sensitivity、failure-case 和 statistical protocol。
+
+\begin{{table}}[H]
+\centering
+\caption{{Experiment Matrix}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}L{{0.1\textwidth}}L{{0.12\textwidth}}Y Y Y}}
+\toprule
+experiment & rq & dataset & baselines & metrics / seeds & support / falsification \\
+\midrule
+E01 & RQ1 & D01 & B01 & M01 / 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：没有 frozen split；只跑一个 seed；ablation 同时改变多个变量；失败案例不记录。
+\textbf{{证据边界}}：smoke test 不能支持 research claim；主实验必须完成所有声明 seed、baseline、metric 和 artifact hash。
+\textbf{{验收标准}}：每个实验都有可执行命令、artifact、harness、统计协议和证伪条件。
+
+\chapter{{任务图与学生工作计划（Task Graph and Student Work Plan）}}
+\textbf{{章节目标}}：把研究拆成 phase、task、dependencies、acceptance criteria、weekly milestones 和 Go / No-Go checkpoint。
+
+\begin{{table}}[H]
+\centering
+\caption{{Task Graph Table}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}Y Y Y Y}}
+\toprule
+任务 & 阶段 & 依赖 & 输出 & 验收 \\
+\midrule
+T01 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+图 \ref{{fig:spec-plan-audit-loop}} 说明 Spec、Plan 与 Audit 的执行闭环。读者应注意：Plan 是 dated run，不得替代全局 Spec。
+\begin{{figure}}[H]
+\centering
+\begin{{tikzpicture}}[node distance=1.4cm]
+\node[researchnode] (prd) {{Research PRD\\人类真源}};
+\node[researchprocess, right=of prd] (spec) {{Research Spec\\全局执行契约}};
+\node[researchprocess, right=of spec] (plan) {{Research Plan\\日期化执行}};
+\node[researchdecision, below=of plan] (audit) {{Research\\Audit}};
+\node[researchnode, left=of audit] (artifacts) {{Artifacts\\Evidence}};
+\draw[researcharrow] (prd) -- (spec);
+\draw[researcharrow] (spec) -- (plan);
+\draw[researcharrow] (plan) -- (artifacts);
+\draw[researcharrow] (artifacts) -- (audit);
+\draw[researcharrow] (audit) -- (spec);
+\end{{tikzpicture}}
+\caption{{Spec、Plan 与 Audit 执行闭环：突出全局契约、日期化执行和漂移修复之间的关系。}}
+\label{{fig:spec-plan-audit-loop}}
+\end{{figure}}
+
+\textbf{{常见错误}}：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate。
+\textbf{{证据边界}}：任务完成只能由对应 harness、artifact 和日志证明。
+\textbf{{验收标准}}：学生能按依赖顺序执行任务，并在阻塞时写 blocker 而不是编造结果。
+
+\chapter{{Harness 与验收标准（Harness and Acceptance Criteria）}}
+\textbf{{章节目标}}：定义 unit、integration、experiment、reproduction harness，以及证据要求和 anti-mock policy。
+
+\begin{{table}}[H]
+\centering
+\caption{{Harness Acceptance Table}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}L{{0.16\textwidth}}Y Y Y}}
+\toprule
+Harness & 类型 & 命令/阻塞 & 输出 & 支撑 claim \\
+\midrule
+H01 & 【待填写】 & 【待填写】 & 【待填写】 & false \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim。
+\textbf{{证据边界}}：mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke，不能用于论文表格或 Go / No-Go。
+\textbf{{验收标准}}：每个 task 和 experiment 都有 harness；每个 harness 都有输入、输出、schema、pass criteria 和 evidence capture。
+
+\chapter{{证据台账（Evidence Ledger）}}
+\textbf{{章节目标}}：维护 claim-to-evidence、experiment-to-claim、current evidence status、missing evidence 和 paper admission rule。
+
+\begin{{table}}[H]
+\centering
+\caption{{Evidence Ledger}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}Y L{{0.14\textwidth}}L{{0.16\textwidth}}Y L{{0.1\textwidth}}}}
+\toprule
+Claim & 内容 & 状态 & artifact & 限制 & 入文 \\
+\midrule
+C01 & 【待填写】 & planned & 【待填写】 & 【待填写】 & false \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：paper claim 先于 evidence；缺失证据没有进入 gap report；负结果被隐藏。
+\textbf{{证据边界}}：只有 evidence\_status 为 observed 且通过独立复跑要求的结果，才可进入论文实证结论。
+\textbf{{验收标准}}：任何论文 claim 都能追踪到实验、artifact、harness、限制和是否允许入文。
+
+\chapter{{论文计划（Paper Plan）}}
+\textbf{{章节目标}}：规划 title、abstract logic、contributions、figures/tables、experiment-to-section mapping 和哪些内容必须等证据。
+
+\begin{{table}}[H]
+\centering
+\caption{{Paper Placeholder Plan}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.18\textwidth}}Y Y Y}}
+\toprule
+章节 & 内容 & 证据 & placeholder \\
+\midrule
+Main Results & 【待填写】 & E01 & {placeholder_tex} \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：把 planned paper 写成 observed paper；使用未注册 placeholder；发明实验数值。
+\textbf{{证据边界}}：可以写 “We propose / formulate / design / evaluate”，不能写 “Experiments show / outperforms / state-of-the-art”。
+\textbf{{验收标准}}：每个未观察结果都绑定 placeholder\_map.yaml，缺失内容进入 paper\_gap\_report.md。
+
+\chapter{{风险、局限与伦理（Risks, Limitations, and Ethics）}}
+\textbf{{章节目标}}：记录 technical、experiment、theory、academic integrity、data / ethics / reproducibility risks，并给出 limitation plan。
+
+\begin{{table}}[H]
+\centering
+\caption{{Risk Matrix}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}Y L{{0.12\textwidth}}L{{0.12\textwidth}}Y}}
+\toprule
+risk\_id & risk & probability & impact & mitigation / fallback \\
+\midrule
+RISK01 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\textbf{{常见错误}}：只写工程风险，不写学术诚信和可复现风险；没有降级路径；伦理风险空泛。
+\textbf{{证据边界}}：风险章节不能用来掩盖证据不足，必须明确哪些 claim 因风险只能降级。
+\textbf{{验收标准}}：每个高风险项都有监控信号、缓解动作、fallback 和 Go / No-Go 影响。
+
+\end{{document}}
+"""
+
+
+def planned_paper_markdown(title: str) -> str:
+    return f"""# {title}
+
+> Planned Research Paper Template for NeurIPS / ICLR / AAAI style writing.
+> This is a planned manuscript derived from the Research PRD. It may use assertive present-tense language for designed artifacts, but it must not claim unvalidated empirical findings.
+
+## Abstract
+
+We propose 【待填写：method name or research program】 for 【待填写：problem setting】. The paper formulates 【待填写：formal problem】, designs 【待填写：method or system】, and defines an evaluation protocol grounded in the Research PRD and Research Spec. Do not write empirical conclusions before evidence. Unobserved values must remain experiment-bound placeholders after registration.
+
+## 1. Introduction
+
+**Purpose**: Establish motivation, research gap, and contribution logic with a top-conference narrative.
+
+**Template paragraphs**
+
+1. Problem pressure: 【待填写：why the problem matters now】.
+2. Limitation of prior work: 【待填写：specific gap from Related Work Map】.
+3. Key idea: We propose 【待填写：core idea】.
+4. Contributions:
+   - We formulate 【待填写：formalization contribution】.
+   - We design 【待填写：method/system contribution】.
+   - We evaluate through 【待填写：planned experiments from Spec, not invented from Paper】.
+
+**Evidence boundary**: This section can motivate and propose; it cannot report empirical superiority.
+
+## 2. Related Work and Research Gap
+
+**Purpose**: Convert PRD related-work map into a concise reviewer-facing comparison.
+
+| Thread | Representative work | What it solves | Remaining gap | Our boundary |
+| --- | --- | --- | --- | --- |
+| 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**Writing rule**: Do not use vague novelty language. State exact differences in task setting, objective, evidence, or system assumptions.
+
+## 3. Problem Formulation
+
+**Purpose**: Translate PRD formalization into paper notation.
+
+| Symbol | Meaning | Domain | Used in |
+| --- | --- | --- | --- |
+| 【待填写】 | 【待填写】 | 【待填写】 | Objective / Constraint |
+
+**Required content**
+
+- Informal problem definition.
+- Formal input/output definition.
+- Objective or system target.
+- Assumptions and scope.
+- Falsification-relevant constraints.
+
+## 4. Method
+
+**Purpose**: Present the proposed method with a clean method narrative.
+
+**Allowed assertive language**
+
+- We propose 【待填写】.
+- We formulate 【待填写】.
+- We design 【待填写】.
+- We introduce 【待填写】.
+
+| Module | Role | Input | Output | Failure mode |
+| --- | --- | --- | --- | --- |
+| 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+**Method figure plan**: 【待填写：which figure from PRD should become Figure 1】.
+
+## 5. Evaluation Plan
+
+**Purpose**: Describe the planned evaluation without fabricating results.
+
+| Experiment | Linked RQ | Dataset | Baselines | Metrics | Placeholder pattern |
+| --- | --- | --- | --- | --- | --- |
+| E01 | RQ1 | D01 | B01 | M01 | PLACEHOLDER_PATTERN: E01.OURS.primary_metric |
+
+**Required content**
+
+- Dataset and split protocol from Spec.
+- Baseline and reproduction modes from Spec.
+- Metrics and statistical protocol from Spec.
+- Main experiments, ablations, sensitivity, and failure-case analysis.
+
+## 6. Planned Results and Placeholder Discipline
+
+**Purpose**: Reserve result locations while preventing fake empirical claims.
+
+| Paper location | Required experiment | Metric | Source after execution |
+| --- | --- | --- | --- |
+| Table 1 / Main Results | E01 | primary_metric | artifacts/experiments/E01/aggregate/summary.json |
+
+**Rules**
+
+- Before execution, use registered placeholders only after the corresponding experiment exists in Spec.
+- Use phrasing such as “Table 1 reports PLACEHOLDER_PATTERN after execution.”
+- Do not write empirical conclusions before evidence.
+- If a claim, dataset, baseline, metric, formula, or table is missing, record it in `paper_gap_report.md`.
+
+## 7. Limitations and Ethics
+
+**Purpose**: Preserve academic integrity by stating what the planned study cannot yet claim.
+
+| Limitation | Why it matters | Evidence needed | Paper handling |
+| --- | --- | --- | --- |
+| 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+
+## Appendix Plan
+
+- Reproducibility checklist.
+- Additional benchmark details.
+- Hyperparameter and seed protocol.
+- Full placeholder map.
+- Extended limitations and negative-result policy.
+"""
+
+
+def planned_paper_tex(title: str) -> str:
+    escaped_title = latex_escape(title)
+    return rf"""\documentclass[UTF8,11pt]{{ctexart}}
+\usepackage[a4paper,left=24mm,right=24mm,top=24mm,bottom=26mm]{{geometry}}
+\usepackage{{amsmath,amssymb}}
+\usepackage{{booktabs,tabularx,array}}
+\usepackage{{hyperref}}
+\usepackage{{xcolor}}
+\newcolumntype{{Y}}{{>{{\raggedright\arraybackslash}}X}}
+\newcolumntype{{L}}[1]{{>{{\raggedright\arraybackslash}}p{{#1}}}}
+\hypersetup{{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}}
+\emergencystretch=2em
+\title{{Planned Research Paper\\\large {escaped_title}}}
+\author{{Research Execution Skills}}
+\date{{\today}}
+\begin{{document}}
+\maketitle
+
+\begin{{abstract}}
+We propose 【待填写：method name or research program】 for 【待填写：problem setting】. The paper formulates 【待填写：formal problem】, designs 【待填写：method or system】, and defines an evaluation protocol grounded in the Research PRD and Research Spec. Do not write empirical conclusions before evidence. Unobserved values must remain experiment-bound placeholders after registration.
+\end{{abstract}}
+
+\section{{Introduction}}
+\textbf{{Purpose}}: Establish motivation, research gap, and contribution logic with a NeurIPS / ICLR / AAAI style narrative.
+
+\begin{{itemize}}
+\item Problem pressure: 【待填写：why the problem matters now】.
+\item Limitation of prior work: 【待填写：specific gap from Related Work Map】.
+\item Key idea: We propose 【待填写：core idea】.
+\item Contributions: formulate, design, and evaluate only through PRD/Spec-bound experiments.
+\end{{itemize}}
+
+\section{{Related Work and Research Gap}}
+\begin{{table}}[htbp]
+\centering
+\caption{{Related-work gap map}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.16\textwidth}}Y Y Y Y}}
+\toprule
+Thread & Work & Solves & Gap & Boundary \\
+\midrule
+【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\section{{Problem Formulation}}
+\begin{{table}}[htbp]
+\centering
+\caption{{Notation table}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.16\textwidth}}Y Y Y}}
+\toprule
+Symbol & Meaning & Domain & Used in \\
+\midrule
+【待填写】 & 【待填写】 & 【待填写】 & Objective / Constraint \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\section{{Method}}
+We propose 【待填写】, formulate 【待填写】, and design 【待填写】.
+
+\begin{{table}}[htbp]
+\centering
+\caption{{Method module contract}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.16\textwidth}}Y Y Y Y}}
+\toprule
+Module & Role & Input & Output & Failure mode \\
+\midrule
+【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\section{{Evaluation Plan}}
+\begin{{table}}[htbp]
+\centering
+\caption{{Planned experiment map}}
+\begin{{tabularx}}{{\textwidth}}{{@{{}}L{{0.12\textwidth}}L{{0.16\textwidth}}L{{0.2\textwidth}}Y@{{}}}}
+\toprule
+Exp. & RQ / Data & Baseline / Metric & Placeholder \\
+\midrule
+E01 & RQ1 / D01 & B01 / M01 & \shortstack[l]{{PLACEHOLDER\\E01.OURS.metric}} \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\section{{Planned Results and Placeholder Discipline}}
+\begin{{itemize}}
+\item Before execution, reserve result locations but do not write empirical conclusions.
+\item Missing claims, datasets, baselines, metrics, formulas, or tables must be recorded in the paper gap report.
+\item A placeholder can enter the paper only after the corresponding experiment exists in Spec.
+\end{{itemize}}
+
+\section{{Limitations and Ethics}}
+\begin{{table}}[htbp]
+\centering
+\caption{{Limitation plan}}
+\begin{{tabularx}}{{\textwidth}}{{Y Y Y Y}}
+\toprule
+Limitation & Why it matters & Evidence needed & Paper handling \\
+\midrule
+【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\appendix
+\section{{Appendix Plan}}
+Reproducibility checklist, benchmark details, hyperparameter and seed protocol, full placeholder map, and negative-result policy.
+
+\end{{document}}
 """
 
 
 def latex_from_markdown(markdown: str) -> str:
     lines = [
-        r"\documentclass[11pt]{article}",
+        r"\documentclass[UTF8,11pt]{ctexart}",
         r"\usepackage[margin=1in]{geometry}",
         r"\usepackage{hyperref}",
-        r"\title{Research PRD}",
+        r"\title{Research Artifact}",
         r"\date{\today}",
         r"\begin{document}",
         r"\maketitle",
     ]
     for line in markdown.splitlines():
         if line.startswith("# "):
-            lines.append(r"\section*{" + line[2:].replace("&", r"\&") + "}")
+            lines.append(r"\section*{" + latex_escape(line[2:]) + "}")
         elif line.startswith("## "):
-            lines.append(r"\subsection*{" + line[3:].replace("&", r"\&") + "}")
-        elif line.startswith("- "):
-            lines.append(line.replace("&", r"\&") + r"\\")
+            lines.append(r"\subsection*{" + latex_escape(line[3:]) + "}")
         elif line.strip():
-            lines.append(line.replace("&", r"\&") + r"\\")
+            lines.append(latex_escape(line) + r"\par")
     lines.append(r"\end{document}")
     return "\n".join(lines) + "\n"
 
@@ -335,7 +1182,21 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
     spec = research_dir / "spec"
     write_text(
         spec / "README.md",
-        "# Research Spec\n\nThis directory is the global machine-readable execution contract compiled from the Research PRD.\n",
+        "\n".join(
+            [
+                "# Research Spec",
+                "",
+                "本目录是从 Research PRD 编译出来的全局机器可读执行契约。",
+                "",
+                "规则：",
+                "- PRD 是人类研究真源。",
+                "- Spec 是 AI 执行真源。",
+                "- Paper 只提供叙事目标与 placeholder，不提供实验定义。",
+                "- 不要从论文反推实验、数据集、基线、指标、seed 或结果。",
+                "- 缺失信息必须写入 gap report 或 blocker，不能补造。",
+                "",
+            ]
+        ),
         force,
     )
     write_yaml(
@@ -346,33 +1207,102 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
             "source": {"prd": "docs/research/prd/research_prd.md"},
             "authority": "compile_from_prd_not_paper",
             "rq_chain": [],
-            "blockers": ["Compile RQ -> Hypothesis -> Claim -> Experiment -> Harness -> Evidence from PRD."],
+            "language_policy": {
+                "keys": "YAML keys、schema 字段和稳定 ID 保持英文，便于脚本和 agent 解析。",
+                "values": "所有说明性 value 使用中文，包括 title、description、purpose、notes、blockers、acceptance_criteria 和 repair。",
+            },
+            "rq_chain_template": {
+                "rq_id": "RQ1",
+                "hypothesis_id": "H1",
+                "claim_id": "C01",
+                "experiment_id": "E01",
+                "dataset_id": "D01",
+                "model_id": "M_OURS",
+                "baseline_id": "B01",
+                "metric_id": "M01",
+                "seed_protocol_id": "S01",
+                "task_id": "T_E01",
+                "harness_id": "H_E01_FULL",
+                "evidence_id": "EV_E01",
+                "paper_placeholder": "PLACEHOLDER_PATTERN: E01.OURS.primary_metric",
+                "description": "模板字段，不代表已声明实验；真实条目必须从 PRD 编译后写入 rq_chain。",
+            },
+            "title": "全局研究执行契约",
+            "description": "从 Research PRD 编译 RQ、Hypothesis、Claim、Experiment、Task、Harness、Evidence 和 Paper placeholder 的稳定机器契约。",
+            "notes": [
+                "只能从 Research PRD 编译，不得从 Planned Paper 反推实验。",
+                "所有缺失数据集、基线、指标、seed、命令和结果都必须登记为 blocker。",
+            ],
+            "blockers": ["【阻塞】尚未从 PRD 填入 RQ -> Hypothesis -> Claim -> Experiment -> Harness -> Evidence 链。"],
         },
         force,
     )
     shared_payloads = {
-        "dataset_manifest.yaml": {"schema_version": SCHEMA_VERSION, "datasets": []},
-        "metric_manifest.yaml": {"schema_version": SCHEMA_VERSION, "metrics": []},
-        "model_manifest.yaml": {"schema_version": SCHEMA_VERSION, "models": []},
-        "environment_spec.yaml": {"schema_version": SCHEMA_VERSION, "environments": []},
-        "seed_protocol.yaml": {"schema_version": SCHEMA_VERSION, "seed_protocols": []},
-        "artifact_schema.yaml": {"schema_version": SCHEMA_VERSION, "artifact_schemas": []},
+        "dataset_manifest.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "数据集清单：只登记 PRD 已定义的数据集、冻结划分和预处理配置。",
+            "datasets": [],
+            "blockers": ["【阻塞】PRD 尚未声明可执行数据集。"],
+        },
+        "metric_manifest.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "指标清单：每个指标必须说明方向、计算方式和适用实验。",
+            "metrics": [],
+            "blockers": ["【阻塞】PRD 尚未声明主指标和辅助指标。"],
+        },
+        "model_manifest.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "模型清单：登记 proposed method、baseline 和复现目标的稳定 ID。",
+            "models": [],
+        },
+        "environment_spec.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "环境规格：记录 Python、CUDA、系统依赖、官方代码 commit 和 license。",
+            "environments": [],
+        },
+        "seed_protocol.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "随机种子协议：声明每个 claim-supporting experiment 必须运行的 seed 集合。",
+            "seed_protocols": [],
+            "blockers": ["【阻塞】PRD 尚未声明 seed 协议。"],
+        },
+        "artifact_schema.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "Artifact schema：统一 raw、aggregate、log、hash 和 reproduction note 的保存格式。",
+            "artifact_schemas": [],
+        },
         "anti_mock_policy.yaml": {
             "schema_version": SCHEMA_VERSION,
-            "allowed_for": ["unit_test", "smoke_test", "harness_plumbing"],
+            "description": "Anti-mock policy：mock/toy/synthetic/stub/cached/proxy 输出只能用于 unit、smoke、paper manuscript draft，不能支持科研主张。",
+            "allowed_for": ["unit_test", "smoke_test", "harness_plumbing", "paper_manuscript_draft"],
+            "allowed_for_description": {
+                "unit_test": "单元测试可以使用显式标记的 mock。",
+                "smoke_test": "冒烟测试可以使用小样本或 stub 验证管线连通性。",
+                "harness_plumbing": "harness 管道调试可以使用代理输出，但不得进入证据台账。",
+                "paper_manuscript_draft": "论文草稿可以使用 mock 数值填充表格、图表和结果段落，以构建完整的投稿级 manuscript。这些数值必须在 paper_gap_report.md 中登记替换条件，且论文叙事不得将其描述为已验证发现。",
+            },
             "forbidden_for": [
                 "research_claim",
                 "benchmark_result",
                 "baseline_comparison",
                 "ablation_result",
                 "final_task_completion",
-                "paper_table",
-                "paper_figure",
+                "paper_table_as_validated",
+                "paper_figure_as_validated",
                 "go_no_go_decision",
             ],
+            "forbidden_for_description": {
+                "research_claim": "科研主张必须来自真实执行、完整 seed、声明数据集、声明指标和可复跑 artifact。",
+                "benchmark_result": "基准结果不得来自 mock、toy、synthetic、cached、stub 或 proxy 输出。",
+                "ablation_result": "消融结果必须来自真实实验，不得使用 smoke 结果替代。",
+                "paper_table_as_validated": "论文表格中呈现为已验证发现的数值，必须来自真实实验；manuscript draft 中的 mock 数值必须在 gap report 中登记并在获得真实证据后替换。",
+                "paper_figure_as_validated": "论文图不得展示伪造或未登记证据；manuscript draft 中的 mock 可视化必须在 gap report 中登记。",
+                "go_no_go_decision": "Go / No-Go 只能基于真实 harness 和 evidence contract。",
+            },
         },
         "evidence_contract.yaml": {
             "schema_version": SCHEMA_VERSION,
+            "description": "证据契约：每个 claim 必须绑定 experiment、harness、artifact、命令、commit 和限制说明。",
             "claims": [],
             "evidence_rules": {
                 "forbidden_as_claim_evidence": [
@@ -380,7 +1310,8 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                     "toy_result",
                     "smoke_test_only",
                     "cached_metric_without_raw_runs",
-                ]
+                ],
+                "notes": ["【规则】只有通过 declared harness 且记录 artifact hash 的 evidence 才能支持论文主张。"],
             },
         },
     }
@@ -389,57 +1320,198 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
 
     write_yaml(
         spec / "reproduction" / "benchmark_candidate_matrix.yaml",
-        {"schema_version": SCHEMA_VERSION, "candidate_papers": []},
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "候选 benchmark 论文矩阵：用于选择必须复现或比较的 baseline。",
+            "candidate_papers": [],
+        },
         force,
     )
     write_yaml(
         spec / "reproduction" / "reproduction_manifest.yaml",
-        {"schema_version": SCHEMA_VERSION, "reproduction_targets": []},
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "复现目标清单：每个 target 必须声明 reproduction_mode、source、commands、artifacts 和 acceptance criteria。",
+            "allowed_reproduction_modes": [
+                "official_code_reuse",
+                "official_code_adaptation",
+                "paper_based_reimplementation",
+            ],
+            "reproduction_target_template": {
+                "reproduction_id": "R_B01",
+                "baseline_id": "B01",
+                "paper_id": "P01",
+                "title": "【待填写：baseline 论文标题】",
+                "role": ["main_baseline"],
+                "reproduction_mode": "official_code_reuse",
+                "source": {
+                    "paper_url": "【待填写】",
+                    "code_url": "【待填写】",
+                    "code_commit": "【待填写】",
+                    "license": "【待填写】",
+                    "official_result_reference": "【待填写：表格或章节】",
+                },
+                "reason_for_selection": ["【待填写：closest_problem_setting / expected_by_reviewers / compatible_metric】"],
+                "commands": {
+                    "setup": ["bash scripts/reproduction/B01/setup_official.sh"],
+                    "smoke": ["bash scripts/reproduction/B01/run_smoke.sh"],
+                    "run": ["bash scripts/reproduction/B01/run_full.sh --seed {seed}"],
+                    "convert": ["python -m project.reproduction.convert --baseline B01"],
+                    "aggregate": ["python -m project.reproduction.aggregate --baseline B01"],
+                },
+                "required_artifacts": [
+                    "artifacts/reproduction/B01/source/code_commit.txt",
+                    "artifacts/reproduction/B01/aggregate/summary.json",
+                    "artifacts/reproduction/B01/reproduction_note.md",
+                ],
+                "acceptance_criteria": [
+                    "记录官方代码 URL、commit 和 license",
+                    "使用声明的数据集和指标",
+                    "输出符合项目 artifact schema",
+                    "若未达到官方结果，需要解释 mismatch",
+                ],
+                "description": "模板字段，不代表真实复现目标；真实目标必须从 PRD 编译。",
+            },
+            "reproduction_targets": [],
+            "blockers": ["【阻塞】尚未从 PRD 填入复现目标。"],
+        },
         force,
     )
     write_yaml(
         spec / "reproduction" / "reproduction_task_graph.yaml",
-        {"schema_version": SCHEMA_VERSION, "tasks": [], "gates": []},
+        {"schema_version": SCHEMA_VERSION, "description": "复现任务图：定义 baseline 复现的 task、gate 和依赖。", "tasks": [], "gates": []},
         force,
     )
     write_yaml(
         spec / "reproduction" / "reproduction_harness.yaml",
-        {"schema_version": SCHEMA_VERSION, "harnesses": []},
+        {"schema_version": SCHEMA_VERSION, "description": "复现 harness：与主实验 harness 分离，只证明 baseline comparability。", "harnesses": []},
         force,
     )
     write_text(
         spec / "reproduction" / "reproduction_gap_report.md",
-        "# Reproduction Gap Report\n\n- [BLOCKED] Fill benchmark targets, reproduction modes, commands, and artifacts from the PRD.\n",
+        "# 复现缺口报告\n\n- 【阻塞】尚未从 PRD 填入 benchmark target、reproduction mode、官方代码 URL、commit、license、命令和 artifact。\n- 【规则】不要从 Planned Paper 反推复现实验；缺失信息必须回到 Research PRD 补齐。\n",
         force,
     )
-    write_yaml(spec / "implementation" / "module_contracts.yaml", {"schema_version": SCHEMA_VERSION, "modules": []}, force)
+    write_yaml(
+        spec / "implementation" / "module_contracts.yaml",
+        {"schema_version": SCHEMA_VERSION, "description": "实现模块契约：登记模块职责、输入输出、配置、artifact 和 harness。", "modules": []},
+        force,
+    )
     write_yaml(
         spec / "implementation" / "implementation_task_graph.yaml",
-        {"schema_version": SCHEMA_VERSION, "tasks": [], "gates": []},
+        {"schema_version": SCHEMA_VERSION, "description": "实现任务图：用于从 Spec 派生 dated Research Plan。", "tasks": [], "gates": []},
         force,
     )
     write_yaml(
         spec / "implementation" / "implementation_harness.yaml",
-        {"schema_version": SCHEMA_VERSION, "harnesses": []},
+        {"schema_version": SCHEMA_VERSION, "description": "实现 harness：验证模块和集成边界，不直接支持论文 claim。", "harnesses": []},
         force,
     )
     write_yaml(
         spec / "experiments" / "experiment_manifest.yaml",
-        {"schema_version": SCHEMA_VERSION, "experiments": [], "claims": []},
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "实验清单：每个 experiment 必须绑定 RQ、hypothesis、claim、dataset、baseline、metric、seed、command、artifact 和 harness。",
+            "experiment_template": {
+                "experiment_id": "E01",
+                "title": "【待填写：主实验标题】",
+                "linked_rq": "RQ1",
+                "hypothesis": "H1",
+                "claim": "C01",
+                "purpose": "【待填写：该实验要验证什么】",
+                "status": "planned",
+                "dataset": "D01",
+                "split_file": "data/splits/D01_frozen_split_v1.json",
+                "preprocessing_config": "configs/preprocess/D01_v1.yaml",
+                "models": ["M_OURS"],
+                "proposed_method_config": "configs/experiments/E01/ours.yaml",
+                "baselines": ["B01"],
+                "seeds": [1, 2, 3],
+                "metrics": ["M01"],
+                "statistical_protocol": "【待填写：paired bootstrap / t-test / confidence interval 等】",
+                "commands": {
+                    "run": "python -m project.experiments.run --experiment E01 --seed {seed}",
+                    "aggregate": "python -m project.experiments.aggregate --experiment E01",
+                },
+                "required_artifacts": [
+                    "artifacts/experiments/E01/raw/{seed}/metrics.json",
+                    "artifacts/experiments/E01/aggregate/summary.json",
+                ],
+                "harnesses": ["H_E01_FULL"],
+                "support_condition": "【待填写：什么结果支持 claim】",
+                "falsification_condition": "【待填写：什么结果推翻或降级 claim】",
+                "mock_policy": "mock 输出只能用于 unit/smoke，不能支持科研主张",
+                "description": "模板字段，不代表真实实验；真实实验必须从 PRD 编译。",
+            },
+            "experiments": [],
+            "claims": [],
+            "blockers": ["【阻塞】PRD 尚未声明可执行实验。"],
+        },
         force,
     )
     write_yaml(
         spec / "experiments" / "experiment_task_graph.yaml",
-        {"schema_version": SCHEMA_VERSION, "tasks": [], "gates": []},
+        {"schema_version": SCHEMA_VERSION, "description": "实验任务图：定义主实验、消融、敏感性和失败案例分析的执行依赖。", "tasks": [], "gates": []},
         force,
     )
     write_yaml(
         spec / "experiments" / "experiment_harness.yaml",
-        {"schema_version": SCHEMA_VERSION, "harnesses": []},
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "实验 harness：full_experiment 必须要求完整 seed、完整 baseline、无 mock、artifact hash 和 independent rerun。",
+            "harness_template": {
+                "harness_id": "H_E01_FULL",
+                "type": "full_experiment",
+                "linked_experiment": "E01",
+                "purpose": "【待填写：验证 E01 是否满足 claim-supporting evidence】",
+                "cwd": ".",
+                "command": "python -m project.harness verify E01",
+                "timeout": 7200,
+                "required_inputs": ["data/splits/D01_frozen_split_v1.json"],
+                "required_outputs": [
+                    {"path": "artifacts/experiments/E01/aggregate/summary.json", "schema": "artifact_schema"}
+                ],
+                "pass_criteria": [
+                    "all_declared_seeds_completed",
+                    "all_declared_baselines_completed",
+                    "no_mock_data_used",
+                    "no_missing_metric",
+                    "no_test_tuning",
+                    "artifact_hashes_recorded",
+                ],
+                "evidence_capture": ["stdout", "stderr", "artifact_hashes"],
+                "may_support_research_claim": True,
+                "independent_rerun_required": True,
+                "description": "模板字段，不代表真实 harness；真实 harness 必须从 Spec 任务图声明。",
+            },
+            "harnesses": [],
+        },
         force,
     )
-    write_yaml(spec / "paper" / "placeholder_map.yaml", {"placeholders": []}, force)
-    write_yaml(spec / "paper" / "result_binding.yaml", {"schema_version": SCHEMA_VERSION, "bindings": []}, force)
+    write_yaml(spec / "paper" / "placeholder_map.yaml", {"description": "论文 placeholder 映射：未观察结果必须绑定实验和 artifact。", "placeholders": []}, force)
+    write_yaml(
+        spec / "paper" / "result_binding.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "结果绑定：把 observed artifact 安全绑定到论文 placeholder。",
+            "result_binding_template": {
+                "placeholder": "PLACEHOLDER_PATTERN: E01.OURS.primary_metric",
+                "experiment_id": "E01",
+                "source_artifact": "artifacts/experiments/E01/aggregate/summary.json",
+                "binding_status": "blocked_until_observed",
+                "required_checks": [
+                    "harness_passed",
+                    "artifact_hash_recorded",
+                    "independent_rerun_completed",
+                    "no_mock_data_used",
+                ],
+                "paper_location": "Table 1 / Main Results",
+                "description": "模板字段，不代表真实结果绑定；真实 binding 必须来自 observed evidence。",
+            },
+            "bindings": [],
+        },
+        force,
+    )
 
 
 def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = False) -> Path:
@@ -449,34 +1521,19 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
 
     prd = prd_markdown(title, purpose)
     write_text(research_dir / "prd" / "research_prd.md", prd, force)
-    write_text(research_dir / "prd" / "research_prd.tex", latex_from_markdown(prd), force)
-    write_pdf(research_dir / "prd" / "research_prd.pdf", title, force)
+    prd_tex = research_dir / "prd" / "research_prd.tex"
+    write_text(prd_tex, research_prd_tex(title, purpose), force)
+    render_pdf_from_tex(prd_tex, research_dir / "prd" / "research_prd.pdf", force)
 
-    paper_md = "\n".join(
-        [
-            f"# {title}",
-            "",
-            "## Abstract",
-            "We propose a research program derived from the Research PRD. Empirical claims remain experiment-bound placeholders until execution.",
-            "",
-            "## Introduction",
-            "TODO: compile motivation, gap, and contributions from the PRD.",
-            "",
-            "## Method",
-            "TODO: formulate and describe the proposed method from PRD sections 7 and 8.",
-            "",
-            "## Evaluation Plan",
-            "Experiment placeholders must be registered in placeholder_map.yaml before use.",
-            "",
-        ]
-    )
+    paper_md = planned_paper_markdown(title)
     write_text(research_dir / "paper" / "planned_paper.md", paper_md, force)
-    write_text(research_dir / "paper" / "planned_paper.tex", latex_from_markdown(paper_md), force)
-    write_pdf(research_dir / "paper" / "planned_paper.pdf", title, force)
+    paper_tex = research_dir / "paper" / "planned_paper.tex"
+    write_text(paper_tex, planned_paper_tex(title), force)
+    render_pdf_from_tex(paper_tex, research_dir / "paper" / "planned_paper.pdf", force)
     write_yaml(research_dir / "paper" / "placeholder_map.yaml", {"placeholders": []}, force)
     write_text(
         research_dir / "paper" / "paper_gap_report.md",
-        "# Paper Gap Report\n\n- [BLOCKED] Register missing claims, experiments, datasets, baselines, metrics, formulas, and tables here instead of inventing them.\n",
+        "# 论文缺口报告\n\n- 【阻塞】如果 PRD 或 Spec 缺少 claim、experiment、dataset、baseline、metric、formula、table 或 placeholder binding，写在这里，不要在论文中发明。\n- 【规则】manuscript draft 中的 mock 数值必须在 gap report 中登记替换条件；论文叙事不得将其描述为已验证发现。\n",
         force,
     )
     init_spec_scaffold(research_dir, force)
@@ -573,7 +1630,7 @@ def generate_plan(
     payload = {
         "plan_id": plan_id,
         "created_at": date,
-        "purpose": purpose,
+        "purpose": f"执行目标：{purpose}",
         "source_versions": {
             "prd_hash": hash_path(research_dir / "prd"),
             "paper_hash": hash_path(research_dir / "paper"),
@@ -594,48 +1651,74 @@ def generate_plan(
             "scripts/reproduction/**" if track == "reproduction" else "src/**",
         ],
         "forbidden_actions": [
-            "infer experiments from paper",
-            "mock missing datasets, baselines, metrics, or results",
-            "change core baseline algorithms silently",
-            "write unvalidated empirical claims into paper",
+            "不要从 Paper 推断具体的 dataset、seed、command 或 artifact 路径",
+            "可以从 Paper 理解实验设计意图（baseline、metric、表格结构），但执行数据必须从 Spec 获取",
+            "不要把未验证经验结论写入论文",
+            "不要静默修改 baseline 核心算法",
         ],
         "gates": selected_gates,
         "harnesses": harnesses,
         "artifacts": ["artifacts/**"],
         "completion_condition": [
-            "all selected gates pass or blockers are documented",
-            "declared harness stdout/stderr is saved",
-            "current_state.md, blocker_log.md, decision_log.md, run_log.md, and final_summary.md are updated",
+            "所有选定 gate 通过，或阻塞原因已写入 blocker_log.md",
+            "声明的 harness stdout/stderr 已保存",
+            "current_state.md、blocker_log.md、decision_log.md、run_log.md 和 final_summary.md 已更新",
         ],
     }
     write_yaml(plan_dir / "plan.yaml", payload, force)
     write_text(
         plan_dir / "plan.md",
-        f"# {plan_id}\n\nPurpose: {purpose}\n\nTrack: {track}\n\nExecute the earliest incomplete gate from `docs/research/spec/`.\n",
+        "\n".join(
+            [
+                f"# 研究执行计划：{plan_id}",
+                "",
+                f"- 目的：{purpose}",
+                f"- 执行轨道：{track}",
+                f"- 目标执行器：{target}",
+                "",
+                "## 执行规则",
+                "",
+                "- 可执行真源是 `docs/research/spec/`；执行时以 Spec 为准，Paper 为辅助参考。",
+                "- PRD 是人类研究真源，用于解释意图和背景。",
+                "- Paper 提供实验设计叙事和上下文参考（baseline、metric、表格结构），帮助 AI 理解预期结果形态。",
+                "- 若 Paper 与 Spec 冲突，以 Spec 为准。",
+                "- 始终执行最早尚未完成的 gate。",
+                "- 如果 required dataset、baseline、metric、seed、command 或 artifact 缺失，停止并记录 blocker。",
+                "",
+            ]
+        ),
         force,
     )
     write_text(
         plan_dir / "ai_loop_prompt.md",
         "\n".join(
             [
-                f"# AI Loop Prompt: {plan_id}",
+                f"# AI 长循环执行提示词：{plan_id}",
                 "",
-                "Executable source of truth is `docs/research/spec/`.",
-                "PRD is the human research source of truth.",
-                "Paper is the narrative target and placeholder map only.",
-                "Do not infer experiments from paper.",
-                "Always execute the earliest incomplete gate.",
-                "Run declared harnesses and save stdout/stderr.",
-                "Update current_state.md, blocker_log.md, decision_log.md, run_log.md, and final_summary.md.",
-                "Do not mock missing datasets, baselines, metrics, or results.",
-                "Stop and log a blocker when required information is missing.",
+                "可执行真源是 `docs/research/spec/`；执行时以 Spec 为准，Paper 为辅助参考。",
+                "Research PRD 是人类研究真源，用于解释研究目标、背景、假设和证据边界。",
+                "Research Paper 是上下文参考与实验设计叙事，帮助理解 baseline、表格结构和预期结果形态。",
+                "可以从 Paper 读取实验设计意图（baseline、metric、表格结构、叙事逻辑），但具体的 dataset、seed、command、artifact 路径必须从 Spec 获取。",
+                "若 Paper 与 Spec 冲突，以 Spec 为准。",
+                "始终执行最早尚未完成的 gate。",
+                "运行 Spec 声明的 harness，并保存 stdout/stderr、artifact hash 和日志路径。",
+                "每轮执行后更新 current_state.md、blocker_log.md、decision_log.md、run_log.md 和 final_summary.md。",
+                "禁止将 mock / planning 值当作已验证结果写入证据或论文结论。",
+                "当 required information 缺失时，停止执行并记录 blocker，不得补造。",
             ]
         )
         + "\n",
         force,
     )
-    for name in ["current_state.md", "blocker_log.md", "decision_log.md", "run_log.md", "final_summary.md"]:
-        write_text(plan_dir / name, f"# {name.removesuffix('.md').replace('_', ' ').title()}\n\n", force)
+    log_titles = {
+        "current_state.md": "当前状态",
+        "blocker_log.md": "阻塞日志",
+        "decision_log.md": "决策日志",
+        "run_log.md": "运行日志",
+        "final_summary.md": "最终总结",
+    }
+    for name, title_text in log_titles.items():
+        write_text(plan_dir / name, f"# {title_text}\n\n【待填写：本文件由执行循环持续更新。】\n", force)
     return plan_dir
 
 
@@ -772,26 +1855,24 @@ def generate_paper(research_dir: Path, force: bool = False) -> Path:
     exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
     experiments = [item for item in as_list(exp_manifest.get("experiments")) if isinstance(item, dict)]
     placeholders = []
-    lines = [
-        "# Planned Research Paper",
+    paper = planned_paper_markdown("Planned Research Paper")
+    bound_lines = [
         "",
-        "## Abstract",
-        "We propose the method and define an execution-bound evaluation protocol. Unobserved empirical values remain placeholders.",
+        "## Bound Placeholder Map (Generated From Spec)",
         "",
-        "## Introduction",
-        "We formulate the problem and motivate the declared research questions.",
+        "This section is generated from `docs/research/spec/experiments/experiment_manifest.yaml`. It reserves result locations only; it does not report empirical findings.",
         "",
-        "## Method",
-        "We design the method described in the Research PRD.",
-        "",
-        "## Evaluation",
+        "| Placeholder | Experiment | Method | Metric | Source after execution |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for experiment in experiments:
         experiment_id = str(experiment.get("experiment_id", "")).strip()
         if not experiment_id:
             continue
         placeholder = f"{{{{{experiment_id}.OURS.primary_metric}}}}"
-        lines.append(f"Experiment {experiment_id} tests the declared hypothesis. Table 1 reports {placeholder} after execution.")
+        bound_lines.append(
+            f"| `{placeholder}` | {experiment_id} | OURS | primary_metric | artifacts/experiments/{experiment_id}/aggregate/summary.json |"
+        )
         placeholders.append(
             {
                 "placeholder": placeholder,
@@ -803,14 +1884,522 @@ def generate_paper(research_dir: Path, force: bool = False) -> Path:
             }
         )
     if not placeholders:
-        lines.append("No experiment-bound result placeholders are available yet.")
-    paper = "\n".join(lines) + "\n"
+        bound_lines.append("| 【阻塞：Spec 尚未声明可绑定实验】 | - | - | - | - |")
+    paper = paper.rstrip() + "\n" + "\n".join(bound_lines) + "\n"
     write_text(research_dir / "paper" / "planned_paper.md", paper, force)
-    write_text(research_dir / "paper" / "planned_paper.tex", latex_from_markdown(paper), force)
+    paper_tex = research_dir / "paper" / "planned_paper.tex"
+    write_text(paper_tex, planned_paper_tex("Planned Research Paper"), force)
     write_yaml(research_dir / "paper" / "placeholder_map.yaml", {"placeholders": placeholders}, force)
-    write_text(research_dir / "paper" / "paper_gap_report.md", "# Paper Gap Report\n\n- Record missing claims or experiments here.\n", force)
-    write_pdf(research_dir / "paper" / "planned_paper.pdf", "Planned Research Paper", force)
+    gap_lines = [
+        "# 论文缺口报告",
+        "",
+        "本文件记录 manuscript draft 中所有 mock 数值的位置、替换条件和真实证据来源。论文正文中的 mock 数值不得被描述为已验证发现。",
+        "",
+    ]
+    if placeholders:
+        gap_lines.extend(
+            [
+                "## 当前状态",
+                "",
+                "- 已从 Spec 中发现可绑定实验 placeholder。",
+                "- 论文正文中的表格和结果段落已使用 mock 数值填充，以呈现完整 manuscript。",
+                "- 以下 placeholder 对应位置必须在获得真实证据后替换：",
+                "",
+            ]
+        )
+        for ph in placeholders:
+            gap_lines.append(
+                f"- `{ph['placeholder']}` → 论文位置：{ph['paper_location']} → 证据来源：{ph['source_after_execution']}"
+            )
+        gap_lines.extend(
+            [
+                "",
+                "## 替换条件",
+                "",
+                "- 对应 harness 已通过并生成 artifact。",
+                "- 数值已人工复核并与 PRD 中的实验设计一致。",
+                "- 替换后更新 `placeholder_map.yaml` 并删除本报告中对应条目。",
+            ]
+        )
+    else:
+        gap_lines.extend(
+            [
+                "## 【阻塞】缺少可绑定实验",
+                "",
+                "- `spec/experiments/experiment_manifest.yaml` 尚未声明可用于论文结果位置的实验。",
+                "- 在补全 PRD 与 Spec 前，论文 Results 部分只能保留空表格框架，不能填入任何数值。",
+            ]
+        )
+    write_text(research_dir / "paper" / "paper_gap_report.md", "\n".join(gap_lines) + "\n", force)
+    render_pdf_from_tex(paper_tex, research_dir / "paper" / "planned_paper.pdf", force)
     return research_dir / "paper"
+
+
+DEMO_PLACEHOLDERS = [
+    {
+        "placeholder": "{{E01.OURS.task_success}}",
+        "experiment_id": "E01",
+        "method_id": "OURS",
+        "metric": "task_success",
+        "source_after_execution": "artifacts/experiments/E01/aggregate/summary.json",
+        "paper_location": "Table 2 / Main task success",
+    },
+    {
+        "placeholder": "{{E02.OURS.evidence_coverage}}",
+        "experiment_id": "E02",
+        "method_id": "OURS",
+        "metric": "evidence_coverage",
+        "source_after_execution": "artifacts/experiments/E02/aggregate/summary.json",
+        "paper_location": "Table 2 / Evidence coverage",
+    },
+    {
+        "placeholder": "{{E03.OURS.invalid_claim_rate}}",
+        "experiment_id": "E03",
+        "method_id": "OURS",
+        "metric": "invalid_claim_rate",
+        "source_after_execution": "artifacts/experiments/E03/aggregate/summary.json",
+        "paper_location": "Table 3 / Claim safety",
+    },
+    {
+        "placeholder": "{{E04.OURS.planner_overhead_sec}}",
+        "experiment_id": "E04",
+        "method_id": "OURS",
+        "metric": "planner_overhead_sec",
+        "source_after_execution": "artifacts/experiments/E04/aggregate/summary.json",
+        "paper_location": "Table 4 / Runtime overhead",
+    },
+]
+
+
+def demo_paper_markdown() -> str:
+    return """# ContractGraph: Evidence-Bound Execution for LLM Coding Agents
+
+## Abstract
+
+LLM coding agents increasingly solve repository-scale tasks by mixing natural-language planning, tool calls, code edits, tests, and self-review. The central failure mode is not only that an agent writes incorrect code, but that it loses the contract between the research question, the implementation task, the harness that validates the task, and the evidence allowed to support a paper claim. We propose **ContractGraph**, an execution framework that represents agentic coding research as a typed graph over claims, tasks, harnesses, artifacts, evidence, and manuscript result bindings. ContractGraph does not attempt to make the language model intrinsically truthful; instead, it constrains the execution loop so that every claim must be backed by a declared harness and every paper result location must be bound to an artifact schema. We formulate evidence-bound agent execution, design a graph scheduler with anti-mock gates, and define a benchmark protocol for repository repair tasks. The numerical values in this draft are **mock planning data** used to size the experiments and define expected sensitivity; final claims must replace the placeholders after the declared harnesses pass.
+
+## 1. Introduction
+
+Modern coding agents are no longer single-turn code generators. A practical agent reads a repository, builds an internal plan, edits files, runs tests, interprets failures, updates its plan, and may repeat this loop for hours. This makes agentic coding a systems problem: success depends on how tasks are decomposed, how evidence is captured, and how claims are prevented from drifting away from the artifacts that actually support them.
+
+The research gap addressed by this paper is the absence of a strict evidence contract for long-running coding agents. Existing agent workflows often separate the narrative layer from the execution layer: the paper describes research questions and expected contributions, while the implementation loop operates over ad hoc TODO lists, shell commands, and logs. This separation creates three failure modes. First, a task can be marked complete because a local test passes even though the declared research harness was never run. Second, mock or smoke-test outputs can accidentally enter tables that look like empirical results. Third, the paper can accumulate claims that no longer correspond to the current specification.
+
+We propose ContractGraph, a graph-structured control plane that keeps the paper, specification, execution plan, harnesses, artifacts, and evidence ledger synchronized. The key idea is simple: every paper claim must be represented as a path from research question to hypothesis, experiment, task, harness, evidence artifact, and result placeholder. If any edge is missing, the agent is allowed to continue engineering work, but it is not allowed to bind the result into the manuscript.
+
+This paper makes four contributions. First, we formulate evidence-bound agent execution as a typed graph consistency problem. Second, we design a scheduler that executes the earliest incomplete gate while preserving source hashes and blocker logs. Third, we introduce anti-mock evidence rules that distinguish smoke-test utility from claim-supporting evidence. Fourth, we provide a planned evaluation protocol with mock planning data that specifies what must be measured before the manuscript can make empirical claims.
+
+## 2. Related Work and Research Gap
+
+LLM tool-use agents show that language models can call external tools and use observations to update their next actions. Coding agents extend this idea to repositories, tests, and issue-resolution workflows. Reflection-based agents add self-critique, while benchmark-driven systems measure success on issue-fixing or code-generation suites. These directions improve action selection, but they usually leave the evidence contract implicit.
+
+ContractGraph is orthogonal to stronger base models and better prompting. It asks a systems question: given an agent that can edit, run commands, and reason, how do we prevent the execution state from drifting away from the research specification and the manuscript? The closest baseline is a plan-then-code agent that writes a plan and executes tasks sequentially. The limitation is that the plan often lacks typed links to evidence artifacts, paper placeholders, and anti-mock policies. ContractGraph makes those links first-class.
+
+| Research thread | Representative capability | Remaining gap | ContractGraph response |
+| --- | --- | --- | --- |
+| Tool-use agents | Use shell, tests, search, and code-edit tools | Tool observations are not automatically claim evidence | Require artifact schemas and harness IDs |
+| Coding benchmarks | Measure issue-resolution or code-generation success | Benchmark pass/fail does not explain paper-claim provenance | Bind metrics to claim-specific evidence paths |
+| Reflection agents | Critique and revise plans | Self-critique can accept weak evidence | Add anti-mock gates and independent rerun requirements |
+| Reproducibility checklists | Record environment and seeds | Checklist is often outside the execution loop | Make checklist fields executable graph nodes |
+
+## 3. Problem Formulation
+
+Let a repository task be \(x \\in \\mathcal{X}\), an agent action sequence be \(a_{1:T}\), and an execution trace be \(\\tau = (s_0, a_1, o_1, \\ldots, s_T)\). A conventional coding agent optimizes for task success, such as passing tests or resolving an issue. ContractGraph adds a research constraint: a claim \(c\) is admissible only if there exists a valid evidence path
+\[
+RQ \\rightarrow H \\rightarrow c \\rightarrow E \\rightarrow D,M,B,S \\rightarrow T \\rightarrow HN \\rightarrow A \\rightarrow P,
+\]
+where \(RQ\) is a research question, \(H\) a hypothesis, \(E\) an experiment, \(D/M/B/S\) dataset, model, baseline, and seed declarations, \(T\) a task, \(HN\) a harness, \(A\) an artifact, and \(P\) a paper placeholder.
+
+The optimization target is not only task success. We want to maximize completed claim-supporting evidence while minimizing invalid claim bindings:
+\[
+\\max \\; \\mathrm{Success}(a_{1:T}) + \\lambda \\mathrm{EvidenceCoverage}(G) - \\mu \\mathrm{InvalidBinding}(G).
+\]
+The graph \(G\) is valid only when every full-experiment harness requires all declared seeds, all declared baselines, no mock data, no missing metrics, artifact hashes, and an independent rerun before supporting a paper claim.
+
+## 4. Method: ContractGraph
+
+ContractGraph consists of four modules.
+
+The **Spec Compiler** converts a Research PRD into stable YAML manifests: datasets, metrics, models, seed protocols, reproduction targets, experiments, tasks, harnesses, and result bindings. The compiler does not read the paper as an experiment source. This prevents the manuscript from inventing executable work.
+
+The **Gate Scheduler** selects the earliest incomplete gate from the task graph. A gate is complete only when its tasks are done, its declared harnesses pass or produce documented blockers, and stdout, stderr, artifact hashes, and decision logs are saved. If a required dataset or baseline is missing, the scheduler stops and writes a blocker instead of fabricating data.
+
+The **Evidence Ledger** records which artifacts may support which claims. Unit tests and smoke tests can validate engineering plumbing, but they cannot support research claims. Full experiment harnesses must enforce all declared seeds, baselines, metrics, and independent reruns.
+
+The **Paper Binder** replaces manuscript placeholders only after the evidence ledger marks the source artifact as claim-supporting. Until then, placeholders remain visible in the paper and the gap report lists what must be executed.
+
+Algorithmically, ContractGraph runs a bounded loop: load Spec, select the earliest incomplete gate, execute its harness, capture artifacts, update the state logs, validate evidence eligibility, and only then update paper bindings. The design intentionally treats paper writing as a downstream binding step, not as a source of experiments.
+
+## 5. Experimental Protocol
+
+The planned evaluation uses a repository-repair benchmark with frozen issue splits. The benchmark is intentionally small in the first phase because the study targets execution correctness and evidence integrity, not model scaling. The initial fixture contains 120 issues sampled from Python and TypeScript repositories, with 80 development issues, 20 validation issues, and 20 held-out test issues. This split is **mock planning data** until replaced by the final benchmark manifest.
+
+We compare four systems. **B01 Direct Agent** reads the issue and edits code without an explicit graph contract. **B02 Plan-then-Code Agent** writes a task plan and executes it sequentially. **B03 Reflection Agent** adds self-review after failures. **OURS ContractGraph Agent** uses the typed execution graph, anti-mock gates, evidence ledger, and paper binder.
+
+| ID | Research question | Metric | Planned protocol | Result binding |
+| --- | --- | --- | --- | --- |
+| E01 | Does graph-constrained execution improve task completion discipline? | task_success | 3 seeds over frozen issue splits | {{E01.OURS.task_success}} |
+| E02 | Does explicit evidence tracking increase claim coverage? | evidence_coverage | Audit each completed task for artifact-backed claims | {{E02.OURS.evidence_coverage}} |
+| E03 | Does anti-mock gating reduce invalid manuscript bindings? | invalid_claim_rate | Inject mock artifacts and measure rejection rate | {{E03.OURS.invalid_claim_rate}} |
+| E04 | What overhead does the control plane introduce? | planner_overhead_sec | Measure scheduler and validation runtime per gate | {{E04.OURS.planner_overhead_sec}} |
+
+## 6. Mock Planning Data and Expected Sensitivity
+
+Table 2 contains mock planning data. These numbers are not empirical findings and cannot enter a submission until the corresponding artifacts exist under `artifacts/experiments/**` and the full harnesses pass. Their purpose is to define the scale of effect the experiment should be able to detect.
+
+| Metric | Direct agent | Plan-then-code | Reflection | ContractGraph mock target | Final placeholder |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Task success | 0.27 | 0.34 | 0.39 | 0.46 | {{E01.OURS.task_success}} |
+| Evidence coverage | 0.41 | 0.55 | 0.58 | 0.82 | {{E02.OURS.evidence_coverage}} |
+| Invalid claim rate | 0.18 | 0.14 | 0.11 | 0.03 | {{E03.OURS.invalid_claim_rate}} |
+| Planner overhead | 6.0s | 11.0s | 15.0s | 24.0s | {{E04.OURS.planner_overhead_sec}} |
+
+The planned interpretation is as follows. E01 tests whether typed gate execution improves completion discipline. E02 tests whether the evidence ledger increases the fraction of claims with valid artifact support. E03 tests the safety function of anti-mock gates by injecting invalid artifacts. E04 measures whether the added control plane remains operationally acceptable for long-running coding tasks. The final paper may discuss trade-offs only after these placeholders are replaced by validated summaries.
+
+## 7. Execution Plan and Evidence Contract
+
+Each experiment has a full harness. A full harness must complete all declared seeds, complete all declared baselines, verify that no mock data is used as claim evidence, check that no metric is missing, record artifact hashes, and require an independent rerun before paper binding. Smoke tests are still useful, but they can only support implementation readiness, not research claims.
+
+The first execution plan should target E03 because invalid-claim rejection is the core safety property and can be tested before expensive benchmark runs. The second plan should target E01 on a five-issue smoke subset only to validate infrastructure. The third plan should run the full frozen split. The final paper update should occur only after the evidence ledger marks E01 through E04 as claim-supporting.
+
+## 8. Limitations and Ethics
+
+ContractGraph can prevent a class of evidence-binding errors, but it cannot make an incorrect benchmark representative. If the frozen issue split is narrow, the paper must limit its claims to that split. ContractGraph also adds engineering overhead; if E04 shows excessive planner latency, the method may be useful only for high-stakes research runs rather than everyday coding assistance. Ethically, the system is designed to reduce accidental fabrication by making mock artifacts ineligible for claims, but it does not remove the need for human review of benchmark selection, baseline fairness, and negative results.
+
+## 9. Conclusion
+
+This paper presents ContractGraph, a graph-based execution contract for LLM coding-agent research. The central idea is to make the path from research question to paper result explicit and executable. The current manuscript is complete as a mock-data research draft: it defines the method, formalization, evaluation protocol, result slots, and evidence rules. Its empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass the full harnesses.
+"""
+
+
+def demo_paper_tex() -> str:
+    return r"""\documentclass[UTF8,11pt]{ctexart}
+\usepackage[a4paper,left=23mm,right=23mm,top=23mm,bottom=25mm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx,array}
+\usepackage{hyperref}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+\emergencystretch=2em
+\title{ContractGraph: Evidence-Bound Execution for LLM Coding Agents}
+\author{Research Execution Skills Demo}
+\date{\today}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+LLM coding agents increasingly solve repository-scale tasks by mixing planning, tool calls, code edits, tests, and self-review. The central failure mode is not only incorrect code, but loss of the contract between research questions, implementation tasks, harnesses, and evidence. We propose ContractGraph, an execution framework that represents agentic coding research as a typed graph over claims, tasks, harnesses, artifacts, evidence, and manuscript result bindings. The numerical values in this draft are mock planning data used to size experiments; final claims must replace placeholders after declared harnesses pass.
+\end{abstract}
+
+\section{Introduction}
+Practical coding agents read repositories, plan edits, run tests, interpret failures, and repeat this loop for hours. This makes agentic coding a systems problem: success depends on task decomposition, evidence capture, and prevention of drift between the specification and the manuscript. ContractGraph keeps paper claims, execution plans, harnesses, and artifact schemas synchronized through a typed evidence graph.
+
+\section{Problem Formulation}
+Let a repository task be \(x \in \mathcal{X}\), an action sequence be \(a_{1:T}\), and an execution trace be \(\tau\). A claim \(c\) is admissible only if there exists a path from research question to hypothesis, experiment, dataset, task, harness, artifact, and paper placeholder. The target is to maximize task success and evidence coverage while minimizing invalid result bindings.
+
+\section{Method}
+ContractGraph has four modules: a Spec Compiler, a Gate Scheduler, an Evidence Ledger, and a Paper Binder. The compiler turns the PRD into stable manifests. The scheduler executes the earliest incomplete gate. The ledger records which artifacts may support which claims. The binder updates manuscript placeholders only after the evidence ledger marks the source artifact as claim-supporting.
+
+\begin{table}[htbp]
+\centering
+\caption{ContractGraph module contract}
+\begin{tabularx}{\textwidth}{@{}L{0.18\textwidth}Y Y@{}}
+\toprule
+Module & Responsibility & Claim boundary \\
+\midrule
+Spec Compiler & Builds typed manifests from PRD & Cannot infer experiments from paper \\
+Gate Scheduler & Executes earliest incomplete gate & Stops on missing required inputs \\
+Evidence Ledger & Tracks artifact eligibility & Mock outputs cannot support claims \\
+Paper Binder & Connects artifacts to result slots & Binds only after full harness pass \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Experimental Protocol}
+The planned study uses a repository-repair benchmark with frozen issue splits. We compare a direct agent, a plan-then-code agent, a reflection agent, and the ContractGraph agent.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Experiment map}
+\begin{tabularx}{\textwidth}{@{}L{0.09\textwidth}Y L{0.16\textwidth}L{0.2\textwidth}@{}}
+\toprule
+ID & Question & Metric & Binding \\
+\midrule
+E01 & Completion discipline & success & E01.task \\
+E02 & Evidence tracking & coverage & E02.coverage \\
+E03 & Anti-mock safety & invalid rate & E03.invalid \\
+E04 & Control overhead & overhead & E04.time \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Mock Planning Data}
+Table 3 is mock planning data, not empirical evidence. It defines expected sensitivity and execution budgets for the later experiments.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Mock planning values}
+\begin{tabularx}{\textwidth}{@{}Yrrrr@{}}
+\toprule
+Metric & Direct & Plan-code & Reflect & ContractGraph \\
+\midrule
+Task success & 0.27 & 0.34 & 0.39 & 0.46 \\
+Evidence coverage & 0.41 & 0.55 & 0.58 & 0.82 \\
+Invalid claim rate & 0.18 & 0.14 & 0.11 & 0.03 \\
+Planner overhead & 6.0s & 11.0s & 15.0s & 24.0s \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Limitations and Ethics}
+ContractGraph prevents evidence-binding errors, but it cannot make a narrow benchmark representative. If the frozen issue split is weak, the paper must limit its claims. The method also adds overhead and therefore may be appropriate mainly for high-stakes research execution. The anti-mock policy reduces accidental fabrication by making mock artifacts ineligible for paper claims.
+
+\section{Conclusion}
+ContractGraph makes the path from research question to paper result explicit and executable. This draft is complete as a mock-data manuscript: it defines the method, formalization, protocol, result slots, and evidence rules. Empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass full harnesses.
+
+\end{document}
+"""
+
+
+def write_demo_spec(research_dir: Path, force: bool = False) -> None:
+    experiments = [
+        ("E01", "RQ1", "H1", "C01", "task_success", "测试 typed gate 是否提升任务完成纪律。"),
+        ("E02", "RQ2", "H2", "C02", "evidence_coverage", "测试 evidence ledger 是否提升 claim-to-artifact 覆盖率。"),
+        ("E03", "RQ3", "H3", "C03", "invalid_claim_rate", "测试 anti-mock gate 是否降低无效 claim binding。"),
+        ("E04", "RQ4", "H4", "C04", "planner_overhead_sec", "测试控制平面带来的执行开销。"),
+    ]
+    write_yaml(
+        research_dir / "spec" / "global_spec.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "status": "demo_mock_planning",
+            "authority": "demo_idea_with_mock_planning_data",
+            "source": {"prd": "docs/research/prd/research_prd.md"},
+            "rq_chain": [
+                {
+                    "rq_id": rq,
+                    "hypothesis_id": hyp,
+                    "claim_id": claim,
+                    "experiment_id": exp,
+                    "dataset_id": "D01",
+                    "model_id": "M_OURS",
+                    "baseline_id": "B01",
+                    "metric_id": metric,
+                    "seed_protocol_id": "S01",
+                    "task_id": f"T_{exp}",
+                    "harness_id": f"H_{exp}_FULL",
+                    "evidence_id": f"EV_{exp}",
+                    "paper_placeholder": next(item["placeholder"] for item in DEMO_PLACEHOLDERS if item["experiment_id"] == exp),
+                }
+                for exp, rq, hyp, claim, metric, _purpose in experiments
+            ],
+            "notes": [
+                "这是 demo mock planning spec，用于展示 research-paper 应生成完整论文，而不是填空模板。",
+                "mock planning data 可以指导实验设计，但不能作为最终科研 claim evidence。",
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "shared" / "dataset_manifest.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "datasets": [
+                {
+                    "dataset_id": "D01",
+                    "name": "RepoRepair-120 mock planning split",
+                    "split_file": "data/splits/reporepair_120_frozen_v0.json",
+                    "preprocessing_config": "configs/preprocess/reporepair_v0.yaml",
+                    "description": "120 个 repository repair issue 的 mock planning split；最终实验必须替换为真实冻结清单。",
+                }
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "shared" / "metric_manifest.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "metrics": [
+                {"metric_id": "task_success", "name": "task_success", "description": "issue 是否被完整解决。"},
+                {"metric_id": "evidence_coverage", "name": "evidence_coverage", "description": "claim 是否有合格 artifact 支撑。"},
+                {"metric_id": "invalid_claim_rate", "name": "invalid_claim_rate", "description": "无效 claim binding 占比。"},
+                {"metric_id": "planner_overhead_sec", "name": "planner_overhead_sec", "description": "每个 gate 的控制平面额外开销。"},
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "shared" / "model_manifest.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "models": [
+                {"model_id": "M_OURS", "name": "ContractGraph Agent"},
+                {"model_id": "B01", "name": "Direct Agent"},
+                {"model_id": "B02", "name": "Plan-then-Code Agent"},
+                {"model_id": "B03", "name": "Reflection Agent"},
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "shared" / "seed_protocol.yaml",
+        {"schema_version": SCHEMA_VERSION, "seed_protocols": [{"seed_protocol_id": "S01", "seeds": [11, 23, 37]}]},
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "shared" / "evidence_contract.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "claims": [
+                {
+                    "claim_id": claim,
+                    "required_experiments": [exp],
+                    "required_harnesses": [f"H_{exp}_FULL"],
+                    "paper_placeholders": [
+                        next(item["placeholder"] for item in DEMO_PLACEHOLDERS if item["experiment_id"] == exp)
+                    ],
+                }
+                for exp, _rq, _hyp, claim, _metric, _purpose in experiments
+            ],
+            "evidence_rules": {
+                "mock_planning_data_policy": "mock 数字只能用于设计实验灵敏度和执行预算，不能作为论文 claim evidence。",
+                "forbidden_as_claim_evidence": ["mock_result", "toy_result", "smoke_test_only", "cached_proxy_result"],
+            },
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "experiments" / "experiment_manifest.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "experiments": [
+                {
+                    "experiment_id": exp,
+                    "title": purpose,
+                    "linked_rq": rq,
+                    "hypothesis": hyp,
+                    "claim": claim,
+                    "purpose": purpose,
+                    "status": "planned_with_mock_targets",
+                    "dataset": "D01",
+                    "split_file": "data/splits/reporepair_120_frozen_v0.json",
+                    "preprocessing_config": "configs/preprocess/reporepair_v0.yaml",
+                    "models": ["M_OURS"],
+                    "proposed_method_config": f"configs/experiments/{exp}/contractgraph.yaml",
+                    "baselines": ["B01", "B02", "B03"],
+                    "seeds": [11, 23, 37],
+                    "metrics": [metric],
+                    "statistical_protocol": "三 seed 聚合；最终 claim 需要 bootstrap confidence interval 与 independent rerun。",
+                    "commands": {
+                        "run": f"python -m project.experiments.run --experiment {exp} --seed {{seed}}",
+                        "aggregate": f"python -m project.experiments.aggregate --experiment {exp}",
+                    },
+                    "required_artifacts": [
+                        f"artifacts/experiments/{exp}/raw/{{seed}}/metrics.json",
+                        f"artifacts/experiments/{exp}/aggregate/summary.json",
+                    ],
+                    "harnesses": [f"H_{exp}_FULL"],
+                    "support_condition": f"{metric} 满足预注册 support rule，且 independent rerun 不改变结论方向。",
+                    "falsification_condition": f"{metric} 未达到预注册阈值，或 mock / missing artifact 被检测到。",
+                    "mock_policy": "mock planning data 只能指导实验设计；full harness 必须拒绝 mock claim evidence。",
+                }
+                for exp, rq, hyp, claim, metric, purpose in experiments
+            ],
+            "claims": [{"claim_id": claim, "experiment_ids": [exp]} for exp, _rq, _hyp, claim, _metric, _purpose in experiments],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "experiments" / "experiment_task_graph.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "tasks": [
+                {
+                    "task_id": f"T_{exp}",
+                    "title": f"执行 {exp} 并生成 claim-bound artifact",
+                    "harnesses": [f"H_{exp}_FULL"],
+                    "acceptance_criteria": ["所有 seed 完成", "所有 baseline 完成", "aggregate summary 存在"],
+                }
+                for exp, *_rest in experiments
+            ],
+            "gates": [
+                {"gate_id": f"G_{exp}", "tasks": [f"T_{exp}"], "harnesses": [f"H_{exp}_FULL"]} for exp, *_rest in experiments
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "experiments" / "experiment_harness.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "harnesses": [
+                {
+                    "harness_id": f"H_{exp}_FULL",
+                    "type": "full_experiment",
+                    "linked_experiment": exp,
+                    "purpose": f"验证 {exp} 的 artifact 是否可支持论文 claim。",
+                    "cwd": ".",
+                    "command": f"python -m project.harness verify {exp}",
+                    "timeout": 7200,
+                    "required_inputs": ["data/splits/reporepair_120_frozen_v0.json"],
+                    "required_outputs": [
+                        {"path": f"artifacts/experiments/{exp}/aggregate/summary.json", "schema": "artifact_schema"}
+                    ],
+                    "pass_criteria": [
+                        "all_declared_seeds_completed",
+                        "all_declared_baselines_completed",
+                        "no_mock_data_used",
+                        "no_missing_metric",
+                        "no_test_tuning",
+                        "artifact_hashes_recorded",
+                    ],
+                    "evidence_capture": ["stdout", "stderr", "artifact_hashes"],
+                    "may_support_research_claim": True,
+                    "independent_rerun_required": True,
+                }
+                for exp, *_rest in experiments
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        research_dir / "spec" / "paper" / "result_binding.yaml",
+        {"schema_version": SCHEMA_VERSION, "bindings": DEMO_PLACEHOLDERS, "status": "mock_planning_until_execution"},
+        force,
+    )
+
+
+def generate_demo_paper(research_dir: Path, force: bool = False) -> Path:
+    write_demo_spec(research_dir, force)
+    paper_dir = research_dir / "paper"
+    write_text(paper_dir / "planned_paper.md", demo_paper_markdown(), force)
+    paper_tex = paper_dir / "planned_paper.tex"
+    write_text(paper_tex, demo_paper_tex(), force)
+    write_yaml(paper_dir / "placeholder_map.yaml", {"placeholders": DEMO_PLACEHOLDERS}, force)
+    write_text(
+        paper_dir / "paper_gap_report.md",
+        "\n".join(
+            [
+                "# 论文缺口报告",
+                "",
+                "当前论文是完整 mock-data manuscript draft，不是填空模板。",
+                "",
+                "## 必须在投稿前替换",
+                "",
+                "- 表中的 mock planning values 不能作为 empirical claim。",
+                "- `{{E01.OURS.task_success}}`、`{{E02.OURS.evidence_coverage}}`、`{{E03.OURS.invalid_claim_rate}}`、`{{E04.OURS.planner_overhead_sec}}` 必须由真实 artifact 绑定。",
+                "- `RepoRepair-120 mock planning split` 必须替换为真实冻结 benchmark manifest。",
+                "- 所有 full harness 必须通过，并完成 independent rerun。",
+            ]
+        )
+        + "\n",
+        force,
+    )
+    render_pdf_from_tex(paper_tex, paper_dir / "planned_paper.pdf", force)
+    return paper_dir
 
 
 class Validation:
@@ -1055,6 +2644,7 @@ def validate_plan(research_dir: Path) -> Validation:
         return validation
     ids = collect_spec_ids(research_dir)
     current_spec_hash = hash_path(research_dir / "spec")
+    current_paper_hash = hash_path(research_dir / "paper")
     for plan_dir in plan_dirs:
         plan_yaml = plan_dir / "plan.yaml"
         if not validation.require_file(plan_yaml, "plan.yaml"):
@@ -1067,6 +2657,8 @@ def validate_plan(research_dir: Path) -> Validation:
             validation.error(f"plan {plan_dir.name} has stale spec hash")
         if not versions.get("prd_hash") or not versions.get("paper_hash") or not versions.get("git_commit"):
             validation.error(f"plan {plan_dir.name} missing PRD/paper/git source hash")
+        elif versions.get("paper_hash") != current_paper_hash:
+            validation.error(f"plan {plan_dir.name} has stale paper hash")
         for key in ["allowed_scope", "forbidden_actions", "gates", "harnesses", "artifacts", "completion_condition"]:
             if not as_list(payload.get(key)):
                 validation.error(f"plan {plan_dir.name} missing {key}")

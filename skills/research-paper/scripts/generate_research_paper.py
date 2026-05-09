@@ -11,7 +11,7 @@ SKILLS_DIR = SCRIPT_DIR.parents[1]
 SHARED_SCRIPT_DIR = SKILLS_DIR / "research-init" / "_shared" / "scripts"
 sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
-from research_workspace import generate_paper, resolve_research_dir  # noqa: E402
+from research_workspace import generate_demo_paper, generate_paper, resolve_research_dir  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,13 +19,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", default=".", help="Repository root.")
     parser.add_argument("--research-dir", default="", help="Research workspace directory.")
     parser.add_argument("--force", action="store_true", help="Overwrite paper files.")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Generate a complete filled conference-style demo manuscript with mock planning data.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     research_dir = resolve_research_dir(args)
-    paper_dir = generate_paper(research_dir, args.force)
+    paper_dir = generate_demo_paper(research_dir, args.force) if args.demo else generate_paper(research_dir, args.force)
     print(f"[OK] wrote planned research paper: {paper_dir}")
     return 0
 

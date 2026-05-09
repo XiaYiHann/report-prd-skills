@@ -13,6 +13,8 @@ Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 
 核心原则：执行权只属于 `docs/research/spec/`。不能从论文正文反推实验、数据集、基线、指标、seed、任务、harness 或结果。
 
+初始化产物不是空 `TODO` 骨架。`research-init` 会生成中文顶级 Research PRD 模板：LaTeX 是真源，使用 `ctex`、TikZ、`booktabs`、`tabularx` 组织图表；Markdown 是伴随审阅稿。它也会生成 planned top-conference paper 模板和 Spec 执行合同模板。若本机有 `latexmk` 或 `xelatex`，脚本会真实渲染 PDF；否则写入中文 `render_blocker.md`，不会伪造 PDF。
+
 ## 安装与迁移
 
 一行在线安装：
@@ -65,8 +67,8 @@ research-ppt/
 
 | Skill | 用途 |
 |---|---|
-| [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建 PRD、paper、spec、plans、audits、ppt scaffold。 |
-| [`research-prd`](skills/research-prd/SKILL.md) | 维护专业 Research PRD，面向能够执行项目但未必熟悉完整背景的硕士生。 |
+| [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建中文 LaTeX 真源 Research PRD、paper、spec、plans、audits、ppt scaffold。 |
+| [`research-prd`](skills/research-prd/SKILL.md) | 维护专业 Research PRD，面向能够执行项目但未必熟悉完整背景的硕士生，默认图文并茂。 |
 | [`research-paper`](skills/research-paper/SKILL.md) | 从 PRD 生成和打磨 planned NeurIPS / ICLR / AAAI 风格论文，并强制实验结果 placeholder 绑定。 |
 | [`research-spec`](skills/research-spec/SKILL.md) | 把 PRD 编译成全局执行合同：数据集、基线、复现目标、实验、模型、指标、seed、task graph、harness、evidence contract、anti-mock 规则。 |
 | [`research-plan`](skills/research-plan/SKILL.md) | 从 Spec 生成 dated 具体执行计划：`docs/research/plans/YYYY-MM-DD-purpose/`。 |
@@ -83,6 +85,7 @@ docs/research/
     research_prd.tex
     research_prd.md
     research_prd.pdf
+    render_blocker.md  # 仅在缺少 LaTeX 引擎或真实编译失败时出现
 
   paper/
     planned_paper.tex
@@ -160,29 +163,38 @@ docs/research/
 
 ## Research PRD
 
-`research-prd` 维护人类研究真源。PRD 不是短论文，而是专业、详细、教学友好、可执行的研究设计文档，必须包含：
+`research-prd` 维护人类研究真源。PRD 不是短论文，也不是占位符列表，而是专业、详细、教学友好、可执行的研究设计文档。标题采用中文 + 英文 canonical label，必须包含：
 
-1. Executive Summary
-2. Background Tutorial
-3. Related Work Map
-4. Benchmark and Reproduction Plan
-5. Problem Statement
-6. Research Questions and Hypotheses
-7. Formalization
-8. Proposed Method
-9. System and Implementation Design
-10. Experiment Design
-11. Task Graph and Student Work Plan
-12. Harness and Acceptance Criteria
-13. Evidence Ledger
-14. Paper Plan
-15. Risks, Limitations, and Ethics
+1. 执行摘要（Executive Summary）
+2. 背景教程（Background Tutorial）
+3. 相关工作地图（Related Work Map）
+4. 基准与复现计划（Benchmark and Reproduction Plan）
+5. 问题陈述（Problem Statement）
+6. 研究问题与假设（Research Questions and Hypotheses）
+7. 形式化定义（Formalization）
+8. 拟议方法（Proposed Method）
+9. 系统与实现设计（System and Implementation Design）
+10. 实验设计（Experiment Design）
+11. 任务图与学生工作计划（Task Graph and Student Work Plan）
+12. Harness 与验收标准（Harness and Acceptance Criteria）
+13. 证据台账（Evidence Ledger）
+14. 论文计划（Paper Plan）
+15. 风险、局限与伦理（Risks, Limitations, and Ethics）
 
 PRD 要解释足够背景，使有能力但非该方向专家的硕士生可以执行；同时必须定义具体任务、benchmark、实验、harness、验收条件和证据边界。
+
+模板质量要求：
+
+- 每章包含章节目标、必须填写的信息、常见错误、证据边界、验收标准。
+- 使用结构化中文占位符 `【待填写：...】`，不使用裸 `TODO`。
+- 默认包含 TikZ 图骨架：研究问题到证据链、方法模块图、实验/复现流程图、Spec -> Plan -> Audit 执行闭环。
+- 关键章节包含 RQ/Hypothesis 表、Benchmark Candidate Matrix、Experiment Matrix、Task Graph Table、Evidence Ledger、Risk Matrix。
 
 ## Research Paper
 
 `research-paper` 从 PRD 派生 planned top-conference-style manuscript。它可以对已经在 PRD 中设计好的对象使用强表达：
+
+`research-paper` 的最终产物必须是一篇完整顶会风格 manuscript draft，而不是填空模板。正文应当像 NeurIPS / ICLR / AAAI 论文一样完整叙述 Abstract、Introduction、Related Work、Problem Formulation、Method、Experiments、Results / Planned Result Bindings、Limitations 和 Conclusion。若真实实验尚未完成，可以生成 clearly labeled mock-data manuscript：用 mock planning values 指导实验设计，但最终结果位置必须保留为 Spec 绑定 placeholder，并在 `paper_gap_report.md` 记录投稿前必须替换的证据。
 
 - `We propose ...`
 - `We formulate ...`
@@ -228,6 +240,18 @@ RQ
 
 `research-spec` 只能从 PRD 编译，不能从 Paper 推断实验。PRD 缺失的执行细节必须进入 gap report 或 blocker，不能由 agent 发明。
 
+Spec 采用“英文键、中文值”策略：YAML key、ID、schema 字段保持英文，`title`、`description`、`purpose`、`blockers`、`acceptance_criteria`、`notes`、gap report 和 policy 说明使用中文。
+
+初始化生成的 Spec 不是空 YAML。它包含教学型合同模板：
+
+- `global_spec.yaml` 提供 RQ -> Hypothesis -> Claim -> Experiment -> Evidence -> Paper placeholder 的链路模板。
+- `reproduction/reproduction_manifest.yaml` 提供 `reproduction_target_template` 和三类复现模式。
+- `experiments/experiment_manifest.yaml` 提供 `experiment_template`，覆盖 support / falsification / mock policy。
+- `experiments/experiment_harness.yaml` 提供 `harness_template`，要求 command 或 blocker、artifact、pass criteria、claim 支撑边界和 independent rerun。
+- `paper/result_binding.yaml` 提供 `result_binding_template`。
+
+这些 `*_template` 条目只用于指导填写，不代表已经声明了可执行实验。
+
 复现不是单独技能，而是 Spec 和 Plan 内部的 track。复现模式必须显式声明：
 
 - `official_code_reuse`
@@ -236,7 +260,7 @@ RQ
 
 ## Research Plan
 
-`research-plan` 从 Spec 生成 dated bounded execution plan。它支持：
+`research-plan` 从 Spec 生成 dated bounded execution plan。`plan.yaml` 保持英文 key 和稳定 ID，但 `plan.md`、`ai_loop_prompt.md`、状态日志、阻塞日志、决策日志、运行日志和最终总结全部使用中文。它支持：
 
 ```text
 research-plan --track reproduction

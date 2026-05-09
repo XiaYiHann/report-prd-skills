@@ -7,7 +7,15 @@ description: "Use when a repo needs a new docs/research workspace or when an old
 
 ## Overview
 
-Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates the PRD, planned paper, global spec scaffold, plans, audits, and slide-image deck directories without inventing datasets, baselines, metrics, commands, or results.
+Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates a Chinese, top-level Research PRD template, a top-conference planned paper template, global spec contract templates, plans, audits, and slide-image deck directories without inventing datasets, baselines, metrics, commands, or results.
+
+The initializer must produce a serious research template, not an empty `TODO` skeleton. `research_prd.tex` is the canonical source and uses `ctex` + TikZ tables/figures; `research_prd.md` is the Chinese companion reading artifact.
+
+The generated paper and spec are also real templates, not empty files:
+
+- `paper/planned_paper.md` and `.tex` include a NeurIPS / ICLR / AAAI-style planned manuscript structure, placeholder discipline, and gap report.
+- `spec/**/*.yaml` includes contract templates for RQ chains, reproduction targets, experiments, harnesses, evidence, anti-mock rules, and paper result bindings.
+- YAML keys, IDs, and schema fields stay English; all explanatory values, blockers, prompts, criteria, and gap reports are Chinese.
 
 ## Source Model
 
@@ -36,6 +44,8 @@ The command creates:
 - `docs/research/ppt/`
 - `docs/research/audits/`
 
+If `latexmk` or `xelatex` is available, initialization renders a real PDF from the `.tex` source. If no LaTeX engine is available, it writes a Chinese `render_blocker.md` and does not create a fake PDF.
+
 ## Workflow
 
 1. Resolve the repository root.
@@ -56,3 +66,6 @@ python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
 - Do not create `research-evidence`, `research-writing`, or `research-goal`.
 - Do not create `.pptx` output.
 - Scaffold files may contain blockers; readiness validators must fail until contracts are concrete.
+- PRD, Plan, prompts, gap reports, and explanatory YAML values must be Chinese.
+- YAML keys and stable IDs stay English for parser compatibility.
+- Use structured placeholders such as `【待填写：...】`; do not leave raw `TODO` placeholders.

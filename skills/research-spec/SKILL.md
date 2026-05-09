@@ -9,6 +9,12 @@ description: "Use when docs/research/spec needs execution contracts, manifests, 
 
 Compile the PRD into `docs/research/spec/`, the global and relatively stable execution contract. The spec is the only source for executable experiments, tasks, gates, harnesses, artifacts, and evidence contracts.
 
+Use English YAML keys and stable IDs for parser compatibility, but write explanatory values in Chinese: `title`, `description`, `purpose`, `notes`, `blockers`, `acceptance_criteria`, `repair`, gap reports, and policy explanations.
+
+The scaffold includes explicit contract templates, not empty placeholder files. `global_spec.yaml` defines the RQ -> evidence -> paper placeholder chain template; reproduction, experiment, harness, and paper binding files contain `*_template` entries that show the required fields while keeping executable arrays empty until the PRD has been compiled.
+
+Template entries are instructional only. Do not treat `experiment_template`, `harness_template`, `reproduction_target_template`, or `result_binding_template` as declared executable work.
+
 ## Authority Chain
 
 Build the chain:
@@ -26,6 +32,8 @@ RQ
 ```
 
 Do not infer experiments from the paper. Paper placeholders can be checked against the spec, but they cannot create executable work.
+
+When the PRD lacks required details, record the missing contract in a Chinese gap report or blocker. Do not invent datasets, baselines, metrics, seeds, commands, artifact paths, reproduction modes, or empirical results.
 
 ## Required Layout
 
@@ -75,3 +83,11 @@ python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
 ```
 
 Readiness must fail on missing datasets, splits, baselines, metrics, seeds, commands, artifacts, harnesses, reproduction modes, or anti-mock evidence rules.
+
+## Language Contract
+
+- File names, YAML keys, IDs, and schema fields remain English.
+- Human-facing values and Markdown reports are Chinese.
+- `spec/README.md` must explain that Spec is compiled from PRD and that Paper cannot define experiments.
+- `reproduction_gap_report.md` and related gap files must be Chinese and must use explicit blocker wording.
+- Mock/toy/synthetic/stub/cached/proxy output may only support unit or smoke tests, never research claims, benchmarks, ablations, paper tables/figures, or Go / No-Go decisions.
