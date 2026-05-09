@@ -1,4 +1,0 @@
-interface:
-  display_name: "Report Update"
-  short_description: "Update an existing single-source project report"
-  default_prompt: "Use $report-update to revise an existing design report under docs/report, update the source workspace, and re-render report.pdf plus report.md."

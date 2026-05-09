@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${REPORT_PRD_SKILLS_REPO_URL:-https://github.com/XiaYiHann/report-prd-skills.git}"
-REPO_REF="${REPORT_PRD_SKILLS_REF:-main}"
-TARGET_DIR="${REPORT_PRD_SKILLS_TARGET_DIR:-${HOME}/.agents/skills}"
-SOURCE_DIR="${REPORT_PRD_SKILLS_SOURCE_DIR:-}"
+REPO_URL="${RESEARCH_EXECUTION_SKILLS_REPO_URL:-${REPORT_PRD_SKILLS_REPO_URL:-https://github.com/XiaYiHann/report-prd-skills.git}}"
+REPO_REF="${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PRD_SKILLS_REF:-main}}"
+TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${REPORT_PRD_SKILLS_TARGET_DIR:-${HOME}/.agents/skills}}"
+SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}"
 
 SKILLS=(
   report
+  research-init
+  research-prd
+  research-paper
+  research-spec
+  research-plan
+  research-audit
+  research-ppt
+)
+
+LEGACY_REPORT_SKILLS=(
   report-init
   report-brainstorming
   report-update
@@ -15,21 +25,29 @@ SKILLS=(
   report-goal
   report-paper
   report-spec
-)
-
-OBSOLETE_SKILLS=(
   report-debate
   report-paper-plan
   report-paper-draft
   report-ingest-results
 )
 
+OBSOLETE_RESEARCH_SKILLS=(
+  research-evidence
+  research-writing
+  research-goal
+)
+
+OBSOLETE_SKILLS=(
+  "${LEGACY_REPORT_SKILLS[@]}"
+  "${OBSOLETE_RESEARCH_SKILLS[@]}"
+)
+
 log() {
-  printf '[report-prd-skills] %s\n' "$*"
+  printf '[research-execution-skills] %s\n' "$*"
 }
 
 die() {
-  printf '[report-prd-skills] error: %s\n' "$*" >&2
+  printf '[research-execution-skills] error: %s\n' "$*" >&2
   exit 1
 }
 
@@ -43,7 +61,7 @@ resolve_source_dir() {
   local script_dir=""
   if [[ -n "$script_path" && -f "$script_path" ]]; then
     script_dir="$(cd "$(dirname "$script_path")" && pwd)"
-    if [[ -f "$script_dir/skills/report/SKILL.md" ]]; then
+    if [[ -f "$script_dir/skills/research-init/SKILL.md" ]]; then
       printf 'local:%s\n' "$script_dir"
       return
     fi
@@ -52,7 +70,7 @@ resolve_source_dir() {
   command -v git >/dev/null 2>&1 || die "git is required when installing from the remote one-line command"
 
   local tmp_dir
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/report-prd-skills.XXXXXX")"
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/research-execution-skills.XXXXXX")"
   log "Cloning $REPO_URL#$REPO_REF" >&2
   git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$tmp_dir" >/dev/null
   printf 'clone:%s\n' "$tmp_dir"
@@ -77,8 +95,20 @@ TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
 log "Installing into $TARGET_DIR"
 
-for skill in "${SKILLS[@]}" "${OBSOLETE_SKILLS[@]}"; do
+MIGRATED_SKILLS=()
+
+for skill in "${SKILLS[@]}"; do
   if [[ -e "$TARGET_DIR/$skill" || -L "$TARGET_DIR/$skill" ]]; then
+    if [[ "$skill" == "report" ]]; then
+      MIGRATED_SKILLS+=("$skill -> legacy research migration router")
+    fi
+    rm -rf "$TARGET_DIR/$skill"
+  fi
+done
+
+for skill in "${OBSOLETE_SKILLS[@]}"; do
+  if [[ -e "$TARGET_DIR/$skill" || -L "$TARGET_DIR/$skill" ]]; then
+    MIGRATED_SKILLS+=("$skill -> removed")
     rm -rf "$TARGET_DIR/$skill"
   fi
 done
@@ -87,7 +117,16 @@ for skill in "${SKILLS[@]}"; do
   cp -R "$SOURCE_DIR/skills/$skill" "$TARGET_DIR/$skill"
 done
 
-log "Installed report skill family:"
+if (( ${#MIGRATED_SKILLS[@]} > 0 )); then
+  log "Migrated existing skill directories to research-*:"
+  for item in "${MIGRATED_SKILLS[@]}"; do
+    printf '  - %s\n' "$item"
+  done
+else
+  log "No legacy report skill directories found; installed research-* cleanly."
+fi
+
+log "Installed research execution skill family:"
 for skill in "${SKILLS[@]}"; do
   printf '  - %s\n' "$skill"
 done

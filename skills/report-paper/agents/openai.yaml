@@ -1,4 +1,0 @@
-interface:
-  display_name: "Report Paper"
-  short_description: "Generate top-tier CS papers from report workspaces"
-  default_prompt: "Use $report-paper to derive a NeurIPS/ICLR/AAAI-style paper from the current docs/report workspace, using the report, manifests, and evidence ledger without inventing results."

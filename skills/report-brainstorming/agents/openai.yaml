@@ -1,4 +1,0 @@
-interface:
-  display_name: "Report Brainstorming"
-  short_description: "Discuss and structure report direction before write-back"
-  default_prompt: "Use $report-brainstorming to discuss report scope, structure, evidence boundaries, and rewrite direction before any source write-back or report.pdf/report.md regeneration."

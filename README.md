@@ -1,174 +1,320 @@
-# report-prd-skills
+# research-execution-skills
 
-一套面向 Codex / Claude Code 的 report skill family，用于把研究或工程 idea 转成可迭代的 PRD 报告、顶会论文草稿，以及带 milestone / gate / harness 的 AI 执行 prompt。
-
-当前定位是 **report-driven execution compiler**：
+`research-execution-skills` 是一组面向 Claude Code / Codex 的研究执行技能。它不再是通用的 `report PRD` 工具，而是把一个研究想法推进成可执行研究工作区：
 
 ```text
-main  = human design truth
-paper = academic expression truth
-spec  = machine execution truth
+Research PRD   = 人类研究真源
+Research Paper = 从 PRD 派生的学术论文表达
+Research Spec  = 从 PRD 编译出的全局机器执行合同
+Research Plan  = 从 Spec 派生的 dated 具体执行计划
+Research Audit = PRD / Paper / Spec / Plan / PPT / artifacts 的漂移审计
+Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 ```
 
-核心原则：执行权只能属于 `spec`。milestone 顺序、gate、task、harness、artifact path 和 evidence 准入必须来自 `spec`，不能从 paper prose 里反推。
+核心原则：执行权只属于 `docs/research/spec/`。不能从论文正文反推实验、数据集、基线、指标、seed、任务、harness 或结果。
 
-## 一键在线安装
+## 安装与迁移
 
-在任意终端直接运行下面这一行。**不需要先 clone 本仓库**：
+一行在线安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/XiaYiHann/report-prd-skills/main/install.sh | bash
 ```
 
-默认安装位置：
+安装到自定义技能目录：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/XiaYiHann/report-prd-skills/main/install.sh \
+  | RESEARCH_EXECUTION_SKILLS_TARGET_DIR=/path/to/.agents/skills bash
+```
+
+从本地 checkout 安装：
+
+```bash
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
+```
+
+默认目标目录是：
 
 ```text
 ~/.agents/skills
 ```
 
-安装脚本会在缺失时自动创建 `~/.agents/skills`。如果用户电脑上已经安装过旧版 report skill family，脚本会替换当前 report skills，并清理已废弃的拆分 skill，例如 `report-debate`、`report-paper-plan`、`report-paper-draft`、`report-ingest-results`。
+安装脚本会执行迁移：
 
-在线安装脚本依赖 `bash` 和 `git`。原因是它会先把本仓库 clone 到临时目录，再把 skill 目录复制到 `~/.agents/skills`。
+- 安装新的 `research-*` 技能族。
+- 用一个很小的 legacy `report` router 替换旧 `report` 入口，仅用于提示迁移方向。
+- 删除旧的 `report-init`、`report-update`、`report-audit`、`report-goal`、`report-paper`、`report-spec`、`report-brainstorming` 等旧技能目录。
+- 删除不应存在的 `research-evidence`、`research-writing`、`research-goal`。
+- 兼容旧环境变量 `REPORT_PRD_SKILLS_SOURCE_DIR`、`REPORT_PRD_SKILLS_TARGET_DIR`、`REPORT_PRD_SKILLS_REPO_URL`、`REPORT_PRD_SKILLS_REF`，但推荐新环境变量 `RESEARCH_EXECUTION_SKILLS_*`。
 
-安装到自定义 skill 目录：
+迁移后，目标目录里应主要看到：
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/XiaYiHann/report-prd-skills/main/install.sh \
-  | REPORT_PRD_SKILLS_TARGET_DIR=/path/to/.agents/skills bash
+```text
+report/              # legacy migration warning only
+research-init/
+research-prd/
+research-paper/
+research-spec/
+research-plan/
+research-audit/
+research-ppt/
 ```
 
-开发本仓库时，从本地 checkout 安装：
-
-```bash
-REPORT_PRD_SKILLS_SOURCE_DIR="$PWD" bash install.sh
-```
-
-## Skills 列表
+## 技能列表
 
 | Skill | 用途 |
-|-------|---------|
-| [`report`](skills/report/SKILL.md) | 路由入口，根据用户意图转到更窄的 sub-skill。 |
-| [`report-init`](skills/report-init/SKILL.md) | 初始化半空 PRD LaTeX workspace，并渲染 `report.pdf` + `report.md`。 |
-| [`report-brainstorming`](skills/report-brainstorming/SKILL.md) | 写回前讨论、比较、澄清和结构化 PRD。 |
-| [`report-update`](skills/report-update/SKILL.md) | 把已确认内容写回 PRD，重新渲染并运行一致性检查。 |
-| [`report-audit`](skills/report-audit/SKILL.md) | 审计 PRD 结构、证据、争议 claim、执行就绪度和修复顺序。 |
-| [`report-goal`](skills/report-goal/SKILL.md) | 基于 `main` / `paper` / `spec` 生成三产物门禁的长期 AI 执行 prompt。 |
-| [`report-paper`](skills/report-paper/SKILL.md) | 从 report workspace 和 evidence ledger 生成顶会风格 CS 论文。 |
-| [`report-spec`](skills/report-spec/SKILL.md) | 把 `main` 编译成机器可读的 `spec/`：task graph、experiment manifest、harness、evidence contract 和 anti-mock policy。 |
+|---|---|
+| [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建 PRD、paper、spec、plans、audits、ppt scaffold。 |
+| [`research-prd`](skills/research-prd/SKILL.md) | 维护专业 Research PRD，面向能够执行项目但未必熟悉完整背景的硕士生。 |
+| [`research-paper`](skills/research-paper/SKILL.md) | 从 PRD 生成和打磨 planned NeurIPS / ICLR / AAAI 风格论文，并强制实验结果 placeholder 绑定。 |
+| [`research-spec`](skills/research-spec/SKILL.md) | 把 PRD 编译成全局执行合同：数据集、基线、复现目标、实验、模型、指标、seed、task graph、harness、evidence contract、anti-mock 规则。 |
+| [`research-plan`](skills/research-plan/SKILL.md) | 从 Spec 生成 dated 具体执行计划：`docs/research/plans/YYYY-MM-DD-purpose/`。 |
+| [`research-audit`](skills/research-audit/SKILL.md) | 审计 PRD、Paper、Spec、Plans、PPT、artifacts 之间的一致性与漂移。 |
+| [`research-ppt`](skills/research-ppt/SKILL.md) | 生成 slide-image deck spec、逐页 ImageGen prompt、PNG 页面输出计划和 PDF 导出计划；不生成 `.pptx`。 |
 
-## 架构
+不要新增独立的 `research-evidence`、`research-writing` 或 `research-goal`。证据由 Spec / Plan / Audit 字段承担；写作优化属于 `research-paper`；长期执行 prompt 属于 `research-plan`。
 
-```
-用户意图
-    │
-    ▼
-┌─────────────────────────┐
-│   report (router)       │  路由到最窄的匹配 skill
-└────┬────────┬────────┬──┘
-     │        │        │
-     ▼        ▼        ▼
- init    brainstorm  update    audit    paper    spec    goal
-     │        │        │
-     └────────┴────────┘
-              │
-              ▼
-    ┌──────────────────┐
-    │   _shared/       │  Python scripts, reference docs,
-    │                  │  LaTeX templates, checklists
-    └──────────────────┘
-              │
-              ▼
-    main / paper / spec
-    ├── main: 报告设计真源
-    ├── paper: 顶会论文表达产物
-    └── spec: task graph + harness + evidence contract
-```
-
-## PRD 类型
-
-### `research-prd`
-
-用于学术研究项目。必须包含：
-
-- Research Questions and falsifiable hypotheses
-- Evidence Ledger: `claim → evidence → source → limitation → confidence`
-- Baseline Matrix, Ablation Matrix, Reproducibility Table, Failure-case Table
-- Risks, ethics, and Go / No-Go gates
-- `experiments/experiment_manifest.yaml` linking claims to planned experiments
-
-### `engineering-prd`
-
-用于工程 / 产品 / 系统规格。必须包含：
-
-- Goals & Non-Goals
-- Modular functional requirements with Acceptance Criteria
-- NFR matrix, interface/data contracts
-- Testing / acceptance / release plan
-- Operational Readiness Matrix, phased MVP roadmap
-- `tasks/task_graph.yaml`, `harness/harness.yaml`, and `evidence/evidence_manifest.yaml`
-
-## 执行模型
-
-`report-goal` 优先使用三产物布局：
+## 标准工作区
 
 ```text
-docs/report/<slug>/main/
-docs/report/<slug>/paper/
-docs/report/<slug>/spec/
+docs/research/
+  prd/
+    research_prd.tex
+    research_prd.md
+    research_prd.pdf
+
+  paper/
+    planned_paper.tex
+    planned_paper.md
+    planned_paper.pdf
+    placeholder_map.yaml
+    paper_gap_report.md
+
+  spec/
+    README.md
+    global_spec.yaml
+    shared/
+      dataset_manifest.yaml
+      metric_manifest.yaml
+      model_manifest.yaml
+      environment_spec.yaml
+      seed_protocol.yaml
+      artifact_schema.yaml
+      anti_mock_policy.yaml
+      evidence_contract.yaml
+    reproduction/
+      benchmark_candidate_matrix.yaml
+      reproduction_manifest.yaml
+      reproduction_task_graph.yaml
+      reproduction_harness.yaml
+      reproduction_gap_report.md
+    implementation/
+      module_contracts.yaml
+      implementation_task_graph.yaml
+      implementation_harness.yaml
+    experiments/
+      experiment_manifest.yaml
+      experiment_task_graph.yaml
+      experiment_harness.yaml
+    paper/
+      placeholder_map.yaml
+      result_binding.yaml
+
+  plans/
+    YYYY-MM-DD-purpose/
+      plan.md
+      plan.yaml
+      ai_loop_prompt.md
+      current_state.md
+      blocker_log.md
+      decision_log.md
+      run_log.md
+      final_summary.md
+
+  ppt/
+    main_deck/
+      deck_spec.yaml
+      slide_manifest.yaml
+      slide_prompts/
+        01_title.md
+        02_motivation.md
+        ...
+      slide_notes.md
+      deck_gap_report.md
+      render_plan.md
+      pages/
+        01_title.png
+        02_motivation.png
+        ...
+      exports/
+        main_deck.pdf
+
+  audits/
+    YYYY-MM-DD-audit/
+      audit_report.md
+      alignment_matrix.yaml
+      drift_findings.yaml
+      repair_plan.md
 ```
 
-生成 goal prompt 时按下面顺序判断：
+## Research PRD
 
-1. `spec/` 缺失或无效 -> 生成 `spec 修复目标`。
-2. `spec/` 有效，但 `main/` / `paper/` 缺失或不一致 -> 生成 `三产物对齐目标`。
-3. `main` / `paper` / `spec` 全部有效且对齐 -> 生成 `三产物执行目标`。
+`research-prd` 维护人类研究真源。PRD 不是短论文，而是专业、详细、教学友好、可执行的研究设计文档，必须包含：
 
-只有 `spec` 可以定义可执行 milestone、gate、task、harness command、artifact 和 evidence contract。`main` 只解释设计，`paper` 只表达论文叙事和 placeholder。agent 不能从 `paper` 推断 experiment、baseline、metric、dataset、seed 或 result。
+1. Executive Summary
+2. Background Tutorial
+3. Related Work Map
+4. Benchmark and Reproduction Plan
+5. Problem Statement
+6. Research Questions and Hypotheses
+7. Formalization
+8. Proposed Method
+9. System and Implementation Design
+10. Experiment Design
+11. Task Graph and Student Work Plan
+12. Harness and Acceptance Criteria
+13. Evidence Ledger
+14. Paper Plan
+15. Risks, Limitations, and Ethics
 
-仍使用 `report.manifest.yaml`、`tasks/task_graph.yaml`、`harness/harness.yaml`、`evidence/evidence_manifest.yaml` 的旧 workspace 保留兼容路径。`--allow-legacy-prose-goal` 只作为显式逃生口。
+PRD 要解释足够背景，使有能力但非该方向专家的硕士生可以执行；同时必须定义具体任务、benchmark、实验、harness、验收条件和证据边界。
 
-`report-spec` 是 `main -> spec` 的一等编译入口。它负责生成或更新：
+## Research Paper
+
+`research-paper` 从 PRD 派生 planned top-conference-style manuscript。它可以对已经在 PRD 中设计好的对象使用强表达：
+
+- `We propose ...`
+- `We formulate ...`
+- `We design ...`
+- `We evaluate ...`
+- `Experiment E1 tests whether ...`
+- `Table 1 reports ...`
+
+但在证据验证前禁止写：
+
+- `Experiments show that ...`
+- `Our method outperforms ...`
+- `We achieve state-of-the-art ...`
+- `The results demonstrate ...`
+- 任何没有 validated evidence 支撑的数字或比较。
+
+未观测结果必须写成实验绑定 placeholder：
 
 ```text
-execution_spec.yaml
-experiment_manifest.yaml
-task_graph.yaml
-harness.yaml
-dataset_manifest.yaml
-model_manifest.yaml
-baseline_manifest.yaml
-metric_manifest.yaml
-seed_protocol.yaml
-evidence_contract.yaml
-anti_mock_policy.yaml
-codex_goal.md
-spec_gap_report.md
+{{E01.OURS.primary_metric}}
+{{E01.B01.primary_metric}}
+{{E02.ablation_delta}}
+{{E03.latency_ms}}
 ```
 
-如果 `main` 缺少必要执行信息，`report-spec` 必须把缺口写入 `spec_gap_report.md`，不能发明 dataset、baseline、metric、seed、command 或结果。
+每个 placeholder 必须注册在 `docs/research/paper/placeholder_map.yaml`，并绑定到 Spec 中的实验。
 
-## Paper 输出
+## Research Spec
 
-本 family 只有一个 paper 专用 skill：[`report-paper`](skills/report-paper/SKILL.md)。它是 agent-driven，不是 parser-driven：用户可以用自然语言要求生成顶会论文，agent 会读取 report workspace、manifest 和 evidence ledger，判断应该在 `docs/report/<slug>/paper/` 下生成 planned manuscript 还是 observed-results paper。
+`research-spec` 把 PRD 编译成全局机器执行合同：
 
-不要把 paper 工作拆成 `report-paper-plan`、`report-paper-draft` 或 venue-specific skills。本 family 也有意不保留独立 `report-debate`；争议 claim 通过 `report-audit` 的 multi-agent audit mode 审计。
+```text
+RQ
+-> Hypothesis
+-> Claim
+-> Experiment
+-> Dataset / Model / Baseline / Metric / Seed
+-> Task
+-> Harness
+-> Evidence
+-> Paper placeholder
+```
 
-## Shared Resources 共享资源
+`research-spec` 只能从 PRD 编译，不能从 Paper 推断实验。PRD 缺失的执行细节必须进入 gap report 或 blocker，不能由 agent 发明。
 
-`_shared/` 是 skill 内共享资源的镜像面：
+复现不是单独技能，而是 Spec 和 Plan 内部的 track。复现模式必须显式声明：
 
-- **`_shared/scripts/`** — Python tools for initialization, rendering, repo scanning, self-check
-- **`_shared/references/`** — PRD templates, style guides, checklists, writing guidelines
-- **`_shared/assets/templates/`** — LaTeX templates, metadata schemas, outline files
+- `official_code_reuse`
+- `official_code_adaptation`
+- `paper_based_reimplementation`
 
-## Contributing
+## Research Plan
 
-提交 skill 改动前：
+`research-plan` 从 Spec 生成 dated bounded execution plan。它支持：
 
-1. 确认 `SKILL.md` 有合法 YAML frontmatter（`name` + `description`）。
-2. 尽量保持 `SKILL.md` 正文低于 500 行。
-3. 运行 `python3 -m pytest skills/report/_shared/scripts/tests` 验证共享脚本。
-4. 提交前检查是否误包含个人路径或 PII。
+```text
+research-plan --track reproduction
+research-plan --track implementation
+research-plan --track experiment
+research-plan --track paper-update
+research-plan --gate G_ID
+research-plan --target codex
+research-plan --target ralph-loop
+```
+
+每个 plan 必须记录 PRD、Paper、Spec 和 git commit 的 source hash。若 Spec 在 plan 创建后改变，`plan-ready` 必须失败，直到显式生成或更新 plan。
+
+## Research Audit
+
+`research-audit` 检查：
+
+- PRD -> Paper alignment
+- PRD -> Spec alignment
+- Spec -> Plan alignment
+- Paper -> Spec alignment
+- Plan -> Artifact alignment
+- PRD / Paper / Spec -> PPT alignment
+
+`repair_plan.md` 必须区分：
+
+- must fix before execution
+- can fix later
+- recommended next `research-plan` target
+
+## Research PPT
+
+`research-ppt` 生成面向 Codex + ImageGen 的 slide-image deck spec：
+
+- 每页幻灯片生成一个 PNG。
+- 最终从 PNG 页面导出 PDF。
+- 不创建传统 `.pptx`。
+
+默认 `standard` 模式是 10 到 12 页：
+
+1. Title
+2. Background and motivation
+3. Problem gap and research questions
+4. Problem formulation
+5. Key insight
+6. Method overview
+7. Method details / system design
+8. Benchmark and reproduction plan
+9. Experiment design
+10. Expected contributions
+11. Risks / challenges
+12. Summary and next steps
+
+## 校验器
+
+统一校验入口：
+
+```bash
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode prd-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode paper-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode spec-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode plan-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode ppt-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode audit-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignment-check
+```
+
+readiness mode 必须硬失败。scaffold 可以存在 blocker，但不能被当成 execution-ready。
+
+## 开发验证
+
+运行：
+
+```bash
+python3 -m pytest tests -q
+```
+
+历史 GitHub 路径仍是 `XiaYiHann/report-prd-skills`；当前产品身份是 `research-execution-skills`。
 
 ## License
 

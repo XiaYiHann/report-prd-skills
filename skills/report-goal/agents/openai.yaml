@@ -1,4 +1,0 @@
-interface:
-  display_name: "Report Goal"
-  short_description: "Generate long-running Codex goal prompts from report.md"
-  default_prompt: "Use $report-goal to scan this repo, compare implementation against docs/report/report.md, and generate a Codex Goal prompt."

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Report"
-  short_description: "Route report work across init, brainstorming, update, audit, and debate"
-  default_prompt: "Use $report to route single-source report work to the right report-family skill: initialize a semi-empty template, brainstorm before writing, update the canonical report, audit quality, or debate a contested section before rendering report.pdf and report.md."
