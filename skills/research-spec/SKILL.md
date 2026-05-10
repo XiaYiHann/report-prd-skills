@@ -94,10 +94,10 @@ Paper-based reimplementation must record algorithm sources, missing details, ado
 ## Commands
 
 ```bash
-python3 ~/.agents/skills/research-spec/scripts/generate_research_spec.py \
+python3 ~/.claude/skills/research-spec/scripts/generate_research_spec.py \
   --repo /absolute/path/to/repo
 
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode spec-ready
 ```

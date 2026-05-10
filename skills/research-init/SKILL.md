@@ -29,7 +29,7 @@ The generated paper and spec are also real templates, not empty files:
 ## Command
 
 ```bash
-python3 ~/.agents/skills/research-init/scripts/init_research.py \
+python3 ~/.claude/skills/research-init/scripts/init_research.py \
   --repo /absolute/path/to/repo \
   --title "Project Title" \
   --purpose "minimum viable research goal"
@@ -55,7 +55,7 @@ If `latexmk` or `xelatex` is available, initialization renders a real PDF from t
 5. Run validation:
 
 ```bash
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode prd-ready
 ```

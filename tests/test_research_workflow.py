@@ -24,7 +24,6 @@ RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop
 INSTALL_SCRIPT = REPO_ROOT / "install.sh"
 CLAUDE_AGENT_TEMPLATES_DIR = REPO_ROOT / "agents" / "claude-code"
 SKILL_NAMES = [
-    "report",
     "research",
     "research-init",
     "research-prd",
@@ -419,8 +418,13 @@ class ResearchWorkflowTests(unittest.TestCase):
 
         self.assertIn("https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh", readme)
         self.assertIn("https://github.com/XiaYiHann/research-loop.git", installer)
-        self.assertIn("--with-subagents", readme)
+        self.assertIn("~/.claude/skills", readme)
         self.assertIn(".claude/agents/", readme)
+        self.assertIn("--init-workspace", readme)
+        self.assertIn("--no-agents", installer)
+        self.assertIn("--user-agents", installer)
+        self.assertIn("--agents-only", installer)
+        self.assertIn("--dry-run", installer)
         self.assertNotIn("raw.githubusercontent.com/XiaYiHann/report-prd-skills", readme)
         self.assertNotIn("https://github.com/XiaYiHann/report-prd-skills.git", installer)
 
@@ -475,12 +479,11 @@ class ResearchWorkflowTests(unittest.TestCase):
         ]:
             self.assertNotIn(forbidden, skill_text)
 
-    def test_installer_installs_research_family_and_removes_old_report_skills(self) -> None:
+    def test_installer_installs_skills_and_project_agents_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "skills"
-            claude_target = Path(tmp) / "claude" / "skills"
+            target = Path(tmp) / "claude" / "skills"
+            project_agents = Path(tmp) / "project" / ".claude" / "agents"
             for old_name in [
-                "report",
                 "report-init",
                 "report-update",
                 "report-audit",
@@ -496,7 +499,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
-            env["RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR"] = str(claude_target)
+            env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
 
             result = subprocess.run(
                 ["bash", str(INSTALL_SCRIPT)],
@@ -511,6 +514,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             for skill_name in SKILL_NAMES:
                 self.assertTrue((target / skill_name / "SKILL.md").exists(), skill_name)
+            self.assertFalse((target / "report" / "SKILL.md").exists())
             for old_name in [
                 "report-init",
                 "report-update",
@@ -522,33 +526,64 @@ class ResearchWorkflowTests(unittest.TestCase):
                 "research-writing",
                 "research-evidence",
             ]:
-                self.assertFalse((target / old_name).exists(), old_name)
-            self.assertIn("Legacy Report Router", (target / "report" / "SKILL.md").read_text(encoding="utf-8"))
-            self.assertIn("Migrated existing skill directories to research-*", result.stdout)
-            self.assertIn("report -> legacy research migration router", result.stdout)
-            self.assertIn("report-init -> removed", result.stdout)
-            self.assertIn("Installed research execution skill family", result.stdout)
-            for skill_name in [name for name in SKILL_NAMES if name == "research" or name.startswith("research-")]:
-                link = claude_target / skill_name
-                self.assertTrue(link.is_symlink(), skill_name)
-                self.assertEqual(link.resolve(), (target / skill_name).resolve())
-            self.assertFalse((claude_target / "report").exists())
-            self.assertIn("Linked research skills for Claude Code", result.stdout)
+                self.assertTrue((target / old_name).exists(), f"non-target legacy file should not be deleted: {old_name}")
+            self.assertIn("Installed research-loop skills", result.stdout)
+            self.assertIn("Installed Claude Code subagents", result.stdout)
+            self.assertIn("Next steps:", result.stdout)
+            for agent_name in CLAUDE_RESEARCH_AGENT_NAMES:
+                self.assertTrue((project_agents / f"{agent_name}.md").exists(), agent_name)
 
-    def test_installer_can_install_claude_code_project_subagents(self) -> None:
+    def test_installer_respects_existing_files_without_force_and_overwrites_with_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "skills"
-            claude_target = Path(tmp) / "claude" / "skills"
-            project_agents = Path(tmp) / "project" / ".claude" / "agents"
+            target = Path(tmp) / "claude" / "skills"
+            existing = target / "research"
+            existing.mkdir(parents=True)
+            (existing / "SKILL.md").write_text("old\n", encoding="utf-8")
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
-            env["RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR"] = str(claude_target)
-            env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
+            env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(Path(tmp) / "project" / ".claude" / "agents")
+
+            skipped = subprocess.run(
+                ["bash", str(INSTALL_SCRIPT), "--no-agents"],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(skipped.returncode, 0, skipped.stdout + skipped.stderr)
+            self.assertEqual((existing / "SKILL.md").read_text(encoding="utf-8"), "old\n")
+            self.assertIn("research exists, skipped", skipped.stdout)
+
+            overwritten = subprocess.run(
+                ["bash", str(INSTALL_SCRIPT), "--no-agents", "--force"],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(overwritten.returncode, 0, overwritten.stdout + overwritten.stderr)
+            self.assertIn("research overwritten", overwritten.stdout)
+            self.assertIn("# research", (existing / "SKILL.md").read_text(encoding="utf-8"))
+
+    def test_installer_supports_agents_only_user_agents_and_init_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "claude" / "skills"
+            user_agents = Path(tmp) / "claude" / "agents"
+            project = Path(tmp) / "project"
+            project.mkdir()
+            env = os.environ.copy()
+            env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
+            env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR"] = str(user_agents)
 
             result = subprocess.run(
-                ["bash", str(INSTALL_SCRIPT), "--with-subagents"],
-                cwd=REPO_ROOT,
+                ["bash", str(INSTALL_SCRIPT), "--agents-only", "--user-agents", "--init-workspace"],
+                cwd=project,
                 env=env,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -557,14 +592,45 @@ class ResearchWorkflowTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("Installed Claude Code project subagents", result.stdout)
+            self.assertFalse((target / "research" / "SKILL.md").exists())
             for agent_name in CLAUDE_RESEARCH_AGENT_NAMES:
-                agent_path = project_agents / f"{agent_name}.md"
+                agent_path = user_agents / f"{agent_name}.md"
                 self.assertTrue(agent_path.exists(), agent_name)
                 text = agent_path.read_text(encoding="utf-8")
                 self.assertTrue(text.startswith("---\n"), agent_path)
                 metadata = yaml.safe_load(text[4 : text.find("\n---\n", 4)])
                 self.assertEqual(metadata.get("name"), agent_name)
+            for dirname in ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]:
+                self.assertTrue((project / "docs" / "research" / dirname).exists(), dirname)
+
+    def test_installer_dry_run_does_not_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "claude" / "skills"
+            project_agents = Path(tmp) / "project" / ".claude" / "agents"
+            project = Path(tmp) / "project"
+            project.mkdir()
+            env = os.environ.copy()
+            env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
+            env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
+
+            result = subprocess.run(
+                ["bash", str(INSTALL_SCRIPT), "--dry-run", "--init-workspace"],
+                cwd=project,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("DRY RUN", result.stdout)
+            self.assertIn("would install skill research", result.stdout)
+            self.assertIn("would install agent research-math", result.stdout)
+            self.assertFalse(target.exists())
+            self.assertFalse(project_agents.exists())
+            self.assertFalse((project / "docs").exists())
 
     def test_research_init_scaffolds_docs_research_tree_and_required_prd_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

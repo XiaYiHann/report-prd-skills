@@ -45,17 +45,33 @@ Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 
 ## 安装与迁移
 
-一行在线安装：
+一行在线安装（默认安装 Claude Code skills，并在当前项目安装 Claude Code project-level subagents）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash
 ```
 
-安装到自定义技能目录：
+默认写入：
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh \
-  | RESEARCH_EXECUTION_SKILLS_TARGET_DIR=/path/to/.agents/skills bash
+```text
+~/.claude/skills/research
+~/.claude/skills/research-init
+~/.claude/skills/research-prd
+~/.claude/skills/research-paper
+~/.claude/skills/research-spec
+~/.claude/skills/research-plan
+~/.claude/skills/research-audit
+~/.claude/skills/research-ppt
+
+./.claude/agents/research-math.md
+./.claude/agents/research-literature.md
+./.claude/agents/research-reproduce.md
+./.claude/agents/research-coding.md
+./.claude/agents/research-experiment.md
+./.claude/agents/research-analysis.md
+./.claude/agents/research-paper.md
+./.claude/agents/research-ppt.md
+./.claude/agents/research-audit.md
 ```
 
 从本地 checkout 安装：
@@ -64,69 +80,52 @@ curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/instal
 RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 ```
 
-默认目标目录是：
-
-```text
-~/.agents/skills
-```
-
-安装脚本还会把 `research` 和所有 `research-*` 技能从 `~/.agents/skills/` 软链接到 Claude Code 的默认技能目录：
-
-```text
-~/.claude/skills
-```
-
-如果需要自定义 Claude Code 技能目录：
-
-```bash
-RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" \
-RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR=/path/to/.claude/skills \
-bash install.sh
-```
-
-如果主要在 Claude Code 中使用，并希望安装项目级 research subagents：
+安装器不会默认创建 `docs/research/`，避免污染当前项目。如需同时创建基础目录：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh \
-  | bash -s -- --with-subagents
-
-# 或从本地 checkout 安装
-RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --with-subagents
+  | bash -s -- --init-workspace
 ```
 
-这会从 repo 模板目录复制：
+常用选项：
+
+```bash
+./install.sh --init-workspace   # 同时创建 docs/research/ 基础目录
+./install.sh --no-agents        # 只安装 skills
+./install.sh --user-agents      # subagents 安装到 ~/.claude/agents
+./install.sh --project-agents   # subagents 安装到 ./.claude/agents，默认
+./install.sh --skills-only      # 只安装 skills
+./install.sh --agents-only      # 只安装 subagents
+./install.sh --force            # 覆盖已有目标文件
+./install.sh --dry-run          # 只打印计划，不写文件
+```
+
+自定义目标目录：
+
+```bash
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" \
+RESEARCH_EXECUTION_SKILLS_TARGET_DIR=/path/to/.claude/skills \
+RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR=/path/to/project/.claude/agents \
+bash install.sh
+```
+
+subagent 模板源位于：
 
 ```text
 agents/claude-code/*.md
 ```
 
-到当前项目的 Claude Code 标准 subagent 目录：
+默认复制到当前项目的 Claude Code 标准 subagent 目录：
 
 ```text
 .claude/agents/
 ```
 
-可用环境变量改写目标目录：
-
-```bash
-RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR=/path/to/project/.claude/agents \
-bash install.sh --with-subagents
-```
-
 第一版安装 9 个 Claude Code project-level subagents：`research-math`、`research-literature`、`research-reproduce`、`research-coding`、`research-experiment`、`research-analysis`、`research-paper`、`research-ppt`、`research-audit`。这些文件是 Claude Code 原生的 Markdown + YAML frontmatter 格式；不要把自定义 registry 当成主 subagent 定义格式。
 
-安装脚本会执行迁移：
-
-- 安装新的 `research-*` 技能族。
-- 用一个很小的 legacy `report` router 替换旧 `report` 入口，仅用于提示迁移方向。
-- 删除旧的 `report-init`、`report-update`、`report-audit`、`report-goal`、`report-paper`、`report-spec`、`report-brainstorming` 等旧技能目录。
-- 删除不应存在的 `research-evidence`、`research-writing`、`research-goal`。
-- 兼容旧环境变量 `REPORT_PRD_SKILLS_SOURCE_DIR`、`REPORT_PRD_SKILLS_TARGET_DIR`、`REPORT_PRD_SKILLS_REPO_URL`、`REPORT_PRD_SKILLS_REF`，但推荐新环境变量 `RESEARCH_EXECUTION_SKILLS_*`。
-
-迁移后，目标目录里应主要看到：
+一键安装完成后，目标目录里应主要看到：
 
 ```text
-report/              # legacy migration warning only
 research/            # unified autonomous controller
 research-init/
 research-prd/
@@ -136,6 +135,8 @@ research-plan/
 research-audit/
 research-ppt/
 ```
+
+旧的 `report-*` skill 不再默认安装。安装器默认遵守已有文件：目标已存在时跳过；传 `--force` 才覆盖。
 
 ## 技能列表
 

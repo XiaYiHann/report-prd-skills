@@ -50,11 +50,11 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 ## Command
 
 ```bash
-python3 ~/.agents/skills/research-audit/scripts/generate_research_audit.py \
+python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
   --repo /absolute/path/to/repo \
   --date 2026-05-09
 
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode audit-ready
 ```

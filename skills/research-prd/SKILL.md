@@ -51,7 +51,7 @@ Do not include a visible `Reader Model and Usage` section. Treat that as an inte
 ## Validation
 
 ```bash
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode prd-ready
 ```

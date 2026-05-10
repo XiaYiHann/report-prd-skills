@@ -49,12 +49,12 @@ The PRD is treated as the current best research hypothesis. The agent must recor
 ## Command
 
 ```bash
-python3 ~/.agents/skills/research/scripts/research_loop.py --repo /absolute/path/to/repo --once
-python3 ~/.agents/skills/research/scripts/research_loop.py --workspace docs/research --max-steps 1
-python3 ~/.agents/skills/research/scripts/research_loop.py --workspace docs/research --dry-run --json
-python3 ~/.agents/skills/research/scripts/research_loop.py --workspace docs/research --track reproduction
-python3 ~/.agents/skills/research/scripts/research_loop.py --workspace docs/research --force-audit
-python3 ~/.agents/skills/research/scripts/research_loop.py --workspace docs/research --executor prompt-only
+python3 ~/.claude/skills/research/scripts/research_loop.py --repo /absolute/path/to/repo --once
+python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --max-steps 1
+python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --dry-run --json
+python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --track reproduction
+python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --force-audit
+python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --executor prompt-only
 ```
 
 The current implementation is a deterministic file-based controller. It creates and updates state, queues, plans, blocker files, feedback, audits, and next-step prompts. It does not fabricate harness outputs or claim that experiments ran when no harness was executed.

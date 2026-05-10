@@ -90,16 +90,16 @@ The distinction is not only narrative voice. Numeric placeholders must remain vi
 ## Commands
 
 ```bash
-python3 ~/.agents/skills/research-paper/scripts/generate_research_paper.py \
+python3 ~/.claude/skills/research-paper/scripts/generate_research_paper.py \
   --repo /absolute/path/to/repo \
   --force
 
-python3 ~/.agents/skills/research-paper/scripts/generate_research_paper.py \
+python3 ~/.claude/skills/research-paper/scripts/generate_research_paper.py \
   --repo /absolute/path/to/repo \
   --demo \
   --force
 
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode paper-ready
 ```

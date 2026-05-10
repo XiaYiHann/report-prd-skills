@@ -1,86 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${RESEARCH_EXECUTION_SKILLS_REPO_URL:-${REPORT_PRD_SKILLS_REPO_URL:-https://github.com/XiaYiHann/research-loop.git}}"
-REPO_REF="${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PRD_SKILLS_REF:-main}}"
-TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${REPORT_PRD_SKILLS_TARGET_DIR:-${HOME}/.agents/skills}}"
-CLAUDE_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}"
-SUBAGENTS_TARGET_DIR="${RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR:-.claude/agents}"
-SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}"
-INSTALL_SUBAGENTS=false
+REPO_URL="${RESEARCH_LOOP_REPO_URL:-${RESEARCH_EXECUTION_SKILLS_REPO_URL:-${REPORT_PRD_SKILLS_REPO_URL:-https://github.com/XiaYiHann/research-loop.git}}}"
+REPO_REF="${RESEARCH_LOOP_REPO_REF:-${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PRD_SKILLS_REF:-main}}}"
+CACHE_DIR="${RESEARCH_LOOP_CACHE_DIR:-${HOME}/.claude/research-loop}"
+SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${RESEARCH_LOOP_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}}"
+SKILLS_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${RESEARCH_LOOP_SKILLS_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}}"
+PROJECT_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR:-${RESEARCH_LOOP_PROJECT_AGENTS_DIR:-.claude/agents}}"
+USER_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR:-${RESEARCH_LOOP_USER_AGENTS_DIR:-${HOME}/.claude/agents}}"
 
-usage() {
-  cat <<'EOF'
-Usage: install.sh [--with-subagents]
-
-Installs the research execution skill family into ~/.agents/skills and symlinks
-research skills into ~/.claude/skills. With --with-subagents, also copies
-Claude Code project subagents into .claude/agents.
-
-Environment:
-  RESEARCH_EXECUTION_SKILLS_SOURCE_DIR       install from local checkout
-  RESEARCH_EXECUTION_SKILLS_TARGET_DIR       default: ~/.agents/skills
-  RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR default: ~/.claude/skills
-  RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR    default: .claude/agents
-EOF
-}
-
-while (( "$#" )); do
-  case "$1" in
-    --with-subagents)
-      INSTALL_SUBAGENTS=true
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      printf '[research-execution-skills] error: unknown argument: %s\n' "$1" >&2
-      usage >&2
-      exit 1
-      ;;
-  esac
-done
+INSTALL_SKILLS=true
+INSTALL_AGENTS=true
+AGENTS_SCOPE="project"
+INIT_WORKSPACE=false
+FORCE=false
+DRY_RUN=false
 
 SKILLS=(
-  report
-  research
-  research-init
-  research-prd
-  research-paper
-  research-spec
-  research-plan
-  research-audit
-  research-ppt
-)
-
-LEGACY_REPORT_SKILLS=(
-  report-init
-  report-brainstorming
-  report-update
-  report-audit
-  report-goal
-  report-paper
-  report-spec
-  report-debate
-  report-paper-plan
-  report-paper-draft
-  report-ingest-results
-)
-
-OBSOLETE_RESEARCH_SKILLS=(
-  research-evidence
-  research-writing
-  research-goal
-)
-
-OBSOLETE_SKILLS=(
-  "${LEGACY_REPORT_SKILLS[@]}"
-  "${OBSOLETE_RESEARCH_SKILLS[@]}"
-)
-
-CLAUDE_LINK_SKILLS=(
   research
   research-init
   research-prd
@@ -103,125 +39,237 @@ CLAUDE_SUBAGENTS=(
   research-audit
 )
 
+WORKSPACE_DIRS=(
+  docs/research/prd
+  docs/research/paper
+  docs/research/spec
+  docs/research/plans
+  docs/research/ppt
+  docs/research/audits
+  docs/research/insights
+)
+
+usage() {
+  cat <<'EOF'
+Usage: install.sh [options]
+
+Installs the research-loop skill family for Claude Code. By default it installs
+research skills into ~/.claude/skills and project-level subagents into
+./.claude/agents. It does not initialize docs/research unless requested.
+
+Options:
+  --init-workspace   create a basic docs/research directory scaffold
+  --no-agents        install skills only; do not install subagents
+  --project-agents   install subagents into ./.claude/agents (default)
+  --user-agents      install subagents into ~/.claude/agents
+  --skills-only      install skills only
+  --agents-only      install subagents only
+  --force            overwrite existing destination files/directories
+  --dry-run          print planned actions without cloning, copying, or mkdir
+  --help             show this help
+
+Compatibility:
+  --with-subagents   accepted as an alias for --project-agents
+
+Environment:
+  RESEARCH_LOOP_REPO_URL                    default: https://github.com/XiaYiHann/research-loop.git
+  RESEARCH_LOOP_REPO_REF                    default: main
+  RESEARCH_LOOP_CACHE_DIR                   default: ~/.claude/research-loop
+  RESEARCH_EXECUTION_SKILLS_SOURCE_DIR      install from local checkout
+  RESEARCH_EXECUTION_SKILLS_TARGET_DIR      default: ~/.claude/skills
+  RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR   default: ./.claude/agents
+  RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR default: ~/.claude/agents
+EOF
+}
+
 log() {
-  printf '[research-execution-skills] %s\n' "$*"
+  printf '[research-loop] %s\n' "$*"
 }
 
 die() {
-  printf '[research-execution-skills] error: %s\n' "$*" >&2
+  printf '[research-loop] error: %s\n' "$*" >&2
   exit 1
+}
+
+while (( "$#" )); do
+  case "$1" in
+    --init-workspace)
+      INIT_WORKSPACE=true
+      shift
+      ;;
+    --no-agents|--skills-only)
+      INSTALL_AGENTS=false
+      INSTALL_SKILLS=true
+      shift
+      ;;
+    --project-agents|--with-subagents)
+      INSTALL_AGENTS=true
+      AGENTS_SCOPE="project"
+      shift
+      ;;
+    --user-agents)
+      INSTALL_AGENTS=true
+      AGENTS_SCOPE="user"
+      shift
+      ;;
+    --agents-only)
+      INSTALL_AGENTS=true
+      INSTALL_SKILLS=false
+      shift
+      ;;
+    --force)
+      FORCE=true
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+run_mkdir() {
+  local dir="$1"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would create directory $dir"
+    return
+  fi
+  mkdir -p "$dir"
+}
+
+copy_path() {
+  local source="$1"
+  local dest="$2"
+  local label="$3"
+  local kind="$4"
+
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    if [[ "$FORCE" == "true" ]]; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        log "DRY RUN: would overwrite $label at $dest"
+        return
+      fi
+      rm -rf "$dest"
+      cp -R "$source" "$dest"
+      log "$label overwritten"
+      return
+    fi
+    log "$label exists, skipped"
+    return
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would install $kind $label -> $dest"
+    return
+  fi
+  cp -R "$source" "$dest"
+  log "$label installed"
 }
 
 resolve_source_dir() {
   if [[ -n "$SOURCE_DIR" ]]; then
-    printf 'local:%s\n' "$SOURCE_DIR"
+    printf '%s\n' "$SOURCE_DIR"
     return
   fi
 
   local script_path="${BASH_SOURCE[0]:-}"
-  local script_dir=""
   if [[ -n "$script_path" && -f "$script_path" ]]; then
+    local script_dir
     script_dir="$(cd "$(dirname "$script_path")" && pwd)"
-    if [[ -f "$script_dir/skills/research-init/SKILL.md" ]]; then
-      printf 'local:%s\n' "$script_dir"
+    if [[ -f "$script_dir/skills/research/SKILL.md" ]]; then
+      printf '%s\n' "$script_dir"
       return
     fi
   fi
 
-  command -v git >/dev/null 2>&1 || die "git is required when installing from the remote one-line command"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    printf '%s\n' "$CACHE_DIR"
+    return
+  fi
 
-  local tmp_dir
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/research-execution-skills.XXXXXX")"
-  log "Cloning $REPO_URL#$REPO_REF" >&2
-  git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$tmp_dir" >/dev/null
-  printf 'clone:%s\n' "$tmp_dir"
+  command -v git >/dev/null 2>&1 || die "git is required when installing from the remote one-line command"
+  mkdir -p "$(dirname "$CACHE_DIR")"
+  if [[ -d "$CACHE_DIR/.git" ]]; then
+    log "Updating $CACHE_DIR from $REPO_URL#$REPO_REF" >&2
+    git -C "$CACHE_DIR" fetch --depth 1 origin "$REPO_REF" >/dev/null
+    git -C "$CACHE_DIR" checkout -q FETCH_HEAD
+  else
+    if [[ -e "$CACHE_DIR" ]]; then
+      die "cache path exists but is not a git checkout: $CACHE_DIR"
+    fi
+    log "Cloning $REPO_URL#$REPO_REF into $CACHE_DIR" >&2
+    git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$CACHE_DIR" >/dev/null
+  fi
+  printf '%s\n' "$CACHE_DIR"
 }
 
-SOURCE_RESOLUTION="$(resolve_source_dir)"
-SOURCE_KIND="${SOURCE_RESOLUTION%%:*}"
-SOURCE_DIR="${SOURCE_RESOLUTION#*:}"
-if [[ "$SOURCE_KIND" == "clone" ]]; then
-  trap 'rm -rf "$SOURCE_DIR"' EXIT
+SOURCE_DIR="$(resolve_source_dir)"
+if [[ "$DRY_RUN" == "true" ]]; then
+  log "DRY RUN: source would be $SOURCE_DIR"
+else
+  SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd)"
+  [[ -d "$SOURCE_DIR/skills" ]] || die "source directory does not contain skills/: $SOURCE_DIR"
+  [[ -d "$SOURCE_DIR/agents/claude-code" ]] || die "source directory does not contain agents/claude-code/: $SOURCE_DIR"
 fi
-SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd)"
 
-[[ -d "$SOURCE_DIR/skills" ]] || die "source directory does not contain skills/: $SOURCE_DIR"
-
-for skill in "${SKILLS[@]}"; do
-  [[ -f "$SOURCE_DIR/skills/$skill/SKILL.md" ]] || die "missing required skill: $skill"
-done
-
-mkdir -p "$TARGET_DIR"
-TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
-
-log "Installing into $TARGET_DIR"
-
-MIGRATED_SKILLS=()
-
-for skill in "${SKILLS[@]}"; do
-  if [[ -e "$TARGET_DIR/$skill" || -L "$TARGET_DIR/$skill" ]]; then
-    if [[ "$skill" == "report" ]]; then
-      MIGRATED_SKILLS+=("$skill -> legacy research migration router")
+if [[ "$INSTALL_SKILLS" == "true" ]]; then
+  run_mkdir "$SKILLS_TARGET_DIR"
+  if [[ "$DRY_RUN" != "true" ]]; then
+    SKILLS_TARGET_DIR="$(cd "$SKILLS_TARGET_DIR" && pwd)"
+  fi
+  log "Installed research-loop skills:"
+  for skill in "${SKILLS[@]}"; do
+    if [[ "$DRY_RUN" != "true" ]]; then
+      [[ -f "$SOURCE_DIR/skills/$skill/SKILL.md" ]] || die "missing required skill: $skill"
     fi
-    rm -rf "$TARGET_DIR/$skill"
-  fi
-done
-
-for skill in "${OBSOLETE_SKILLS[@]}"; do
-  if [[ -e "$TARGET_DIR/$skill" || -L "$TARGET_DIR/$skill" ]]; then
-    MIGRATED_SKILLS+=("$skill -> removed")
-    rm -rf "$TARGET_DIR/$skill"
-  fi
-done
-
-for skill in "${SKILLS[@]}"; do
-  cp -R "$SOURCE_DIR/skills/$skill" "$TARGET_DIR/$skill"
-done
-
-if (( ${#MIGRATED_SKILLS[@]} > 0 )); then
-  log "Migrated existing skill directories to research-*:"
-  for item in "${MIGRATED_SKILLS[@]}"; do
-    printf '  - %s\n' "$item"
+    copy_path "$SOURCE_DIR/skills/$skill" "$SKILLS_TARGET_DIR/$skill" "$skill" "skill"
   done
 else
-  log "No legacy report skill directories found; installed research-* cleanly."
+  log "Skills installation skipped."
 fi
 
-log "Installed research execution skill family:"
-for skill in "${SKILLS[@]}"; do
-  printf '  - %s\n' "$skill"
-done
-
-mkdir -p "$CLAUDE_TARGET_DIR"
-CLAUDE_TARGET_DIR="$(cd "$CLAUDE_TARGET_DIR" && pwd)"
-
-if [[ "$CLAUDE_TARGET_DIR" == "$TARGET_DIR" ]]; then
-  log "Claude skills target is the same as install target; symlink step skipped."
-else
-  log "Linked research skills for Claude Code into $CLAUDE_TARGET_DIR:"
-  for skill in "${CLAUDE_LINK_SKILLS[@]}"; do
-    [[ -d "$TARGET_DIR/$skill" ]] || die "cannot link missing installed skill: $TARGET_DIR/$skill"
-    if [[ -e "$CLAUDE_TARGET_DIR/$skill" || -L "$CLAUDE_TARGET_DIR/$skill" ]]; then
-      rm -rf "$CLAUDE_TARGET_DIR/$skill"
-    fi
-    ln -s "$TARGET_DIR/$skill" "$CLAUDE_TARGET_DIR/$skill"
-    printf '  - %s -> %s\n' "$skill" "$TARGET_DIR/$skill"
-  done
+AGENTS_TARGET_DIR="$PROJECT_AGENTS_TARGET_DIR"
+if [[ "$AGENTS_SCOPE" == "user" ]]; then
+  AGENTS_TARGET_DIR="$USER_AGENTS_TARGET_DIR"
 fi
 
-if [[ "$INSTALL_SUBAGENTS" == "true" ]]; then
-  AGENT_SOURCE_DIR="$SOURCE_DIR/agents/claude-code"
-  [[ -d "$AGENT_SOURCE_DIR" ]] || die "source directory does not contain Claude Code subagent templates: $AGENT_SOURCE_DIR"
-  mkdir -p "$SUBAGENTS_TARGET_DIR"
-  SUBAGENTS_TARGET_DIR="$(cd "$SUBAGENTS_TARGET_DIR" && pwd)"
-  log "Installed Claude Code project subagents into $SUBAGENTS_TARGET_DIR:"
+if [[ "$INSTALL_AGENTS" == "true" ]]; then
+  run_mkdir "$AGENTS_TARGET_DIR"
+  if [[ "$DRY_RUN" != "true" ]]; then
+    AGENTS_TARGET_DIR="$(cd "$AGENTS_TARGET_DIR" && pwd)"
+  fi
+  log "Installed Claude Code subagents:"
   for agent in "${CLAUDE_SUBAGENTS[@]}"; do
-    [[ -f "$AGENT_SOURCE_DIR/$agent.md" ]] || die "missing Claude Code subagent template: $agent"
-    cp -f "$AGENT_SOURCE_DIR/$agent.md" "$SUBAGENTS_TARGET_DIR/$agent.md"
-    printf '  - %s\n' "$agent"
+    if [[ "$DRY_RUN" != "true" ]]; then
+      [[ -f "$SOURCE_DIR/agents/claude-code/$agent.md" ]] || die "missing Claude Code subagent template: $agent"
+    fi
+    copy_path "$SOURCE_DIR/agents/claude-code/$agent.md" "$AGENTS_TARGET_DIR/$agent.md" "$agent" "agent"
   done
 else
-  log "Claude Code project subagents not installed. Re-run with --with-subagents to copy templates into .claude/agents/."
+  log "Claude Code subagents skipped."
 fi
 
-log "Done. Restart Codex if it does not pick up the updated skills immediately."
+if [[ "$INIT_WORKSPACE" == "true" ]]; then
+  log "Workspace scaffold:"
+  for dir in "${WORKSPACE_DIRS[@]}"; do
+    run_mkdir "$dir"
+  done
+else
+  log "Workspace scaffold not initialized. Pass --init-workspace to create docs/research directories."
+fi
+
+cat <<'EOF'
+
+Next steps:
+1. Open Claude Code in your project.
+2. Run `/research-init` or `/research`.
+3. Complete and approve `docs/research/prd/research_prd.md`.
+4. Run `/research` to continue the autonomous loop.
+EOF

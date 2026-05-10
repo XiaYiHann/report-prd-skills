@@ -37,11 +37,11 @@ Generate `docs/research/ppt/main_deck/` as a slide-image deck specification. Thi
 ## Command
 
 ```bash
-python3 ~/.agents/skills/research-ppt/scripts/generate_research_ppt.py \
+python3 ~/.claude/skills/research-ppt/scripts/generate_research_ppt.py \
   --repo /absolute/path/to/repo \
   --mode standard
 
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode ppt-ready
 ```

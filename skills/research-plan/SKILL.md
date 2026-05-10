@@ -40,7 +40,7 @@ Supported selectors:
 ## Command
 
 ```bash
-python3 ~/.agents/skills/research-plan/scripts/generate_research_plan.py \
+python3 ~/.claude/skills/research-plan/scripts/generate_research_plan.py \
   --repo /absolute/path/to/repo \
   --date 2026-05-09 \
   --purpose reproduce-b01 \
@@ -51,7 +51,7 @@ python3 ~/.agents/skills/research-plan/scripts/generate_research_plan.py \
 Validate:
 
 ```bash
-python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --repo /absolute/path/to/repo \
   --mode plan-ready
 ```
