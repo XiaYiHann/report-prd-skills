@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         required=True,
-        choices=["prd-ready", "paper-ready", "spec-ready", "plan-ready", "ppt-ready", "audit-ready", "alignment-check"],
+        choices=["prd-ready", "paper-ready", "spec-ready", "plan-ready", "ppt-ready", "audit-ready", "insight-ready", "alignment-check"],
     )
     return parser.parse_args()
 

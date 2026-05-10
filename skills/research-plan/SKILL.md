@@ -17,6 +17,7 @@ Plan prose, AI loop prompts, and run logs must be Chinese. `plan.yaml` keeps Eng
 - `implementation`
 - `experiment`
 - `paper-update`
+- `insight-feedback`
 
 Supported selectors:
 
@@ -33,6 +34,7 @@ Supported selectors:
 - `blocker_log.md`
 - `decision_log.md`
 - `run_log.md`
+- `insight_log.md`
 - `final_summary.md`
 
 ## Command
@@ -65,6 +67,13 @@ python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
 - 若 Paper 与 Spec 冲突，以 Spec 为准；
 - 执行最早尚未完成的 gate；
 - 运行声明的 harness 并保存 stdout/stderr；
-- 更新 current state、blocker、decision、run 和 final summary logs；
+- 更新 current state、blocker、decision、run、final summary 和 **insight logs**；
 - 禁止将 mock / planning 值当作已验证结果写入证据或论文结论；
-- required information 缺失时停止并记录 blocker。
+- required information 缺失时停止并记录 blocker；
+- **每轮执行后必须回答洞察问题并写入 insight_log.md**：
+  - 我们理解到了什么？
+  - 有没有异常？
+  - 有没有与 PRD 假设冲突的现象？
+  - 有没有比原始 idea 更简单的解释？
+  - 有没有新的研究问题出现？
+  - 有没有值得微调 15 度的方向？

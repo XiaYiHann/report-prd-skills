@@ -15,6 +15,22 @@ The paper surface may be English, because it targets top-conference manuscript s
 
 When empirical evidence is not ready, write a **complete mock-data manuscript**. Use reasonable mock values to populate tables, figures, and result paragraphs so the paper presents as a polished, submission-grade manuscript. These values are **temporary placeholders** for the final evidence and must be recorded in `paper_gap_report.md` with exact locations and replacement conditions. They are not validated findings and must not be presented as such in the narrative voice.
 
+## Narrative Modes
+
+This skill supports two paper narratives:
+
+**Method-driven narrative** (default):
+```text
+We propose method X → Experiments → Improvement
+```
+
+**Insight-driven narrative** (preferred when execution reveals structure):
+```text
+We identify phenomenon Y → We explain why it matters → We design minimal mechanism Z → Evidence
+```
+
+When empirical evidence is not ready, write a **complete mock-data manuscript**. Use reasonable mock values to populate tables, figures, and result paragraphs so the paper presents as a polished, submission-grade manuscript. These values are **temporary placeholders** for the final evidence and must be recorded in `paper_gap_report.md` with exact locations and replacement conditions. They are not validated findings and must not be presented as such in the narrative voice.
+
 ## Allowed Language
 
 For designed artifacts already defined in the PRD, the paper may say:
@@ -27,6 +43,9 @@ For designed artifacts already defined in the PRD, the paper may say:
 - `We evaluate ...`
 - `Experiment E1 tests whether ...`
 - `Table 1 reports ...`
+- `We observe that ...` (insight-driven)
+- `Our analysis reveals ...` (insight-driven)
+- `This phenomenon suggests ...` (insight-driven)
 
 ## Allowed vs. Forbidden Language for Unobserved Results
 

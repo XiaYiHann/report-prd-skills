@@ -161,6 +161,103 @@ docs/research/
       repair_plan.md
 ```
 
+## 实际工作流案例
+
+这套系统的核心不是线性执行，而是**假设驱动的研究循环**。以下是三种典型操作模式。
+
+### 模式 A：全自动托管（适合 reproduction / implementation）
+
+```bash
+# 09:00 你启动
+research-plan --date 2026-05-10 --track reproduction --purpose reproduce-b01
+
+# 09:05 AI 开始自动执行
+# 你去做别的（读 paper、开会、写代码）
+
+# 17:00 你回来检查
+cat docs/research/plans/2026-05-10-reproduce-b01/final_summary.md
+# → "全部 gate 通过，baseline 复现成功"
+# → 无 Mismatch，无 Surprise
+# → Action: continue original plan
+
+# 你：确认无异常，运行 research-audit
+```
+
+**你的投入：5 分钟启动 + 5 分钟检查。**
+
+**放手条件**：
+- 所有命令/路径/seed 已在 spec 中完整定义
+- track 是 reproduction / implementation / experiment
+- 没有 open pivot proposal
+- insight_log.md 的 Action = continue original plan
+
+---
+
+### 模式 B：诊断模式（适合 diagnostic experiment / insight-feedback）
+
+```bash
+# 09:00 你启动
+cat docs/research/plans/2026-05-10-diagnose-m1/insight_log.md
+# → "Observation: M1 的 attention weight 在 90% samples 上接近 uniform"
+
+# 11:00 你：读到这个，意识到可能是关键
+# 你：手动添加 follow-up experiment 到 spec，重新运行 plan
+
+# 15:00 你：确认这是真实 insight，不是 bug
+# 你：运行 research-audit
+# 你：阅读 repair_plan.md 的 insight-opportunity 部分
+# 你：决定是否写 pivot proposal
+```
+
+**你的投入：持续参与，但 AI 帮你做所有执行和记录。**
+
+**介入信号**：
+- insight_log.md 出现 Mismatch / Surprise
+- 任何一轮执行出现了未预期的异常
+- validate_research --mode insight-ready 出现警告
+
+---
+
+### 模式 C：Pivot 决策模式（必须人类主导）
+
+```
+Day 1  AI：提交 pivot_proposal 到 insights/pivot_proposals/
+       系统状态：insight_loop.status = "pivot_proposed"
+       AI 停止所有执行，等待人类决策
+
+Day 1-3 你：深度阅读
+       - 原始 PRD v1 的 Chapter 6, 8, 10
+       - 所有 anomaly_reports
+       - 对比 pivot proposal 中的 "Required PRD Changes"
+
+Day 3  你：做决策
+       [ ] Approve  → 进入 PRD v2，AI 辅助生成文本
+       [ ] Reject   → 写回复，要求补充实验
+       [ ] Revise   → 修改 pivot 角度，再 submit
+
+Day 4  你：如果 Approve，运行 research-spec 重新编译
+       AI：自动级联更新 spec → plan → audit
+```
+
+**你的投入：数小时深度思考。这是科研中不可替代的部分。**
+
+**强制停止信号**：
+- insight_log.md 的 Action = propose pivot
+- blocker_log.md 出现研究类 blocker（假设矛盾）
+- AI 试图修改核心 RQ / Claim / 论文故事线
+
+---
+
+### 三层自动化边界
+
+| 层级 | 内容 | AI 权限 | 人类角色 |
+|------|------|---------|---------|
+| **执行层** | 代码运行、环境修复、实验执行、日志更新 | ✅ 全自动迭代 | 定期查看 summary |
+| **洞察层** | Insight 记录、异常分类、Pivot 提案生成 | ✅ 自动准备材料 | 做决策（Approve/Reject/Revise） |
+| **战略层** | 核心 RQ、问题表述、主 Claim、论文故事线 | ❌ 只辅助文本 | 完全控制，AI 不得修改 |
+
+> **执行交给 AI，洞察留给自己。让 AI 做你最快的实验员和诚实的记录员，但让最终的方向判断永远属于人类。**
+
 ## Research PRD
 
 `research-prd` 维护人类研究真源。PRD 不是短论文，也不是占位符列表，而是专业、详细、教学友好、可执行的研究设计文档。标题采用中文 + 英文 canonical label，必须包含：
@@ -325,6 +422,7 @@ python3 skills/research-spec/scripts/validate_research.py --repo . --mode spec-r
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode plan-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode ppt-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode audit-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode insight-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignment-check
 ```
 

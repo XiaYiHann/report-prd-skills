@@ -30,6 +30,7 @@ The PRD must contain exactly these top-level sections, using Chinese headings wi
 13. 证据台账（Evidence Ledger）
 14. 论文计划（Paper Plan）
 15. 风险、局限与伦理（Risks, Limitations, and Ethics）
+16. 探索与洞察策略（Exploration and Insight Policy）
 
 Do not include a visible `Reader Model and Usage` section. Treat that as an internal writing assumption.
 
@@ -45,6 +46,7 @@ Do not include a visible `Reader Model and Usage` section. Treat that as an inte
 - Each chapter should state chapter goal, required content, common mistakes, evidence boundary, and acceptance criteria.
 - Use `【待填写：...】` placeholders. Do not leave raw `TODO`.
 - Do not fabricate empirical findings, dataset details, baseline performance, metric values, or claim evidence.
+- **The PRD is the current best research hypothesis, not an immutable truth.** The agent may propose pivots based on execution evidence, but core RQ and claim changes require human approval.
 
 ## Validation
 

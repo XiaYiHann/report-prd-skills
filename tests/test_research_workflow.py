@@ -159,12 +159,39 @@ def make_execution_ready_spec(research_dir: Path) -> None:
         },
     )
     write_yaml(
+        research_dir / "spec" / "shared" / "insight_policy.yaml",
+        {
+            "schema_version": 1,
+            "insight_policy": {
+                "prd_hypothesis_statement": "当前 PRD 是初始研究假设。",
+                "auto_allowed": ["execution_fix", "spec_refinement"],
+                "human_review_required": ["core_rq_change", "main_claim_change"],
+                "pivot_trigger_conditions": ["baseline_already_solves_problem"],
+            },
+        },
+    )
+    write_yaml(
+        research_dir / "spec" / "insights" / "insight_manifest.yaml",
+        {
+            "schema_version": 1,
+            "insight_categories": {
+                "execution_failure": [],
+                "research_failure": [],
+                "anomaly": [],
+                "negative_result": [],
+                "pivot_proposal": [],
+            },
+            "insights": [],
+        },
+    )
+    write_yaml(
         research_dir / "spec" / "experiments" / "experiment_manifest.yaml",
         {
             "schema_version": 1,
             "experiments": [
                 {
                     "experiment_id": "E01",
+                    "experiment_type": "confirmatory",
                     "title": "Main comparison",
                     "linked_rq": "RQ1",
                     "hypothesis": "HYP1",
@@ -399,14 +426,19 @@ class ResearchWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
 
-            expected_dirs = ["prd", "paper", "spec", "plans", "ppt", "audits"]
+            expected_dirs = ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]
             for dirname in expected_dirs:
                 self.assertTrue((research_dir / dirname).exists(), dirname)
+            self.assertTrue((research_dir / "insights" / "anomaly_reports").exists())
+            self.assertTrue((research_dir / "insights" / "pivot_proposals").exists())
+            self.assertTrue((research_dir / "insights" / "negative_results").exists())
+            self.assertTrue((research_dir / "insights" / "insight_log.md").exists())
             prd = (research_dir / "prd" / "research_prd.md").read_text(encoding="utf-8")
             self.assertIn("# Research PRD", prd)
             self.assertIn("## 4. 基准与复现计划（Benchmark and Reproduction Plan）", prd)
             self.assertIn("## 11. 任务图与学生工作计划（Task Graph and Student Work Plan）", prd)
             self.assertIn("## 13. 证据台账（Evidence Ledger）", prd)
+            self.assertIn("## 16. 探索与洞察策略（Exploration and Insight Policy）", prd)
             self.assertIn("章节目标", prd)
             self.assertIn("常见错误", prd)
             self.assertIn("证据边界", prd)
@@ -538,6 +570,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("experiment_id", global_spec["rq_chain_template"])
             self.assertEqual(experiment_manifest["experiments"], [])
             self.assertIn("experiment_template", experiment_manifest)
+            self.assertIn("experiment_type", experiment_manifest["experiment_template"])
             self.assertIn("support_condition", experiment_manifest["experiment_template"])
             self.assertIn("falsification_condition", experiment_manifest["experiment_template"])
             self.assertIn("harness_template", experiment_harness)
@@ -546,6 +579,8 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("official_code_reuse", reproduction_manifest["allowed_reproduction_modes"])
             self.assertIn("result_binding_template", result_binding)
             self.assertIn("所有说明性 value 使用中文", global_spec["language_policy"]["values"])
+            self.assertTrue((research_dir / "spec" / "shared" / "insight_policy.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "insights" / "insight_manifest.yaml").exists())
 
     def test_research_paper_script_uses_full_template_and_spec_bound_placeholders(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -641,6 +676,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("source_versions", plan_yaml)
             self.assertIn("gates", plan_yaml)
             self.assertIn("harnesses", plan_yaml)
+            self.assertIn("insight_loop", plan_yaml)
             self.assertIn("不要从 Paper 推断具体的 dataset、seed、command 或 artifact 路径", "\n".join(plan_yaml["forbidden_actions"]))
             self.assertIn("可以从 Paper 理解实验设计意图（baseline、metric、表格结构），但执行数据必须从 Spec 获取", "\n".join(plan_yaml["forbidden_actions"]))
             self.assertIn("研究执行计划", plan_md)
@@ -648,6 +684,9 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("AI 长循环执行提示词", prompt)
             self.assertIn("可执行真源是 `docs/research/spec/`", prompt)
             self.assertIn("禁止将 mock / planning 值当作已验证结果写入证据或论文结论", prompt)
+            self.assertIn("洞察问题", prompt)
+            self.assertIn("有没有值得微调 15 度的方向", prompt)
+            self.assertTrue((plan_dir / "insight_log.md").exists())
             self.assertIn("当前状态", current_state)
 
     def test_valid_paper_placeholders_pass_paper_ready(self) -> None:
@@ -745,6 +784,20 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertNotEqual(check.returncode, 0)
             self.assertIn("missing slide prompt", check.stdout)
 
+    def test_insight_ready_validates_insight_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_execution_ready_spec(research_dir)
+
+            check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "insight-ready"])
+            self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+            # Delete insight_policy.yaml and assert failure
+            (research_dir / "spec" / "shared" / "insight_policy.yaml").unlink()
+            check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "insight-ready"])
+            self.assertNotEqual(check.returncode, 0)
+            self.assertIn("insight_policy.yaml", check.stdout + check.stderr)
+
     def test_audit_generation_produces_required_alignment_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
@@ -757,6 +810,12 @@ class ResearchWorkflowTests(unittest.TestCase):
             audit_dir = research_dir / "audits" / "2026-05-09-audit"
             for name in ["audit_report.md", "alignment_matrix.yaml", "drift_findings.yaml", "repair_plan.md"]:
                 self.assertTrue((audit_dir / name).exists(), name)
+
+            matrix = read_yaml(audit_dir / "alignment_matrix.yaml")
+            self.assertIn("prd_to_insight", matrix.get("dimensions", {}))
+            self.assertIn("insight_to_spec", matrix.get("dimensions", {}))
+            repair = (audit_dir / "repair_plan.md").read_text(encoding="utf-8")
+            self.assertIn("Insight opportunity", repair)
 
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "audit-ready"])
 

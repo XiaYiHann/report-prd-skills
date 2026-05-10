@@ -45,6 +45,7 @@ PRD_SECTIONS = [
     "## 13. 证据台账（Evidence Ledger）",
     "## 14. 论文计划（Paper Plan）",
     "## 15. 风险、局限与伦理（Risks, Limitations, and Ethics）",
+    "## 16. 探索与洞察策略（Exploration and Insight Policy）",
 ]
 
 
@@ -58,6 +59,8 @@ SPEC_FILES = [
     "shared/artifact_schema.yaml",
     "shared/anti_mock_policy.yaml",
     "shared/evidence_contract.yaml",
+    "shared/insight_policy.yaml",
+    "insights/insight_manifest.yaml",
     "reproduction/benchmark_candidate_matrix.yaml",
     "reproduction/reproduction_manifest.yaml",
     "reproduction/reproduction_task_graph.yaml",
@@ -81,6 +84,9 @@ AUDIT_MATRIX_KEYS = [
     "paper_to_spec",
     "plan_to_artifact",
     "prd_paper_spec_to_ppt",
+    "prd_to_insight",
+    "insight_to_spec",
+    "insight_to_plan",
 ]
 
 
@@ -249,6 +255,49 @@ def render_pdf_from_tex(tex_path: Path, pdf_path: Path, force: bool = False) -> 
         force=True,
     )
     return False
+
+
+def _insight_log_template() -> str:
+    return """# Insight Log
+
+> 本文件记录从 Plan 执行中产生的洞察、异常、负结果和 pivot 提案。
+> 每次 plan 执行完毕后，必须在这里追加一个 entry，而不是只写"任务完成"。
+
+## 待填写 Entry 模板
+
+### Source
+- Plan: `docs/research/plans/YYYY-MM-DD-purpose/`
+- Experiment: `E01`
+- Harness: `H_E01_FULL`
+- Artifacts:
+  - `artifacts/experiments/E01/aggregate/summary.json`
+
+### Observation
+What happened?
+
+### Expected Behavior from PRD
+What did the PRD expect?
+
+### Mismatch / Surprise
+What was surprising, wrong, unstable, or unexpectedly simple?
+
+### Possible Explanation
+What might explain the observation?
+
+### Research Value
+Is this merely an implementation bug, or does it reveal something about the problem?
+
+### Action Recommendation
+- [ ] continue original plan
+- [ ] repair spec
+- [ ] add diagnostic experiment
+- [ ] narrow claim
+- [ ] propose PRD pivot
+- [ ] stop and request human review
+
+### Confidence
+low / medium / high
+"""
 
 
 def prd_markdown(title: str, purpose: str) -> str:
@@ -515,6 +564,35 @@ def prd_markdown(title: str, purpose: str) -> str:
 **证据边界**：风险章节不能用来掩盖证据不足，必须明确哪些 claim 因风险只能降级。
 
 **验收标准**：每个高风险项都有监控信号、缓解动作、fallback 和 Go / No-Go 影响。
+
+## 16. 探索与洞察策略（Exploration and Insight Policy）
+
+**章节目标**：明确 PRD 是初始研究假设而非终局真理；定义执行失败与研究失败的分层；规定哪些调整可由 agent 自动完成，哪些必须请求人类确认；建立负结果记录和异常转化为新实验的机制。
+
+**必须填写的信息**
+- 初始假设声明：`【待填写：当前 idea 是初始假设，不是不可修改的真理】`。
+- 可自动调整范围：`【待填写：执行修复、spec 细化、harness 改进、diagnostic experiment 提议、claim support 状态更新、负结果记录】`。
+- 必须人类确认的范围：`【待填写：核心 RQ 修改、问题表述变更、主 claim 变更、论文故事线变更、宣称发现新现象、删除原始 baseline】`。
+- Pivot 触发条件：`【待填写：哪些现象会触发 15 度微转向】`。
+- 负结果策略：`【待填写：负结果必须记录到 docs/research/insights/negative_results/】`。
+- 异常到实验的管道：`【待填写：异常 → insight log → anomaly report → diagnostic experiment proposal → human review】`。
+- Insight 进入论文叙事的方式：`【待填写：洞察如何转化为论文的 insight-driven narrative】`。
+
+| 调整类型 | 是否可自动执行 | 需要人类确认 | 记录位置 |
+| --- | --- | --- | --- |
+| 执行修复（代码/环境/路径） | 是 | 否 | plan/blocker_log.md |
+| Spec 细化（命令/artifact/schema） | 是 | 否 | spec/ 对应文件 |
+| Diagnostic experiment 提议 | 是 | 否（不改变核心假设时） | spec/experiments/ |
+| 核心 RQ / 问题表述变更 | 否 | 是 | insights/pivot_proposals/ |
+| 主 claim / 论文故事变更 | 否 | 是 | insights/pivot_proposals/ |
+| 负结果记录 | 是 | 否 | insights/negative_results/ |
+| Anomaly report | 是 | 否 | insights/anomaly_reports/ |
+
+**常见错误**：把 PRD 当成不可修改的圣经；负结果被隐藏；agent 擅自修改核心 RQ；洞察不被记录。
+
+**证据边界**：本章只定义策略和边界，不声称任何实验结果。
+
+**验收标准**：读者能清楚说出哪些修改可以自动做、哪些必须等人批、负结果放哪里、异常怎么变成新实验。
 """
 
 
@@ -571,7 +649,7 @@ So What & 【待填写：预期学术贡献和可交付物】 \\
 \end{{tabularx}}
 \end{{table}}
 
-图 \ref{{fig:problem-evidence-chain}} 回答从研究问题到证据准入的主链路。读者应关注 Evidence Gate，因为它决定哪些结果可以进入论文。
+图 \ref{{fig:problem-evidence-chain}} 回答从研究问题到证据准入的主链路，并突出 Insight Loop：实验中的失败、异常和负结果可以反馈回假设，驱动 15 度微转向。
 \begin{{figure}}[H]
 \centering
 \begin{{tikzpicture}}[node distance=0.65cm]
@@ -580,12 +658,15 @@ So What & 【待填写：预期学术贡献和可交付物】 \\
 \node[researchprocess, right=of hypothesis] (experiment) {{实验 / 复现}};
 \node[researchdecision, right=of experiment] (gate) {{Evidence\\Gate}};
 \node[researchnode, right=of gate] (paper) {{论文主张}};
+\node[researchprocess, below=of experiment, yshift=-0.3cm] (insight) {{Insight\\Loop}};
 \draw[researcharrow] (problem) -- (hypothesis);
 \draw[researcharrow] (hypothesis) -- (experiment);
 \draw[researcharrow] (experiment) -- (gate);
 \draw[researcharrow] (gate) -- (paper);
+\draw[researcharrow, dashed, color=ResearchBlue] (experiment) -- (insight);
+\draw[researcharrow, dashed, color=ResearchBlue] (insight) -- (hypothesis);
 \end{{tikzpicture}}
-\caption{{研究问题到证据链：突出论文主张必须通过证据门禁。}}
+\caption{{研究问题到证据链：突出论文主张必须通过证据门禁，且实验反馈可通过 Insight Loop 微调假设。}}
 \label{{fig:problem-evidence-chain}}
 \end{{figure}}
 
@@ -1233,6 +1314,12 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "只能从 Research PRD 编译，不得从 Planned Paper 反推实验。",
                 "所有缺失数据集、基线、指标、seed、命令和结果都必须登记为 blocker。",
             ],
+            "insight_loop": {
+                "status": "not_started",
+                "latest_insight_id": None,
+                "open_pivot_proposals": [],
+                "cumulative_negative_results": [],
+            },
             "blockers": ["【阻塞】尚未从 PRD 填入 RQ -> Hypothesis -> Claim -> Experiment -> Harness -> Evidence 链。"],
         },
         force,
@@ -1312,6 +1399,40 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                     "cached_metric_without_raw_runs",
                 ],
                 "notes": ["【规则】只有通过 declared harness 且记录 artifact hash 的 evidence 才能支持论文主张。"],
+            },
+        },
+        "insight_policy.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "description": "Insight Feedback Loop 策略：定义执行失败与研究失败的分层、自动化边界和 pivot 触发条件。",
+            "insight_policy": {
+                "prd_hypothesis_statement": "当前 PRD 是初始研究假设，不是不可修改的真理。",
+                "auto_allowed": [
+                    "execution_fix",
+                    "spec_refinement",
+                    "harness_repair",
+                    "diagnostic_experiment_proposal",
+                    "claim_support_status_update",
+                    "negative_result_recording",
+                ],
+                "human_review_required": [
+                    "core_rq_change",
+                    "problem_formulation_change",
+                    "main_claim_change",
+                    "paper_story_change",
+                    "new_phenomenon_claim",
+                    "delete_original_baseline",
+                ],
+                "pivot_trigger_conditions": [
+                    "baseline_already_solves_problem",
+                    "core_module_ablation_no_effect",
+                    "phenomenon_only_in_toy_setting",
+                    "scaling_invalidates_idea",
+                    "loss_curve_contradicts_hypothesis",
+                    "method_complex_but_low_gain",
+                    "experiment_reveals_more_important_problem",
+                ],
+                "negative_result_policy": "负结果必须记录，不得隐藏。",
+                "anomaly_to_experiment_pipeline": "异常 → insight log → anomaly report → diagnostic experiment proposal → human review",
             },
         },
     }
@@ -1414,6 +1535,7 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
             "description": "实验清单：每个 experiment 必须绑定 RQ、hypothesis、claim、dataset、baseline、metric、seed、command、artifact 和 harness。",
             "experiment_template": {
                 "experiment_id": "E01",
+                "experiment_type": "confirmatory",
                 "title": "【待填写：主实验标题】",
                 "linked_rq": "RQ1",
                 "hypothesis": "H1",
@@ -1446,6 +1568,38 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
             "experiments": [],
             "claims": [],
             "blockers": ["【阻塞】PRD 尚未声明可执行实验。"],
+        },
+        force,
+    )
+    write_yaml(
+        spec / "insights" / "insight_manifest.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "Insight 全局索引：从机器可读角度登记所有洞察、异常、负结果和 pivot 提案。",
+            "insight_categories": {
+                "execution_failure": [],
+                "research_failure": [],
+                "anomaly": [],
+                "negative_result": [],
+                "pivot_proposal": [],
+            },
+            "insight_chain_template": {
+                "insight_id": "I_E02_M1_NO_EFFECT",
+                "source_plan": "plans/2026-05-10-run-e01/",
+                "source_experiment": "E02",
+                "insight_type": "negative_result",
+                "observation": "【待填写：观察到了什么】",
+                "expected_from_prd": "【待填写：PRD 原本期望什么】",
+                "mismatch": "【待填写：哪里出乎意料】",
+                "possible_explanation": "【待填写：可能解释】",
+                "research_value": "【待填写：是 bug 还是真 insight】",
+                "action_recommendation": "continue_original_plan",
+                "confidence": "medium",
+                "may_trigger_pivot": False,
+                "requires_human_review": False,
+                "related_pivot_proposal": None,
+            },
+            "insights": [],
         },
         force,
     )
@@ -1516,8 +1670,10 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
 
 def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = False) -> Path:
     research_dir = repo / DEFAULT_RESEARCH_DIR
-    for dirname in ["prd", "paper", "spec", "plans", "ppt", "audits"]:
+    for dirname in ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]:
         (research_dir / dirname).mkdir(parents=True, exist_ok=True)
+    for sub in ["anomaly_reports", "pivot_proposals", "negative_results"]:
+        (research_dir / "insights" / sub).mkdir(parents=True, exist_ok=True)
 
     prd = prd_markdown(title, purpose)
     write_text(research_dir / "prd" / "research_prd.md", prd, force)
@@ -1537,10 +1693,14 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
         force,
     )
     init_spec_scaffold(research_dir, force)
+    write_text(research_dir / "insights" / "insight_log.md", _insight_log_template(), force)
     for path in [
         research_dir / "plans" / ".gitkeep",
         research_dir / "ppt" / ".gitkeep",
         research_dir / "audits" / ".gitkeep",
+        research_dir / "insights" / "anomaly_reports" / ".gitkeep",
+        research_dir / "insights" / "pivot_proposals" / ".gitkeep",
+        research_dir / "insights" / "negative_results" / ".gitkeep",
     ]:
         write_text(path, "", force)
     return research_dir
@@ -1659,10 +1819,16 @@ def generate_plan(
         "gates": selected_gates,
         "harnesses": harnesses,
         "artifacts": ["artifacts/**"],
+        "insight_loop": {
+            "required": True,
+            "output_file": f"docs/research/plans/{plan_id}/insight_log.md",
+            "auto_classify": ["execution_failure", "spec_gap"],
+            "human_review": ["research_failure", "pivot_proposal", "anomaly"],
+        },
         "completion_condition": [
             "所有选定 gate 通过，或阻塞原因已写入 blocker_log.md",
             "声明的 harness stdout/stderr 已保存",
-            "current_state.md、blocker_log.md、decision_log.md、run_log.md 和 final_summary.md 已更新",
+            "current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md 和 insight_log.md 已更新",
         ],
     }
     write_yaml(plan_dir / "plan.yaml", payload, force)
@@ -1702,9 +1868,17 @@ def generate_plan(
                 "若 Paper 与 Spec 冲突，以 Spec 为准。",
                 "始终执行最早尚未完成的 gate。",
                 "运行 Spec 声明的 harness，并保存 stdout/stderr、artifact hash 和日志路径。",
-                "每轮执行后更新 current_state.md、blocker_log.md、decision_log.md、run_log.md 和 final_summary.md。",
+                "每轮执行后更新 current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md 和 insight_log.md。",
                 "禁止将 mock / planning 值当作已验证结果写入证据或论文结论。",
                 "当 required information 缺失时，停止执行并记录 blocker，不得补造。",
+                "",
+                "执行每轮后，除了更新常规日志，还必须回答以下洞察问题并写入 insight_log.md：",
+                "- 我们理解到了什么？",
+                "- 有没有异常？",
+                "- 有没有与 PRD 假设冲突的现象？",
+                "- 有没有比原始 idea 更简单的解释？",
+                "- 有没有新的研究问题出现？",
+                "- 有没有值得微调 15 度的方向？",
             ]
         )
         + "\n",
@@ -1715,10 +1889,42 @@ def generate_plan(
         "blocker_log.md": "阻塞日志",
         "decision_log.md": "决策日志",
         "run_log.md": "运行日志",
+        "insight_log.md": "洞察日志",
         "final_summary.md": "最终总结",
     }
     for name, title_text in log_titles.items():
-        write_text(plan_dir / name, f"# {title_text}\n\n【待填写：本文件由执行循环持续更新。】\n", force)
+        if name == "final_summary.md":
+            content = f"""# {title_text}
+
+## 执行结果
+【待填写：任务完成状态、通过的 gate、失败的 harness。】
+
+## 关键观察（Observation）
+【待填写：我们理解到了什么？有什么意外发现？】
+
+## PRD 预期 vs 实际（Mismatch / Surprise）
+【待填写：与 PRD 假设冲突的现象？】
+
+## 可能解释
+【待填写：为什么出现这个现象？】
+
+## 研究价值判断
+【待填写：是 implementation bug 还是真 insight？】
+
+## 行动建议
+- [ ] continue original plan
+- [ ] repair spec
+- [ ] add diagnostic experiment
+- [ ] narrow claim
+- [ ] propose 15-degree pivot
+- [ ] request human review
+
+## 置信度
+low / medium / high
+"""
+        else:
+            content = f"# {title_text}\n\n【待填写：本文件由执行循环持续更新。】\n"
+        write_text(plan_dir / name, content, force)
     return plan_dir
 
 
@@ -1845,7 +2051,7 @@ def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
     )
     write_text(
         audit_dir / "repair_plan.md",
-        "# Repair Plan\n\n## Must fix before execution\n\n- Review alignment findings.\n\n## Recommended next research-plan target\n\n- TBD.\n",
+        "# Repair Plan\n\n## Must fix before execution（执行失败）\n\n- Review alignment findings.\n\n## Insight opportunity（研究失败 / 异常 / 诊断实验）\n\n- 检查 docs/research/insights/ 中未纳入 spec/plan 的 anomaly 或 pivot proposal。\n\n## Can fix later\n\n- TBD.\n\n## Recommended next research-plan target\n\n- TBD.\n\n## Recommended next insight-feedback target\n\n- TBD.\n",
         force,
     )
     return audit_dir
@@ -2159,6 +2365,33 @@ ContractGraph prevents evidence-binding errors, but it cannot make a narrow benc
 \section{Conclusion}
 ContractGraph makes the path from research question to paper result explicit and executable. This draft is complete as a mock-data manuscript: it defines the method, formalization, protocol, result slots, and evidence rules. Empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass full harnesses.
 
+\chapter{探索与洞察策略（Exploration and Insight Policy）}
+\textbf{章节目标}：明确 PRD 是初始研究假设而非终局真理；定义执行失败与研究失败的分层；规定哪些调整可由 agent 自动完成，哪些必须请求人类确认。
+
+\begin{table}[H]
+\centering
+\caption{自动调整与人类确认边界表}
+\begin{tabularx}{\textwidth}{L{0.22\textwidth}Y Y Y}
+\toprule
+调整类型 & 可自动执行 & 需人类确认 & 记录位置 \\
+\midrule
+执行修复（代码/环境/路径） & 是 & 否 & plan/blocker\_log.md \\
+Spec 细化（命令/artifact/schema） & 是 & 否 & spec/ 对应文件 \\
+Diagnostic experiment 提议 & 是 & 否（不改变核心假设时） & spec/experiments/ \\
+核心 RQ / 问题表述变更 & 否 & 是 & insights/pivot\_proposals/ \\
+主 claim / 论文故事变更 & 否 & 是 & insights/pivot\_proposals/ \\
+负结果记录 & 是 & 否 & insights/negative\_results/ \\
+Anomaly report & 是 & 否 & insights/anomaly\_reports/ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{常见错误}：把 PRD 当成不可修改的圣经；负结果被隐藏；agent 擅自修改核心 RQ；洞察不被记录。
+
+\textbf{证据边界}：本章只定义策略和边界，不声称任何实验结果。
+
+\textbf{验收标准}：读者能清楚说出哪些修改可以自动做、哪些必须等人批、负结果放哪里、异常怎么变成新实验。
+
 \end{document}
 """
 
@@ -2278,6 +2511,7 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
             "experiments": [
                 {
                     "experiment_id": exp,
+                    "experiment_type": "confirmatory",
                     "title": purpose,
                     "linked_rq": rq,
                     "hypothesis": hyp,
@@ -2632,6 +2866,21 @@ def validate_spec(research_dir: Path) -> Validation:
     evidence_contract = load_yaml(research_dir / "spec" / "shared" / "evidence_contract.yaml")
     if not evidence_contract.get("claims") and not evidence_contract.get("evidence_rules"):
         validation.error("evidence_contract.yaml has no claim contract or evidence rules")
+
+    insight_policy = load_yaml(research_dir / "spec" / "shared" / "insight_policy.yaml")
+    if not insight_policy.get("insight_policy"):
+        validation.error("insight_policy.yaml missing insight_policy section")
+
+    insight_manifest = load_yaml(research_dir / "spec" / "insights" / "insight_manifest.yaml")
+    if not insight_manifest.get("insight_categories"):
+        validation.error("insight_manifest.yaml missing insight_categories")
+
+    valid_experiment_types = {"confirmatory", "exploratory", "diagnostic", "reproduction", "ablation", "stress"}
+    for experiment in experiments:
+        exp_type = str(experiment.get("experiment_type", "")).strip()
+        if exp_type and exp_type not in valid_experiment_types:
+            validation.error(f"experiment {experiment.get('experiment_id', '<missing>')} has invalid experiment_type: {exp_type}")
+
     return validation
 
 
@@ -2668,7 +2917,7 @@ def validate_plan(research_dir: Path) -> Validation:
         for harness_id in [str(item).strip() for item in as_list(payload.get("harnesses")) if str(item).strip()]:
             if harness_id not in ids["harnesses"]:
                 validation.error(f"plan {plan_dir.name} references missing spec harness {harness_id}")
-        for name in ["ai_loop_prompt.md", "current_state.md", "blocker_log.md", "decision_log.md", "run_log.md", "final_summary.md"]:
+        for name in ["ai_loop_prompt.md", "current_state.md", "blocker_log.md", "decision_log.md", "run_log.md", "insight_log.md", "final_summary.md"]:
             validation.require_file(plan_dir / name, f"plan {plan_dir.name}/{name}")
     return validation
 
@@ -2704,6 +2953,25 @@ def validate_ppt(research_dir: Path) -> Validation:
     return validation
 
 
+def validate_insight(research_dir: Path) -> Validation:
+    validation = Validation()
+    validation.require_file(research_dir / "insights" / "insight_log.md", "insights/insight_log.md")
+    validation.require_file(research_dir / "spec" / "shared" / "insight_policy.yaml", "spec/shared/insight_policy.yaml")
+    validation.require_file(research_dir / "spec" / "insights" / "insight_manifest.yaml", "spec/insights/insight_manifest.yaml")
+    manifest = load_yaml(research_dir / "spec" / "insights" / "insight_manifest.yaml")
+    for insight in as_list(manifest.get("insights")):
+        if not isinstance(insight, dict):
+            continue
+        insight_id = str(insight.get("insight_id", "<missing>")).strip()
+        for field in ["insight_type", "observation", "action_recommendation", "confidence"]:
+            if not insight.get(field):
+                validation.error(f"insight {insight_id} missing {field}")
+        confidence = str(insight.get("confidence", "")).strip()
+        if confidence and confidence not in {"low", "medium", "high"}:
+            validation.error(f"insight {insight_id} has invalid confidence: {confidence}")
+    return validation
+
+
 def validate_audit(research_dir: Path) -> Validation:
     validation = Validation()
     audit_dir = latest_child(research_dir / "audits")
@@ -2735,6 +3003,7 @@ def validate_research(research_dir: Path, mode: str) -> Validation:
         "plan-ready": validate_plan,
         "ppt-ready": validate_ppt,
         "audit-ready": validate_audit,
+        "insight-ready": validate_insight,
         "alignment-check": validate_alignment,
     }
     if mode not in validators:

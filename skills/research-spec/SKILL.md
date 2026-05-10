@@ -24,12 +24,17 @@ RQ
 -> Hypothesis
 -> Claim
 -> Experiment
+-> Insight / Anomaly / Negative Result
+-> Pivot Proposal (human review)
+-> PRD Revision
 -> Dataset / Model / Baseline / Metric / Seed
 -> Task
 -> Harness
 -> Evidence
 -> Paper placeholder
 ```
+
+The authority chain now explicitly includes the **Insight Feedback Loop**. Experiments produce not only evidence but also observations that may refine the hypothesis.
 
 Do not infer experiments from the paper. Paper placeholders can be checked against the spec, but they cannot create executable work.
 
@@ -48,6 +53,8 @@ When the PRD lacks required details, record the missing contract in a Chinese ga
 - `shared/artifact_schema.yaml`
 - `shared/anti_mock_policy.yaml`
 - `shared/evidence_contract.yaml`
+- `shared/insight_policy.yaml`
+- `insights/insight_manifest.yaml`
 - `reproduction/benchmark_candidate_matrix.yaml`
 - `reproduction/reproduction_manifest.yaml`
 - `reproduction/reproduction_task_graph.yaml`
@@ -60,6 +67,19 @@ When the PRD lacks required details, record the missing contract in a Chinese ga
 - `experiments/experiment_harness.yaml`
 - `paper/placeholder_map.yaml`
 - `paper/result_binding.yaml`
+
+## Experiment Types
+
+Every experiment in `experiment_manifest.yaml` should declare an `experiment_type`:
+
+- `confirmatory` — validates a pre-registered hypothesis (default)
+- `exploratory` — searches for unknown structure or patterns
+- `diagnostic` — explains why a module or assumption fails
+- `reproduction` — reproduces a baseline for comparability
+- `ablation` — isolates the contribution of a component
+- `stress` — tests robustness under extreme or edge conditions
+
+Exploratory and diagnostic experiments are first-class citizens. They may trigger spec refinement or pivot proposals without invalidating the research process.
 
 ## Reproduction Track
 
