@@ -84,6 +84,37 @@ RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR=/path/to/.claude/skills \
 bash install.sh
 ```
 
+如果主要在 Claude Code 中使用，并希望安装项目级 research subagents：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh \
+  | bash -s -- --with-subagents
+
+# 或从本地 checkout 安装
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --with-subagents
+```
+
+这会从 repo 模板目录复制：
+
+```text
+agents/claude-code/*.md
+```
+
+到当前项目的 Claude Code 标准 subagent 目录：
+
+```text
+.claude/agents/
+```
+
+可用环境变量改写目标目录：
+
+```bash
+RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR=/path/to/project/.claude/agents \
+bash install.sh --with-subagents
+```
+
+第一版安装 9 个 Claude Code project-level subagents：`research-math`、`research-literature`、`research-reproduce`、`research-coding`、`research-experiment`、`research-analysis`、`research-paper`、`research-ppt`、`research-audit`。这些文件是 Claude Code 原生的 Markdown + YAML frontmatter 格式；不要把自定义 registry 当成主 subagent 定义格式。
+
 安装脚本会执行迁移：
 
 - 安装新的 `research-*` 技能族。
@@ -433,6 +464,8 @@ research-plan --target ralph-loop
 ```
 
 每个 plan 必须记录 PRD、Paper、Spec 和 git commit 的 source hash。若 Spec 在 plan 创建后改变，`plan-ready` 必须失败，直到显式生成或更新 plan。
+
+`ai_loop_prompt.md` 会包含 Claude Code `Subagent Dispatch` 段落。需要数学、文献、复现、编码、实验、分析、论文、PPT 或审计工作时，主会话应委派 `.claude/agents/research-*.md` 中的标准 Claude Code subagent；`/research` controller 仍负责 state、gate、promotion 和 audit 阻断。
 
 ## Research Audit
 

@@ -748,6 +748,8 @@ class ResearchLoop:
                 "",
                 "下一步：读取 `plan.yaml` 中的最早 gate，运行声明 harness，保存 stdout/stderr、artifact hash，并更新 `run_log.md`、`blocker_log.md`、`decision_log.md` 与 `final_summary.md`。",
                 "",
+                "如该 gate 需要专业 worker，按 `ai_loop_prompt.md` 的 Subagent Dispatch 规则委派 Claude Code 项目级 subagent；`/research` 控制器仍负责 state、gate 和 promotion。",
+                "",
             ]
         )
         if note not in existing:

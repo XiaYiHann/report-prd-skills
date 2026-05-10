@@ -5,7 +5,43 @@ REPO_URL="${RESEARCH_EXECUTION_SKILLS_REPO_URL:-${REPORT_PRD_SKILLS_REPO_URL:-ht
 REPO_REF="${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PRD_SKILLS_REF:-main}}"
 TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${REPORT_PRD_SKILLS_TARGET_DIR:-${HOME}/.agents/skills}}"
 CLAUDE_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}"
+SUBAGENTS_TARGET_DIR="${RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR:-.claude/agents}"
 SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}"
+INSTALL_SUBAGENTS=false
+
+usage() {
+  cat <<'EOF'
+Usage: install.sh [--with-subagents]
+
+Installs the research execution skill family into ~/.agents/skills and symlinks
+research skills into ~/.claude/skills. With --with-subagents, also copies
+Claude Code project subagents into .claude/agents.
+
+Environment:
+  RESEARCH_EXECUTION_SKILLS_SOURCE_DIR       install from local checkout
+  RESEARCH_EXECUTION_SKILLS_TARGET_DIR       default: ~/.agents/skills
+  RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR default: ~/.claude/skills
+  RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR    default: .claude/agents
+EOF
+}
+
+while (( "$#" )); do
+  case "$1" in
+    --with-subagents)
+      INSTALL_SUBAGENTS=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf '[research-execution-skills] error: unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
 SKILLS=(
   report
@@ -53,6 +89,18 @@ CLAUDE_LINK_SKILLS=(
   research-plan
   research-audit
   research-ppt
+)
+
+CLAUDE_SUBAGENTS=(
+  research-math
+  research-literature
+  research-reproduce
+  research-coding
+  research-experiment
+  research-analysis
+  research-paper
+  research-ppt
+  research-audit
 )
 
 log() {
@@ -159,6 +207,21 @@ else
     ln -s "$TARGET_DIR/$skill" "$CLAUDE_TARGET_DIR/$skill"
     printf '  - %s -> %s\n' "$skill" "$TARGET_DIR/$skill"
   done
+fi
+
+if [[ "$INSTALL_SUBAGENTS" == "true" ]]; then
+  AGENT_SOURCE_DIR="$SOURCE_DIR/agents/claude-code"
+  [[ -d "$AGENT_SOURCE_DIR" ]] || die "source directory does not contain Claude Code subagent templates: $AGENT_SOURCE_DIR"
+  mkdir -p "$SUBAGENTS_TARGET_DIR"
+  SUBAGENTS_TARGET_DIR="$(cd "$SUBAGENTS_TARGET_DIR" && pwd)"
+  log "Installed Claude Code project subagents into $SUBAGENTS_TARGET_DIR:"
+  for agent in "${CLAUDE_SUBAGENTS[@]}"; do
+    [[ -f "$AGENT_SOURCE_DIR/$agent.md" ]] || die "missing Claude Code subagent template: $agent"
+    cp -f "$AGENT_SOURCE_DIR/$agent.md" "$SUBAGENTS_TARGET_DIR/$agent.md"
+    printf '  - %s\n' "$agent"
+  done
+else
+  log "Claude Code project subagents not installed. Re-run with --with-subagents to copy templates into .claude/agents/."
 fi
 
 log "Done. Restart Codex if it does not pick up the updated skills immediately."

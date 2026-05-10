@@ -70,6 +70,17 @@ python3 ~/.agents/skills/research-spec/scripts/validate_research.py \
 - 更新 current state、blocker、decision、run、final summary 和 **insight logs**；
 - 禁止将 mock / planning 值当作已验证结果写入证据或论文结论；
 - required information 缺失时停止并记录 blocker；
+- 包含 `## Subagent Dispatch`，在需要专业 worker 时委派 Claude Code project-level subagent：
+  - mathematical formulation or proof issue → `research-math`
+  - literature / benchmark selection → `research-literature`
+  - baseline reproduction → `research-reproduce`
+  - method implementation → `research-coding`
+  - full experiment execution → `research-experiment`
+  - result analysis / anomaly / pivot → `research-analysis`
+  - paper writing/update → `research-paper`
+  - PPT PNG deck generation → `research-ppt`
+  - cross-file consistency check → `research-audit`
+- 说明 `/research` controller 仍负责 state、gate 和 promotion，subagent 不得修改 PRD core claims 或绕过 Spec/Plan；
 - **每轮执行后必须回答洞察问题并写入 insight_log.md**：
   - 我们理解到了什么？
   - 有没有异常？

@@ -67,3 +67,19 @@ The current implementation is a deterministic file-based controller. It creates 
 - `local-shell`, `codex`, and `hermes` are reserved backend slots.
 
 Until a backend is implemented and tested, `/research` must not claim that it ran harnesses or generated experimental evidence.
+
+## Claude Code Subagents
+
+When project-level subagents are installed under `.claude/agents/`, `/research` remains the controller and the subagents are specialized workers:
+
+- `research-math` for formulation and notation checks.
+- `research-literature` for related work, benchmark, and baseline analysis.
+- `research-reproduce` for baseline reproduction.
+- `research-coding` for implementation under the current plan.
+- `research-experiment` for declared experiment execution.
+- `research-analysis` for anomalies, negative results, and pivot proposals.
+- `research-paper` for placeholder-safe manuscript updates.
+- `research-ppt` for slide-image deck planning.
+- `research-audit` for cross-file drift and evidence checks.
+
+Do not use a custom registry as the primary subagent format. Claude Code project agents are Markdown files with YAML frontmatter in `.claude/agents/`.

@@ -22,6 +22,7 @@ PPT_SCRIPT = REPO_ROOT / "skills" / "research-ppt" / "scripts" / "generate_resea
 AUDIT_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "generate_research_audit.py"
 RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop.py"
 INSTALL_SCRIPT = REPO_ROOT / "install.sh"
+CLAUDE_AGENT_TEMPLATES_DIR = REPO_ROOT / "agents" / "claude-code"
 SKILL_NAMES = [
     "report",
     "research",
@@ -32,6 +33,17 @@ SKILL_NAMES = [
     "research-plan",
     "research-audit",
     "research-ppt",
+]
+CLAUDE_RESEARCH_AGENT_NAMES = [
+    "research-math",
+    "research-literature",
+    "research-reproduce",
+    "research-coding",
+    "research-experiment",
+    "research-analysis",
+    "research-paper",
+    "research-ppt",
+    "research-audit",
 ]
 
 
@@ -407,6 +419,8 @@ class ResearchWorkflowTests(unittest.TestCase):
 
         self.assertIn("https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh", readme)
         self.assertIn("https://github.com/XiaYiHann/research-loop.git", installer)
+        self.assertIn("--with-subagents", readme)
+        self.assertIn(".claude/agents/", readme)
         self.assertNotIn("raw.githubusercontent.com/XiaYiHann/report-prd-skills", readme)
         self.assertNotIn("https://github.com/XiaYiHann/report-prd-skills.git", installer)
 
@@ -429,6 +443,25 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIsInstance(metadata, dict, skill_path)
             self.assertIsInstance(metadata.get("name"), str, skill_path)
             self.assertIsInstance(metadata.get("description"), str, skill_path)
+
+    def test_claude_code_subagent_templates_are_standard_project_agents(self) -> None:
+        for agent_name in CLAUDE_RESEARCH_AGENT_NAMES:
+            agent_path = CLAUDE_AGENT_TEMPLATES_DIR / f"{agent_name}.md"
+            self.assertTrue(agent_path.exists(), agent_name)
+            text = agent_path.read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("---\n"), agent_path)
+            end = text.find("\n---\n", 4)
+            self.assertGreater(end, 0, agent_path)
+            metadata = yaml.safe_load(text[4:end])
+
+            self.assertEqual(metadata.get("name"), agent_name)
+            self.assertIsInstance(metadata.get("description"), str, agent_path)
+            self.assertIn("Use", metadata["description"], agent_path)
+            self.assertIsInstance(metadata.get("tools"), str, agent_path)
+            self.assertIn("Read", metadata["tools"], agent_path)
+            self.assertEqual(metadata.get("model"), "sonnet", agent_path)
+            self.assertIn(f"# {agent_name}", text[end + len("\n---\n") :], agent_path)
+            self.assertNotIn("agent_registry.yaml", text)
 
     def test_research_paper_policy_forbids_plausible_mock_numeric_values(self) -> None:
         skill_text = (REPO_ROOT / "skills" / "research-paper" / "SKILL.md").read_text(encoding="utf-8")
@@ -501,6 +534,37 @@ class ResearchWorkflowTests(unittest.TestCase):
                 self.assertEqual(link.resolve(), (target / skill_name).resolve())
             self.assertFalse((claude_target / "report").exists())
             self.assertIn("Linked research skills for Claude Code", result.stdout)
+
+    def test_installer_can_install_claude_code_project_subagents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "skills"
+            claude_target = Path(tmp) / "claude" / "skills"
+            project_agents = Path(tmp) / "project" / ".claude" / "agents"
+            env = os.environ.copy()
+            env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
+            env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR"] = str(claude_target)
+            env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
+
+            result = subprocess.run(
+                ["bash", str(INSTALL_SCRIPT), "--with-subagents"],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("Installed Claude Code project subagents", result.stdout)
+            for agent_name in CLAUDE_RESEARCH_AGENT_NAMES:
+                agent_path = project_agents / f"{agent_name}.md"
+                self.assertTrue(agent_path.exists(), agent_name)
+                text = agent_path.read_text(encoding="utf-8")
+                self.assertTrue(text.startswith("---\n"), agent_path)
+                metadata = yaml.safe_load(text[4 : text.find("\n---\n", 4)])
+                self.assertEqual(metadata.get("name"), agent_name)
 
     def test_research_init_scaffolds_docs_research_tree_and_required_prd_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -772,6 +836,11 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("AI 长循环执行提示词", prompt)
             self.assertIn("可执行真源是 `docs/research/spec/`", prompt)
             self.assertIn("禁止将 mock / planning 值当作已验证结果写入证据或论文结论", prompt)
+            self.assertIn("## Subagent Dispatch", prompt)
+            self.assertIn("mathematical formulation or proof issue → `research-math`", prompt)
+            self.assertIn("baseline reproduction → `research-reproduce`", prompt)
+            self.assertIn("cross-file consistency check → `research-audit`", prompt)
+            self.assertIn("The controller remains responsible for state, gates, and promotion.", prompt)
             self.assertIn("洞察问题", prompt)
             self.assertIn("有没有值得微调 15 度的方向", prompt)
             self.assertTrue((plan_dir / "insight_log.md").exists())
