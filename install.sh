@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_URL="${RESEARCH_EXECUTION_SKILLS_REPO_URL:-${REPORT_PRD_SKILLS_REPO_URL:-https://github.com/XiaYiHann/report-prd-skills.git}}"
 REPO_REF="${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PRD_SKILLS_REF:-main}}"
 TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${REPORT_PRD_SKILLS_TARGET_DIR:-${HOME}/.agents/skills}}"
+CLAUDE_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}"
 SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}"
 
 SKILLS=(
@@ -41,6 +42,17 @@ OBSOLETE_RESEARCH_SKILLS=(
 OBSOLETE_SKILLS=(
   "${LEGACY_REPORT_SKILLS[@]}"
   "${OBSOLETE_RESEARCH_SKILLS[@]}"
+)
+
+CLAUDE_LINK_SKILLS=(
+  research
+  research-init
+  research-prd
+  research-paper
+  research-spec
+  research-plan
+  research-audit
+  research-ppt
 )
 
 log() {
@@ -131,5 +143,22 @@ log "Installed research execution skill family:"
 for skill in "${SKILLS[@]}"; do
   printf '  - %s\n' "$skill"
 done
+
+mkdir -p "$CLAUDE_TARGET_DIR"
+CLAUDE_TARGET_DIR="$(cd "$CLAUDE_TARGET_DIR" && pwd)"
+
+if [[ "$CLAUDE_TARGET_DIR" == "$TARGET_DIR" ]]; then
+  log "Claude skills target is the same as install target; symlink step skipped."
+else
+  log "Linked research skills for Claude Code into $CLAUDE_TARGET_DIR:"
+  for skill in "${CLAUDE_LINK_SKILLS[@]}"; do
+    [[ -d "$TARGET_DIR/$skill" ]] || die "cannot link missing installed skill: $TARGET_DIR/$skill"
+    if [[ -e "$CLAUDE_TARGET_DIR/$skill" || -L "$CLAUDE_TARGET_DIR/$skill" ]]; then
+      rm -rf "$CLAUDE_TARGET_DIR/$skill"
+    fi
+    ln -s "$TARGET_DIR/$skill" "$CLAUDE_TARGET_DIR/$skill"
+    printf '  - %s -> %s\n' "$skill" "$TARGET_DIR/$skill"
+  done
+fi
 
 log "Done. Restart Codex if it does not pick up the updated skills immediately."

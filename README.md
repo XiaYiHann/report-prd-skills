@@ -59,6 +59,20 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 ~/.agents/skills
 ```
 
+安装脚本还会把 `research` 和所有 `research-*` 技能从 `~/.agents/skills/` 软链接到 Claude Code 的默认技能目录：
+
+```text
+~/.claude/skills
+```
+
+如果需要自定义 Claude Code 技能目录：
+
+```bash
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" \
+RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR=/path/to/.claude/skills \
+bash install.sh
+```
+
 安装脚本会执行迁移：
 
 - 安装新的 `research-*` 技能族。

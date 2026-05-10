@@ -404,6 +404,7 @@ class ResearchWorkflowTests(unittest.TestCase):
     def test_installer_installs_research_family_and_removes_old_report_skills(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "skills"
+            claude_target = Path(tmp) / "claude" / "skills"
             for old_name in [
                 "report",
                 "report-init",
@@ -421,6 +422,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_EXECUTION_SKILLS_CLAUDE_TARGET_DIR"] = str(claude_target)
 
             result = subprocess.run(
                 ["bash", str(INSTALL_SCRIPT)],
@@ -452,6 +454,12 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("report -> legacy research migration router", result.stdout)
             self.assertIn("report-init -> removed", result.stdout)
             self.assertIn("Installed research execution skill family", result.stdout)
+            for skill_name in [name for name in SKILL_NAMES if name == "research" or name.startswith("research-")]:
+                link = claude_target / skill_name
+                self.assertTrue(link.is_symlink(), skill_name)
+                self.assertEqual(link.resolve(), (target / skill_name).resolve())
+            self.assertFalse((claude_target / "report").exists())
+            self.assertIn("Linked research skills for Claude Code", result.stdout)
 
     def test_research_init_scaffolds_docs_research_tree_and_required_prd_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
