@@ -401,6 +401,47 @@ def latex_available() -> bool:
 
 
 class ResearchWorkflowTests(unittest.TestCase):
+    def test_install_docs_and_defaults_point_to_research_loop_repo(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        installer = INSTALL_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh", readme)
+        self.assertIn("https://github.com/XiaYiHann/research-loop.git", installer)
+        self.assertNotIn("raw.githubusercontent.com/XiaYiHann/report-prd-skills", readme)
+        self.assertNotIn("https://github.com/XiaYiHann/report-prd-skills.git", installer)
+
+    def test_readme_lists_unified_research_skill_first(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        table_start = readme.index("## 技能列表")
+        table = readme[table_start : readme.index("不要新增独立", table_start)]
+        rows = [line for line in table.splitlines() if line.startswith("| [`")]
+
+        self.assertGreaterEqual(len(rows), 2)
+        self.assertTrue(rows[0].startswith("| [`research`](skills/research/SKILL.md)"), rows[0])
+
+    def test_skill_frontmatter_is_standard_yaml(self) -> None:
+        for skill_path in sorted((REPO_ROOT / "skills").glob("*/SKILL.md")):
+            text = skill_path.read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("---\n"), skill_path)
+            end = text.find("\n---\n", 4)
+            self.assertGreater(end, 0, skill_path)
+            metadata = yaml.safe_load(text[4:end])
+            self.assertIsInstance(metadata, dict, skill_path)
+            self.assertIsInstance(metadata.get("name"), str, skill_path)
+            self.assertIsInstance(metadata.get("description"), str, skill_path)
+
+    def test_research_paper_policy_forbids_plausible_mock_numeric_values(self) -> None:
+        skill_text = (REPO_ROOT / "skills" / "research-paper" / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("placeholder-complete manuscript", skill_text)
+        for forbidden in [
+            "complete mock-data manuscript",
+            "reasonable mock values",
+            "may contain mock values",
+            "0.852",
+        ]:
+            self.assertNotIn(forbidden, skill_text)
+
     def test_installer_installs_research_family_and_removes_old_report_skills(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "skills"
@@ -595,7 +636,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("Planned Research Paper", paper_tex)
             self.assertIn("论文缺口报告", gap_report)
             self.assertIn("【阻塞】", gap_report)
-            self.assertIn("manuscript draft 中的 mock 数值必须在 gap report 中登记替换条件", gap_report)
+            self.assertIn("未验证结果必须保留为 typed placeholder", gap_report)
 
     def test_spec_scaffold_contains_execution_contract_templates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -649,10 +690,10 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertNotIn("Experiments show", paper_md)
             self.assertIn(r"\documentclass[UTF8,11pt]{ctexart}", paper_tex)
             self.assertIn("论文缺口报告", gap_report)
-            self.assertIn("论文正文中的表格和结果段落已使用 mock 数值填充，以呈现完整 manuscript", gap_report)
+            self.assertIn("论文正文中的表格和结果段落保留 typed placeholder", gap_report)
             self.assertEqual(placeholder_map["placeholders"][0]["experiment_id"], "E01")
 
-    def test_research_paper_demo_generates_complete_mock_data_manuscript(self) -> None:
+    def test_research_paper_demo_generates_placeholder_complete_manuscript(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             research_dir = init_workspace(repo)
@@ -671,12 +712,14 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("ContractGraph: Evidence-Bound Execution for LLM Coding Agents", paper_md)
             self.assertIn("## 1. Introduction", paper_md)
             self.assertIn("## 4. Method: ContractGraph", paper_md)
-            self.assertIn("## 6. Mock Planning Data and Expected Sensitivity", paper_md)
-            self.assertIn("0.46", paper_md)
+            self.assertIn("## 6. Planned Result Bindings and Expected Sensitivity", paper_md)
             self.assertIn("{{E01.OURS.task_success}}", paper_md)
+            self.assertIn("{{E01.B01.task_success}}", paper_md)
             self.assertNotIn("【待填写", paper_md)
             self.assertNotIn("Experiments show", paper_md)
-            self.assertIn("完整 mock-data manuscript draft", gap_report)
+            self.assertNotRegex(paper_md, r"\b\d+\.\d+\b")
+            self.assertIn("完整 placeholder-complete manuscript draft", gap_report)
+            self.assertNotIn("mock planning values", gap_report)
             self.assertGreaterEqual(len(placeholder_map["placeholders"]), 4)
             self.assertEqual(len(experiment_manifest["experiments"]), 4)
 
@@ -764,11 +807,26 @@ class ResearchWorkflowTests(unittest.TestCase):
             repo = Path(tmp)
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                [
+                    "python3",
+                    str(RESEARCH_SCRIPT),
+                    "--repo",
+                    str(repo),
+                    "--max-steps",
+                    "1",
+                    "--date",
+                    "2026-05-10",
+                    "--executor",
+                    "prompt-only",
+                    "--json",
+                ],
                 cwd=repo,
             )
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            summary = yaml.safe_load(result.stdout)
+            self.assertEqual(summary["execution_backend"]["mode"], "prompt-only")
+            self.assertTrue(summary["execution_backend"]["implemented"])
             research_dir = repo / "docs" / "research"
             self.assertTrue((research_dir / "state.yaml").exists())
             self.assertTrue((research_dir / "plans" / "plan_queue.yaml").exists())

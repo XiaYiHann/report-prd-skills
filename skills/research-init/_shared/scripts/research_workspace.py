@@ -1365,13 +1365,13 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
         },
         "anti_mock_policy.yaml": {
             "schema_version": SCHEMA_VERSION,
-            "description": "Anti-mock policy：mock/toy/synthetic/stub/cached/proxy 输出只能用于 unit、smoke、paper manuscript draft，不能支持科研主张。",
-            "allowed_for": ["unit_test", "smoke_test", "harness_plumbing", "paper_manuscript_draft"],
+            "description": "Anti-mock policy：mock/toy/synthetic/stub/cached/proxy 输出只能用于 unit、smoke 和 harness plumbing，不能支持科研主张，也不能作为未验证论文数值。",
+            "allowed_for": ["unit_test", "smoke_test", "harness_plumbing", "placeholder_manuscript_structure"],
             "allowed_for_description": {
                 "unit_test": "单元测试可以使用显式标记的 mock。",
                 "smoke_test": "冒烟测试可以使用小样本或 stub 验证管线连通性。",
                 "harness_plumbing": "harness 管道调试可以使用代理输出，但不得进入证据台账。",
-                "paper_manuscript_draft": "论文草稿可以使用 mock 数值填充表格、图表和结果段落，以构建完整的投稿级 manuscript。这些数值必须在 paper_gap_report.md 中登记替换条件，且论文叙事不得将其描述为已验证发现。",
+                "placeholder_manuscript_structure": "论文草稿可以完整呈现表格结构、caption、结果段落和 placeholder binding，但未验证结果值必须保留为 typed placeholder，不得填入 plausible mock numeric values。",
             },
             "forbidden_for": [
                 "research_claim",
@@ -1387,8 +1387,8 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "research_claim": "科研主张必须来自真实执行、完整 seed、声明数据集、声明指标和可复跑 artifact。",
                 "benchmark_result": "基准结果不得来自 mock、toy、synthetic、cached、stub 或 proxy 输出。",
                 "ablation_result": "消融结果必须来自真实实验，不得使用 smoke 结果替代。",
-                "paper_table_as_validated": "论文表格中呈现为已验证发现的数值，必须来自真实实验；manuscript draft 中的 mock 数值必须在 gap report 中登记并在获得真实证据后替换。",
-                "paper_figure_as_validated": "论文图不得展示伪造或未登记证据；manuscript draft 中的 mock 可视化必须在 gap report 中登记。",
+                "paper_table_as_validated": "论文表格中呈现为已验证发现的数值，必须来自真实实验；未验证结果必须保留 typed placeholder。",
+                "paper_figure_as_validated": "论文图不得展示伪造或未登记证据；未验证图表只能展示结构和 placeholder，不得展示 plausible mock numeric values。",
                 "go_no_go_decision": "Go / No-Go 只能基于真实 harness 和 evidence contract。",
             },
         },
@@ -1794,7 +1794,7 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
     write_yaml(research_dir / "paper" / "placeholder_map.yaml", {"placeholders": []}, force)
     write_text(
         research_dir / "paper" / "paper_gap_report.md",
-        "# 论文缺口报告\n\n- 【阻塞】如果 PRD 或 Spec 缺少 claim、experiment、dataset、baseline、metric、formula、table 或 placeholder binding，写在这里，不要在论文中发明。\n- 【规则】manuscript draft 中的 mock 数值必须在 gap report 中登记替换条件；论文叙事不得将其描述为已验证发现。\n",
+        "# 论文缺口报告\n\n- 【阻塞】如果 PRD 或 Spec 缺少 claim、experiment、dataset、baseline、metric、formula、table 或 placeholder binding，写在这里，不要在论文中发明。\n- 【规则】未验证结果必须保留为 typed placeholder；不得用 plausible mock numeric values 填充论文表格、图或结果段落。\n",
         force,
     )
     init_spec_scaffold(research_dir, force)
@@ -2204,7 +2204,7 @@ def generate_paper(research_dir: Path, force: bool = False) -> Path:
     gap_lines = [
         "# 论文缺口报告",
         "",
-        "本文件记录 manuscript draft 中所有 mock 数值的位置、替换条件和真实证据来源。论文正文中的 mock 数值不得被描述为已验证发现。",
+        "本文件记录 manuscript draft 中所有 typed placeholder 的位置、替换条件和真实证据来源。论文正文不得用 plausible mock numeric values 代替未验证结果。",
         "",
     ]
     if placeholders:
@@ -2213,7 +2213,7 @@ def generate_paper(research_dir: Path, force: bool = False) -> Path:
                 "## 当前状态",
                 "",
                 "- 已从 Spec 中发现可绑定实验 placeholder。",
-                "- 论文正文中的表格和结果段落已使用 mock 数值填充，以呈现完整 manuscript。",
+                "- 论文正文中的表格和结果段落保留 typed placeholder，以呈现完整 manuscript 结构且避免数值污染。",
                 "- 以下 placeholder 对应位置必须在获得真实证据后替换：",
                 "",
             ]
@@ -2247,6 +2247,14 @@ def generate_paper(research_dir: Path, force: bool = False) -> Path:
 
 
 DEMO_PLACEHOLDERS = [
+    {
+        "placeholder": "{{E01.B01.task_success}}",
+        "experiment_id": "E01",
+        "method_id": "B01",
+        "metric": "task_success",
+        "source_after_execution": "artifacts/experiments/E01/aggregate/summary.json",
+        "paper_location": "Table 2 / Main task success baseline",
+    },
     {
         "placeholder": "{{E01.OURS.task_success}}",
         "experiment_id": "E01",
@@ -2287,7 +2295,7 @@ def demo_paper_markdown() -> str:
 
 ## Abstract
 
-LLM coding agents increasingly solve repository-scale tasks by mixing natural-language planning, tool calls, code edits, tests, and self-review. The central failure mode is not only that an agent writes incorrect code, but that it loses the contract between the research question, the implementation task, the harness that validates the task, and the evidence allowed to support a paper claim. We propose **ContractGraph**, an execution framework that represents agentic coding research as a typed graph over claims, tasks, harnesses, artifacts, evidence, and manuscript result bindings. ContractGraph does not attempt to make the language model intrinsically truthful; instead, it constrains the execution loop so that every claim must be backed by a declared harness and every paper result location must be bound to an artifact schema. We formulate evidence-bound agent execution, design a graph scheduler with anti-mock gates, and define a benchmark protocol for repository repair tasks. The numerical values in this draft are **mock planning data** used to size the experiments and define expected sensitivity; final claims must replace the placeholders after the declared harnesses pass.
+LLM coding agents increasingly solve repository-scale tasks by mixing natural-language planning, tool calls, code edits, tests, and self-review. The central failure mode is not only that an agent writes incorrect code, but that it loses the contract between the research question, the implementation task, the harness that validates the task, and the evidence allowed to support a paper claim. We propose **ContractGraph**, an execution framework that represents agentic coding research as a typed graph over claims, tasks, harnesses, artifacts, evidence, and manuscript result bindings. ContractGraph does not attempt to make the language model intrinsically truthful; instead, it constrains the execution loop so that every claim must be backed by a declared harness and every paper result location must be bound to an artifact schema. We formulate evidence-bound agent execution, design a graph scheduler with anti-mock gates, and define a benchmark protocol for repository repair tasks. Empirical result slots remain visible as typed placeholders until the declared harnesses pass and real artifacts are bound.
 
 ## 1. Introduction
 
@@ -2297,7 +2305,7 @@ The research gap addressed by this paper is the absence of a strict evidence con
 
 We propose ContractGraph, a graph-structured control plane that keeps the paper, specification, execution plan, harnesses, artifacts, and evidence ledger synchronized. The key idea is simple: every paper claim must be represented as a path from research question to hypothesis, experiment, task, harness, evidence artifact, and result placeholder. If any edge is missing, the agent is allowed to continue engineering work, but it is not allowed to bind the result into the manuscript.
 
-This paper makes four contributions. First, we formulate evidence-bound agent execution as a typed graph consistency problem. Second, we design a scheduler that executes the earliest incomplete gate while preserving source hashes and blocker logs. Third, we introduce anti-mock evidence rules that distinguish smoke-test utility from claim-supporting evidence. Fourth, we provide a planned evaluation protocol with mock planning data that specifies what must be measured before the manuscript can make empirical claims.
+This paper makes four contributions. First, we formulate evidence-bound agent execution as a typed graph consistency problem. Second, we design a scheduler that executes the earliest incomplete gate while preserving source hashes and blocker logs. Third, we introduce anti-mock evidence rules that distinguish smoke-test utility from claim-supporting evidence. Fourth, we provide a placeholder-complete evaluation protocol that specifies what must be measured before the manuscript can make empirical claims.
 
 ## 2. Related Work and Research Gap
 
@@ -2342,7 +2350,7 @@ Algorithmically, ContractGraph runs a bounded loop: load Spec, select the earlie
 
 ## 5. Experimental Protocol
 
-The planned evaluation uses a repository-repair benchmark with frozen issue splits. The benchmark is intentionally small in the first phase because the study targets execution correctness and evidence integrity, not model scaling. The initial fixture contains 120 issues sampled from Python and TypeScript repositories, with 80 development issues, 20 validation issues, and 20 held-out test issues. This split is **mock planning data** until replaced by the final benchmark manifest.
+The planned evaluation uses a repository-repair benchmark with frozen issue splits. The benchmark is intentionally scoped for the first phase because the study targets execution correctness and evidence integrity, not model scaling. The candidate split size and composition remain placeholders until replaced by the final benchmark manifest.
 
 We compare four systems. **B01 Direct Agent** reads the issue and edits code without an explicit graph contract. **B02 Plan-then-Code Agent** writes a task plan and executes it sequentially. **B03 Reflection Agent** adds self-review after failures. **OURS ContractGraph Agent** uses the typed execution graph, anti-mock gates, evidence ledger, and paper binder.
 
@@ -2353,16 +2361,16 @@ We compare four systems. **B01 Direct Agent** reads the issue and edits code wit
 | E03 | Does anti-mock gating reduce invalid manuscript bindings? | invalid_claim_rate | Inject mock artifacts and measure rejection rate | {{E03.OURS.invalid_claim_rate}} |
 | E04 | What overhead does the control plane introduce? | planner_overhead_sec | Measure scheduler and validation runtime per gate | {{E04.OURS.planner_overhead_sec}} |
 
-## 6. Mock Planning Data and Expected Sensitivity
+## 6. Planned Result Bindings and Expected Sensitivity
 
-Table 2 contains mock planning data. These numbers are not empirical findings and cannot enter a submission until the corresponding artifacts exist under `artifacts/experiments/**` and the full harnesses pass. Their purpose is to define the scale of effect the experiment should be able to detect.
+Table 2 is placeholder-complete: it defines the result slots and comparison structure without inserting plausible numeric values. No cell can enter a submission until the corresponding artifacts exist under `artifacts/experiments/**` and the full harnesses pass.
 
-| Metric | Direct agent | Plan-then-code | Reflection | ContractGraph mock target | Final placeholder |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Task success | 0.27 | 0.34 | 0.39 | 0.46 | {{E01.OURS.task_success}} |
-| Evidence coverage | 0.41 | 0.55 | 0.58 | 0.82 | {{E02.OURS.evidence_coverage}} |
-| Invalid claim rate | 0.18 | 0.14 | 0.11 | 0.03 | {{E03.OURS.invalid_claim_rate}} |
-| Planner overhead | 6.0s | 11.0s | 15.0s | 24.0s | {{E04.OURS.planner_overhead_sec}} |
+| Metric | Baseline binding | ContractGraph binding | Admission condition |
+| --- | --- | --- | --- |
+| Task success | {{E01.B01.task_success}} | {{E01.OURS.task_success}} | full harness pass and independent rerun |
+| Evidence coverage | baseline audit placeholder | {{E02.OURS.evidence_coverage}} | artifact-backed claim audit |
+| Invalid claim rate | injected-invalid-artifact placeholder | {{E03.OURS.invalid_claim_rate}} | anti-mock gate rejects invalid bindings |
+| Planner overhead | baseline runtime placeholder | {{E04.OURS.planner_overhead_sec}} | scheduler runtime captured from logs |
 
 The planned interpretation is as follows. E01 tests whether typed gate execution improves completion discipline. E02 tests whether the evidence ledger increases the fraction of claims with valid artifact support. E03 tests the safety function of anti-mock gates by injecting invalid artifacts. E04 measures whether the added control plane remains operationally acceptable for long-running coding tasks. The final paper may discuss trade-offs only after these placeholders are replaced by validated summaries.
 
@@ -2378,7 +2386,7 @@ ContractGraph can prevent a class of evidence-binding errors, but it cannot make
 
 ## 9. Conclusion
 
-This paper presents ContractGraph, a graph-based execution contract for LLM coding-agent research. The central idea is to make the path from research question to paper result explicit and executable. The current manuscript is complete as a mock-data research draft: it defines the method, formalization, evaluation protocol, result slots, and evidence rules. Its empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass the full harnesses.
+This paper presents ContractGraph, a graph-based execution contract for LLM coding-agent research. The central idea is to make the path from research question to paper result explicit and executable. The current manuscript is complete as a placeholder-complete research draft: it defines the method, formalization, evaluation protocol, result slots, and evidence rules. Its empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass the full harnesses.
 """
 
 
@@ -2399,7 +2407,7 @@ def demo_paper_tex() -> str:
 \maketitle
 
 \begin{abstract}
-LLM coding agents increasingly solve repository-scale tasks by mixing planning, tool calls, code edits, tests, and self-review. The central failure mode is not only incorrect code, but loss of the contract between research questions, implementation tasks, harnesses, and evidence. We propose ContractGraph, an execution framework that represents agentic coding research as a typed graph over claims, tasks, harnesses, artifacts, evidence, and manuscript result bindings. The numerical values in this draft are mock planning data used to size experiments; final claims must replace placeholders after declared harnesses pass.
+LLM coding agents increasingly solve repository-scale tasks by mixing planning, tool calls, code edits, tests, and self-review. The central failure mode is not only incorrect code, but loss of the contract between research questions, implementation tasks, harnesses, and evidence. We propose ContractGraph, an execution framework that represents agentic coding research as a typed graph over claims, tasks, harnesses, artifacts, evidence, and manuscript result bindings. Empirical result slots remain typed placeholders until declared harnesses pass.
 \end{abstract}
 
 \section{Introduction}
@@ -2445,21 +2453,21 @@ E04 & Control overhead & overhead & E04.time \\
 \end{tabularx}
 \end{table}
 
-\section{Mock Planning Data}
-Table 3 is mock planning data, not empirical evidence. It defines expected sensitivity and execution budgets for the later experiments.
+\section{Planned Result Bindings}
+Table 3 is placeholder-complete, not empirical evidence. It defines expected result bindings for later experiments without plausible numeric values.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Mock planning values}
-\begin{tabularx}{\textwidth}{@{}Yrrrr@{}}
+\caption{Placeholder result bindings}
+\begin{tabularx}{\textwidth}{@{}Ylll@{}}
 \toprule
-Metric & Direct & Plan-code & Reflect & ContractGraph \\
+Metric & Baseline binding & ContractGraph binding & Admission condition \\
 \midrule
-Task success & 0.27 & 0.34 & 0.39 & 0.46 \\
-Evidence coverage & 0.41 & 0.55 & 0.58 & 0.82 \\
-Invalid claim rate & 0.18 & 0.14 & 0.11 & 0.03 \\
-Planner overhead & 6.0s & 11.0s & 15.0s & 24.0s \\
+Task success & E01.B01 & E01.OURS & full harness \\
+Evidence coverage & audit baseline & E02.OURS & artifact audit \\
+Invalid claim rate & invalid binding & E03.OURS & anti-mock gate \\
+Planner overhead & runtime baseline & E04.OURS & captured logs \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -2468,7 +2476,7 @@ Planner overhead & 6.0s & 11.0s & 15.0s & 24.0s \\
 ContractGraph prevents evidence-binding errors, but it cannot make a narrow benchmark representative. If the frozen issue split is weak, the paper must limit its claims. The method also adds overhead and therefore may be appropriate mainly for high-stakes research execution. The anti-mock policy reduces accidental fabrication by making mock artifacts ineligible for paper claims.
 
 \section{Conclusion}
-ContractGraph makes the path from research question to paper result explicit and executable. This draft is complete as a mock-data manuscript: it defines the method, formalization, protocol, result slots, and evidence rules. Empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass full harnesses.
+ContractGraph makes the path from research question to paper result explicit and executable. This draft is complete as a placeholder-complete manuscript: it defines the method, formalization, protocol, result slots, and evidence rules. Empirical claims remain intentionally unbound until the declared experiments run and their artifacts pass full harnesses.
 
 \chapter{探索与洞察策略（Exploration and Insight Policy）}
 \textbf{章节目标}：明确 PRD 是初始研究假设而非终局真理；定义执行失败与研究失败的分层；规定哪些调整可由 agent 自动完成，哪些必须请求人类确认。
@@ -2512,8 +2520,8 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
         research_dir / "spec" / "global_spec.yaml",
         {
             "schema_version": SCHEMA_VERSION,
-            "status": "demo_mock_planning",
-            "authority": "demo_idea_with_mock_planning_data",
+            "status": "demo_placeholder_complete",
+            "authority": "demo_placeholder_complete_without_numeric_results",
             "source": {"prd": "docs/research/prd/research_prd.md"},
             "rq_chain": [
                 {
@@ -2534,8 +2542,8 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                 for exp, rq, hyp, claim, metric, _purpose in experiments
             ],
             "notes": [
-                "这是 demo mock planning spec，用于展示 research-paper 应生成完整论文，而不是填空模板。",
-                "mock planning data 可以指导实验设计，但不能作为最终科研 claim evidence。",
+                "这是 placeholder-complete demo spec，用于展示 research-paper 应生成完整论文结构，而不是填空模板。",
+                "未验证结果必须保留为 typed placeholder，不能使用 plausible mock numeric values。",
             ],
         },
         force,
@@ -2547,10 +2555,10 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
             "datasets": [
                 {
                     "dataset_id": "D01",
-                    "name": "RepoRepair-120 mock planning split",
+                    "name": "RepoRepair candidate placeholder split",
                     "split_file": "data/splits/reporepair_120_frozen_v0.json",
                     "preprocessing_config": "configs/preprocess/reporepair_v0.yaml",
-                    "description": "120 个 repository repair issue 的 mock planning split；最终实验必须替换为真实冻结清单。",
+                    "description": "候选 repository repair split；最终实验必须替换为真实冻结 benchmark manifest。",
                 }
             ],
         },
@@ -2603,7 +2611,7 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                 for exp, _rq, _hyp, claim, _metric, _purpose in experiments
             ],
             "evidence_rules": {
-                "mock_planning_data_policy": "mock 数字只能用于设计实验灵敏度和执行预算，不能作为论文 claim evidence。",
+                "placeholder_result_policy": "未验证结果必须保持 typed placeholder，不能用 plausible mock numeric values 预填论文表格或结果段落。",
                 "forbidden_as_claim_evidence": ["mock_result", "toy_result", "smoke_test_only", "cached_proxy_result"],
             },
         },
@@ -2622,7 +2630,7 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                     "hypothesis": hyp,
                     "claim": claim,
                     "purpose": purpose,
-                    "status": "planned_with_mock_targets",
+                    "status": "planned_with_placeholder_bindings",
                     "dataset": "D01",
                     "split_file": "data/splits/reporepair_120_frozen_v0.json",
                     "preprocessing_config": "configs/preprocess/reporepair_v0.yaml",
@@ -2643,7 +2651,7 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                     "harnesses": [f"H_{exp}_FULL"],
                     "support_condition": f"{metric} 满足预注册 support rule，且 independent rerun 不改变结论方向。",
                     "falsification_condition": f"{metric} 未达到预注册阈值，或 mock / missing artifact 被检测到。",
-                    "mock_policy": "mock planning data 只能指导实验设计；full harness 必须拒绝 mock claim evidence。",
+                    "mock_policy": "full harness 必须拒绝 mock claim evidence；论文未验证结果必须保留 typed placeholder。",
                 }
                 for exp, rq, hyp, claim, metric, purpose in experiments
             ],
@@ -2706,7 +2714,7 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
     )
     write_yaml(
         research_dir / "spec" / "paper" / "result_binding.yaml",
-        {"schema_version": SCHEMA_VERSION, "bindings": DEMO_PLACEHOLDERS, "status": "mock_planning_until_execution"},
+        {"schema_version": SCHEMA_VERSION, "bindings": DEMO_PLACEHOLDERS, "status": "placeholder_until_execution"},
         force,
     )
 
@@ -2724,13 +2732,13 @@ def generate_demo_paper(research_dir: Path, force: bool = False) -> Path:
             [
                 "# 论文缺口报告",
                 "",
-                "当前论文是完整 mock-data manuscript draft，不是填空模板。",
+                "当前论文是完整 placeholder-complete manuscript draft，不是填空模板。",
                 "",
                 "## 必须在投稿前替换",
                 "",
-                "- 表中的 mock planning values 不能作为 empirical claim。",
+                "- 表中的 typed placeholders 不能作为 empirical claim，必须等待真实 artifact 绑定。",
                 "- `{{E01.OURS.task_success}}`、`{{E02.OURS.evidence_coverage}}`、`{{E03.OURS.invalid_claim_rate}}`、`{{E04.OURS.planner_overhead_sec}}` 必须由真实 artifact 绑定。",
-                "- `RepoRepair-120 mock planning split` 必须替换为真实冻结 benchmark manifest。",
+                "- `RepoRepair candidate placeholder split` 必须替换为真实冻结 benchmark manifest。",
                 "- 所有 full harness 必须通过，并完成 independent rerun。",
             ]
         )

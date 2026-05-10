@@ -13,7 +13,7 @@ The final output of this skill must be a **complete, submission-ready conference
 
 The paper surface may be English, because it targets top-conference manuscript style. Explanatory blockers and gap reports are Chinese. The paper must remain derived from PRD and checked against Spec; it cannot create executable experiments by itself.
 
-When empirical evidence is not ready, write a **complete mock-data manuscript**. Use reasonable mock values to populate tables, figures, and result paragraphs so the paper presents as a polished, submission-grade manuscript. These values are **temporary placeholders** for the final evidence and must be recorded in `paper_gap_report.md` with exact locations and replacement conditions. They are not validated findings and must not be presented as such in the narrative voice.
+When empirical evidence is not ready, write a **placeholder-complete manuscript**. The Results section, tables, figure captions, and narrative should be structurally complete, but every unverified result value must remain an experiment-bound placeholder such as `{{E01.OURS.primary_metric}}`. Do not insert plausible numeric mock values.
 
 ## Narrative Modes
 
@@ -29,7 +29,7 @@ We propose method X → Experiments → Improvement
 We identify phenomenon Y → We explain why it matters → We design minimal mechanism Z → Evidence
 ```
 
-When empirical evidence is not ready, write a **complete mock-data manuscript**. Use reasonable mock values to populate tables, figures, and result paragraphs so the paper presents as a polished, submission-grade manuscript. These values are **temporary placeholders** for the final evidence and must be recorded in `paper_gap_report.md` with exact locations and replacement conditions. They are not validated findings and must not be presented as such in the narrative voice.
+When empirical evidence is not ready, write a **placeholder-complete manuscript**. This means the paper is complete in structure and argument, while all unobserved empirical values stay as typed placeholders registered in `placeholder_map.yaml` and described in `paper_gap_report.md`.
 
 ## Allowed Language
 
@@ -47,21 +47,27 @@ For designed artifacts already defined in the PRD, the paper may say:
 - `Our analysis reveals ...` (insight-driven)
 - `This phenomenon suggests ...` (insight-driven)
 
-## Allowed vs. Forbidden Language for Unobserved Results
+## Placeholder Discipline for Unobserved Results
 
-**Mock manuscript values (allowed in draft):**
+**Placeholder-complete manuscript (allowed in draft):**
 
-The Results section, tables, and figures may contain mock values that match the expected data format and scale. This ensures the manuscript reads as a complete paper and gives downstream AI execution a concrete reference for what baselines, metrics, and table structures to produce. Mock values should be numerically reasonable and consistent with the experimental design declared in the PRD.
+The Results section, tables, and figures may be complete in layout, captions, comparison rows, method columns, and explanatory prose. However, unverified empirical cells must use typed placeholders, not plausible numbers:
 
-**Validated findings (forbidden without evidence):**
+```text
+{{E01.OURS.primary_metric}}
+{{E01.B01.primary_metric}}
+{{E02.ablation_delta}}
+```
 
-Do not use narrative language that presents mock values as validated empirical findings:
+**Forbidden without evidence:**
+
+Do not use narrative language or numeric cells that present unverified findings as data:
 
 - `Experiments show that ...`
 - `Our method outperforms ...`
 - `We achieve state-of-the-art ...`
 - `The results demonstrate ...`
-- any phrase that implies the mock values have been empirically confirmed.
+- any plausible numeric result value for an unobserved experiment
 
 Instead, use neutral descriptive language:
 
@@ -69,7 +75,7 @@ Instead, use neutral descriptive language:
 - `As shown in Fig. 2, ...`
 - `The evaluation compares ...`
 
-The distinction is in the **narrative voice**, not the numbers. A table may display `0.852` as a mock value; the text may say "Table 1 reports an F1 score of 0.852," but it must not say "Our method achieves an F1 score of 0.852, outperforming the baseline."
+The distinction is not only narrative voice. Numeric placeholders must remain visible until the declared harnesses pass and the result is bound to real artifacts.
 
 ## Outputs
 

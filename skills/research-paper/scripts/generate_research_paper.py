@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--demo",
         action="store_true",
-        help="Generate a complete filled conference-style demo manuscript with mock planning data.",
+        help="Generate a placeholder-complete conference-style demo manuscript without plausible numeric mock values.",
     )
     return parser.parse_args()
 

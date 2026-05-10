@@ -922,6 +922,11 @@ class ResearchLoop:
             "actions": self.actions,
             "dry_run_writes": self.dry_run_writes,
             "execution_mode": "deterministic_file_controller",
+            "execution_backend": {
+                "mode": self.args.executor,
+                "implemented": self.args.executor == "prompt-only",
+                "note": "Only prompt-only is implemented; local-shell, codex, and hermes are reserved backend slots.",
+            },
         }
 
 
@@ -935,6 +940,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--track", choices=["reproduction", "implementation", "experiment", "paper-update", "insight-feedback"], default="")
     parser.add_argument("--gate", default="", help="Optional target gate for generated plan.")
     parser.add_argument("--force-audit", action="store_true", help="Force audit generation before continuing.")
+    parser.add_argument(
+        "--executor",
+        choices=["prompt-only", "local-shell", "codex", "hermes"],
+        default="prompt-only",
+        help="Execution backend slot. Only prompt-only is implemented in this controller version.",
+    )
     parser.add_argument("--no-execute", action="store_true", help="Do not run harnesses; retained for CLI compatibility.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON summary.")
     parser.add_argument("--date", default="", help="Override date for generated plan/audit directories.")
@@ -954,6 +965,7 @@ def main() -> int:
         if result["blocked"]:
             print(f"[research] blocked: {result['block_reason']}")
         print("[research] execution_mode: deterministic_file_controller")
+        print(f"[research] execution_backend: {result['execution_backend']['mode']}")
     return 0
 
 
