@@ -61,6 +61,11 @@ SPEC_FILES = [
     "shared/evidence_contract.yaml",
     "shared/insight_policy.yaml",
     "insights/insight_manifest.yaml",
+    "insights/insight_policy.yaml",
+    "insights/anomaly_schema.yaml",
+    "insights/pivot_proposal_schema.yaml",
+    "insights/diagnostic_experiment_policy.yaml",
+    "feedback/README.md",
     "reproduction/benchmark_candidate_matrix.yaml",
     "reproduction/reproduction_manifest.yaml",
     "reproduction/reproduction_task_graph.yaml",
@@ -1604,6 +1609,106 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
         force,
     )
     write_yaml(
+        spec / "insights" / "insight_policy.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "Insight Feedback Loop 的 spec-local 策略副本，用于 plan/audit 不读取 shared 文件时仍能定位自动化边界。",
+            "policy_source": "docs/research/spec/shared/insight_policy.yaml",
+            "human_review_required": [
+                "core_rq_change",
+                "problem_formulation_change",
+                "main_claim_change",
+                "paper_story_change",
+                "delete_original_baseline",
+                "pivot_changes_prd_core_story",
+            ],
+            "auto_allowed": [
+                "execution_fix",
+                "spec_refinement",
+                "harness_repair",
+                "negative_result_recording",
+                "diagnostic_experiment_proposal_without_core_prd_change",
+            ],
+        },
+        force,
+    )
+    write_yaml(
+        spec / "insights" / "anomaly_schema.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "required_fields": [
+                "anomaly_id",
+                "source_plan",
+                "source_harness",
+                "observation",
+                "expected_from_prd",
+                "mismatch",
+                "possible_explanation",
+                "research_value",
+                "recommended_action",
+                "confidence",
+            ],
+            "confidence_values": ["low", "medium", "high"],
+            "notes": ["异常报告不得把未验证观察写成论文 claim；只记录现象、证据路径和下一步诊断建议。"],
+        },
+        force,
+    )
+    write_yaml(
+        spec / "insights" / "pivot_proposal_schema.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "required_sections": [
+                "Original PRD Claim",
+                "New Observation",
+                "Proposed 15-Degree Pivot",
+                "Why This May Be Better",
+                "Required PRD Changes",
+                "Required Spec Changes",
+                "Required New Experiments",
+                "Human Decision Required",
+            ],
+            "human_decision_values": ["approve", "reject", "revise"],
+            "notes": ["Pivot proposal 只能请求人类决策；agent 不得静默修改核心 PRD。"],
+        },
+        force,
+    )
+    write_yaml(
+        spec / "insights" / "diagnostic_experiment_policy.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "description": "诊断实验策略：只有不改变核心 RQ、问题表述或主 claim 的诊断实验可自动加入 exploratory/diagnostic track。",
+            "auto_add_allowed_when": [
+                "anomaly_has_artifact_or_log_source",
+                "diagnostic_experiment_preserves_prd_core_claim",
+                "dataset_metric_baseline_are_already_declared_or_explicitly_blocked",
+            ],
+            "human_review_required_when": [
+                "diagnostic_experiment_changes_core_rq",
+                "diagnostic_experiment_replaces_declared_baseline",
+                "diagnostic_experiment_changes_main_metric",
+                "diagnostic_experiment_reframes_paper_story",
+            ],
+        },
+        force,
+    )
+    write_text(
+        spec / "feedback" / "README.md",
+        "\n".join(
+            [
+                "# Spec Feedback",
+                "",
+                "本目录记录每个 dated plan 完成或阻塞后可复用的执行经验。",
+                "",
+                "规则：",
+                "- 这里只能记录环境、harness、artifact、转换器、数据路径和执行顺序经验。",
+                "- 不得在这里修改 PRD 核心 RQ、主假设或主 claim。",
+                "- 如果经验触及 PRD 方向，写入 `docs/research/audits/YYYY-MM-DD-prd-review/` 并等待人类决策。",
+                "",
+            ]
+        ),
+        force,
+    )
+    write_yaml(
         spec / "experiments" / "experiment_task_graph.yaml",
         {"schema_version": SCHEMA_VERSION, "description": "实验任务图：定义主实验、消融、敏感性和失败案例分析的执行依赖。", "tasks": [], "gates": []},
         force,
@@ -2663,6 +2768,30 @@ def validate_prd(research_dir: Path) -> Validation:
     for section in PRD_SECTIONS:
         if section not in text:
             validation.error(f"missing PRD section: {section}")
+    state = load_yaml(research_dir / "state.yaml")
+    prd_state = state.get("prd", {}) if isinstance(state.get("prd"), dict) else {}
+    if "PRD_STATUS: HUMAN_APPROVED" not in text and prd_state.get("human_approved") is not True:
+        validation.error("PRD missing human approval marker: PRD_STATUS: HUMAN_APPROVED")
+    concrete_rq_lines = [
+        line
+        for line in text.splitlines()
+        if re.search(r"\bRQ\d+\b", line) and "待填写" not in line and "template" not in line.lower()
+    ]
+    if not concrete_rq_lines:
+        validation.error("PRD has no concrete RQ definition")
+    concrete_falsification_lines = [
+        line
+        for line in text.splitlines()
+        if "falsification" in line.lower() and "待填写" not in line and "template" not in line.lower()
+    ]
+    if not concrete_falsification_lines:
+        validation.error("PRD hypotheses have no concrete falsification condition")
+    lower_text = text.lower()
+    if "benchmark selection criteria" not in lower_text and "benchmark candidate matrix" not in lower_text:
+        validation.error("PRD missing benchmark selection criteria")
+    for label in ["dataset", "baseline", "metric", "harness"]:
+        if label not in lower_text:
+            validation.error(f"PRD missing {label} plan")
     if "Reader Model and Usage" in text:
         validation.error("PRD must not expose a Reader Model and Usage section")
     return validation
@@ -2958,6 +3087,14 @@ def validate_insight(research_dir: Path) -> Validation:
     validation.require_file(research_dir / "insights" / "insight_log.md", "insights/insight_log.md")
     validation.require_file(research_dir / "spec" / "shared" / "insight_policy.yaml", "spec/shared/insight_policy.yaml")
     validation.require_file(research_dir / "spec" / "insights" / "insight_manifest.yaml", "spec/insights/insight_manifest.yaml")
+    validation.require_file(research_dir / "spec" / "insights" / "insight_policy.yaml", "spec/insights/insight_policy.yaml")
+    validation.require_file(research_dir / "spec" / "insights" / "anomaly_schema.yaml", "spec/insights/anomaly_schema.yaml")
+    validation.require_file(research_dir / "spec" / "insights" / "pivot_proposal_schema.yaml", "spec/insights/pivot_proposal_schema.yaml")
+    validation.require_file(
+        research_dir / "spec" / "insights" / "diagnostic_experiment_policy.yaml",
+        "spec/insights/diagnostic_experiment_policy.yaml",
+    )
+    validation.require_file(research_dir / "spec" / "feedback" / "README.md", "spec/feedback/README.md")
     manifest = load_yaml(research_dir / "spec" / "insights" / "insight_manifest.yaml")
     for insight in as_list(manifest.get("insights")):
         if not isinstance(insight, dict):

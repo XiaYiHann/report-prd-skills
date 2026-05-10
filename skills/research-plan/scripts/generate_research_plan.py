@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--track",
         required=True,
-        choices=["reproduction", "implementation", "experiment", "paper-update"],
+        choices=["reproduction", "implementation", "experiment", "paper-update", "insight-feedback"],
     )
     parser.add_argument("--gate", default="", help="Optional target gate id.")
     parser.add_argument("--target", default="codex", choices=["codex", "ralph-loop"], help="Executor target.")

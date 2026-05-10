@@ -13,6 +13,23 @@ Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 
 核心原则：执行权只属于 `docs/research/spec/`。不能从论文正文反推实验、数据集、基线、指标、seed、任务、harness 或结果。
 
+## Unified `/research` Loop
+
+`/research` 是默认入口。用户完成并人工批准 Research PRD 后，统一控制器会检查 `docs/research/`，用文件系统事实重算当前阶段，并按 PRD / Spec / Plan / Harness / Audit / Insight 约束推进项目。
+
+标准循环：
+
+1. 用户填写 Research PRD，并加入 `PRD_STATUS: HUMAN_APPROVED`。
+2. `/research` 检查 PRD readiness；未批准或缺少 RQ、证伪条件、benchmark、实验、dataset、baseline、metric、harness 时停止。
+3. PRD ready 后，`/research` 编译或修复 `docs/research/spec/`。仅当缺口是 PRD-compatible 的执行细节时自动修；如果需要决定数据集、baseline、metric、核心 RQ 或主 claim，则写入 `docs/research/audits/YYYY-MM-DD-prd-review/` 并停止。
+4. Spec ready 后，`/research` 创建或更新 `docs/research/plans/plan_queue.yaml`，选择最高优先级 pending entry，生成下一份 dated plan。
+5. 执行阶段只按 Plan 和 Spec 的最早 gate 推进。当前脚本实现是 deterministic file controller：它会写状态、计划、prompt、反馈和 audit，但不会伪造 harness stdout/stderr 或实验 artifact。
+6. 计划完成或阻塞后，`/research` 写 `docs/research/spec/feedback/`、追加 insight log，并生成 audit。
+7. 失败会被分类为 Execution Failure、Spec Gap、PRD Ambiguity 或 Research Falsification / Insight Trigger。PRD ambiguity、核心假设失败、open pivot proposal 和未解决负结果都会阻断自动执行并请求人类审查。
+8. Paper / PPT 是表达层，只能从 PRD、Spec 和已验证 artifacts 更新；不得从论文反推实验，也不得填入未验证结果。
+
+旧的分技能仍可手动使用：`research-prd`、`research-paper`、`research-spec`、`research-plan`、`research-audit`、`research-ppt`。但自动托管研究项目时，默认先运行 `/research`。
+
 初始化产物不是空 `TODO` 骨架。`research-init` 会生成中文顶级 Research PRD 模板：LaTeX 是真源，使用 `ctex`、TikZ、`booktabs`、`tabularx` 组织图表；Markdown 是伴随审阅稿。它也会生成 planned top-conference paper 模板和 Spec 执行合同模板。若本机有 `latexmk` 或 `xelatex`，脚本会真实渲染 PDF；否则写入中文 `render_blocker.md`，不会伪造 PDF。
 
 ## 安装与迁移
@@ -54,6 +71,7 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 
 ```text
 report/              # legacy migration warning only
+research/            # unified autonomous controller
 research-init/
 research-prd/
 research-paper/
@@ -67,6 +85,7 @@ research-ppt/
 
 | Skill | 用途 |
 |---|---|
+| [`research`](skills/research/SKILL.md) | 默认统一入口：检查 `docs/research/`，维护 state/queue，推进 PRD、Spec、Plan、执行提示、Audit、Insight、Paper/PPT 边界。 |
 | [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建中文 LaTeX 真源 Research PRD、paper、spec、plans、audits、ppt scaffold。 |
 | [`research-prd`](skills/research-prd/SKILL.md) | 维护专业 Research PRD，面向能够执行项目但未必熟悉完整背景的硕士生，默认图文并茂。 |
 | [`research-paper`](skills/research-paper/SKILL.md) | 从 PRD 生成和打磨 planned NeurIPS / ICLR / AAAI 风格论文，并强制实验结果 placeholder 绑定。 |
@@ -81,6 +100,8 @@ research-ppt/
 
 ```text
 docs/research/
+  state.yaml
+
   prd/
     research_prd.tex
     research_prd.md
@@ -106,6 +127,13 @@ docs/research/
       artifact_schema.yaml
       anti_mock_policy.yaml
       evidence_contract.yaml
+      insight_policy.yaml
+    insights/
+      insight_manifest.yaml
+      insight_policy.yaml
+      anomaly_schema.yaml
+      pivot_proposal_schema.yaml
+      diagnostic_experiment_policy.yaml
     reproduction/
       benchmark_candidate_matrix.yaml
       reproduction_manifest.yaml
@@ -123,8 +151,11 @@ docs/research/
     paper/
       placeholder_map.yaml
       result_binding.yaml
+    feedback/
+      README.md
 
   plans/
+    plan_queue.yaml
     YYYY-MM-DD-purpose/
       plan.md
       plan.yaml
@@ -159,6 +190,13 @@ docs/research/
       alignment_matrix.yaml
       drift_findings.yaml
       repair_plan.md
+
+  insights/
+    insight_log.md
+    anomaly_reports/
+    negative_results/
+    pivot_proposals/
+    diagnostic_experiment_proposals/
 ```
 
 ## 实际工作流案例

@@ -11,6 +11,7 @@ This repository has migrated from the old `report-*` PRD framing to the focused 
 
 Use the new skills:
 
+- `research` (default unified controller)
 - `research-init`
 - `research-prd`
 - `research-paper`
@@ -27,5 +28,6 @@ Legacy mapping:
 - `report-spec` -> `research-spec`
 - `report-goal` -> `research-plan`
 - `report-audit` -> `research-audit`
+- autonomous `report-goal` style loops -> `research`
 
 Do not continue old `docs/report` semantics unless the user explicitly asks to inspect or migrate an older workspace.

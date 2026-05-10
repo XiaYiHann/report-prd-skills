@@ -20,9 +20,11 @@ PAPER_SCRIPT = REPO_ROOT / "skills" / "research-paper" / "scripts" / "generate_r
 PLAN_SCRIPT = REPO_ROOT / "skills" / "research-plan" / "scripts" / "generate_research_plan.py"
 PPT_SCRIPT = REPO_ROOT / "skills" / "research-ppt" / "scripts" / "generate_research_ppt.py"
 AUDIT_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "generate_research_audit.py"
+RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop.py"
 INSTALL_SCRIPT = REPO_ROOT / "install.sh"
 SKILL_NAMES = [
     "report",
+    "research",
     "research-init",
     "research-prd",
     "research-paper",
@@ -365,6 +367,35 @@ def make_valid_paper(research_dir: Path) -> None:
     )
 
 
+def mark_prd_human_approved(research_dir: Path, ambiguity: bool = False) -> None:
+    prd_path = research_dir / "prd" / "research_prd.md"
+    dataset_text = (
+        "Dataset plan: use a standard dataset chosen later without selection criteria.\n"
+        if ambiguity
+        else "Dataset plan: D01 is selected by explicit criteria: public license, frozen split, and metric compatibility.\n"
+    )
+    appendix = "\n".join(
+        [
+            "",
+            "PRD_STATUS: HUMAN_APPROVED",
+            "",
+            "## Readiness Appendix",
+            "",
+            "RQ1: Does the proposed method improve the declared primary metric under the frozen benchmark?",
+            "Hypothesis H1: The proposed method improves M01 over B01 on D01.",
+            "Falsification condition: H1 is falsified if M_OURS does not improve M01 over B01 under all declared seeds.",
+            "Benchmark selection criteria: public benchmark, frozen split, reproducible baseline, declared license.",
+            dataset_text.rstrip(),
+            "Baseline plan: B01 is the required closest baseline and must be reproduced before main experiments.",
+            "Metric plan: M01 is the primary metric and its direction is higher-is-better.",
+            "Harness expectation: H_E01_FULL must verify all seeds, all baselines, no mock evidence, and artifact hashes.",
+            "Experiment design: E01 runs M_OURS and B01 on D01 with seeds 1, 2, and 3.",
+            "",
+        ]
+    )
+    prd_path.write_text(prd_path.read_text(encoding="utf-8") + appendix, encoding="utf-8")
+
+
 def latex_available() -> bool:
     return bool(shutil.which("latexmk") or shutil.which("xelatex"))
 
@@ -439,6 +470,7 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("## 11. 任务图与学生工作计划（Task Graph and Student Work Plan）", prd)
             self.assertIn("## 13. 证据台账（Evidence Ledger）", prd)
             self.assertIn("## 16. 探索与洞察策略（Exploration and Insight Policy）", prd)
+            self.assertNotIn("PRD_STATUS: HUMAN_APPROVED", prd)
             self.assertIn("章节目标", prd)
             self.assertIn("常见错误", prd)
             self.assertIn("证据边界", prd)
@@ -580,7 +612,12 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("result_binding_template", result_binding)
             self.assertIn("所有说明性 value 使用中文", global_spec["language_policy"]["values"])
             self.assertTrue((research_dir / "spec" / "shared" / "insight_policy.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "insights" / "insight_policy.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "insights" / "anomaly_schema.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "insights" / "pivot_proposal_schema.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "insights" / "diagnostic_experiment_policy.yaml").exists())
             self.assertTrue((research_dir / "spec" / "insights" / "insight_manifest.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "feedback" / "README.md").exists())
 
     def test_research_paper_script_uses_full_template_and_spec_bound_placeholders(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -688,6 +725,232 @@ class ResearchWorkflowTests(unittest.TestCase):
             self.assertIn("有没有值得微调 15 度的方向", prompt)
             self.assertTrue((plan_dir / "insight_log.md").exists())
             self.assertIn("当前状态", current_state)
+
+    def test_research_plan_accepts_insight_feedback_track(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            make_execution_ready_spec(research_dir)
+
+            result = run_cmd(
+                [
+                    "python3",
+                    str(PLAN_SCRIPT),
+                    "--research-dir",
+                    str(research_dir),
+                    "--date",
+                    "2026-05-09",
+                    "--purpose",
+                    "review-negative-result",
+                    "--track",
+                    "insight-feedback",
+                ],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((research_dir / "plans" / "2026-05-09-review-negative-result" / "plan.yaml").exists())
+
+    def test_research_loop_empty_workspace_initializes_state_and_prd_scaffold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            research_dir = repo / "docs" / "research"
+            self.assertTrue((research_dir / "state.yaml").exists())
+            self.assertTrue((research_dir / "plans" / "plan_queue.yaml").exists())
+            self.assertTrue((research_dir / "prd" / "research_prd.md").exists())
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["project_status"]["current_stage"], "S1_PRD_NOT_READY")
+            self.assertTrue(state["project_status"]["blocked"])
+            self.assertFalse(state["prd"]["human_approved"])
+
+    def test_research_loop_prd_not_approved_stops_before_spec_automation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["project_status"]["current_stage"], "S1_PRD_NOT_READY")
+            self.assertTrue(state["project_status"]["blocked"])
+            self.assertIsNone(state["plans"]["active"])
+            self.assertIn("human approval", state["project_status"]["block_reason"])
+
+    def test_research_loop_prd_ready_spec_missing_generates_spec_scaffold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            mark_prd_human_approved(research_dir)
+            shutil.rmtree(research_dir / "spec")
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((research_dir / "spec" / "global_spec.yaml").exists())
+            self.assertTrue((research_dir / "spec" / "feedback" / "README.md").exists())
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["spec"]["status"], "not_ready")
+            self.assertTrue(state["project_status"]["blocked"])
+
+    def test_research_loop_spec_ready_no_plan_generates_queue_and_next_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            mark_prd_human_approved(research_dir)
+            make_execution_ready_spec(research_dir)
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            queue = read_yaml(research_dir / "plans" / "plan_queue.yaml")
+            self.assertGreaterEqual(len(queue["queue"]), 1)
+            state = read_yaml(research_dir / "state.yaml")
+            active_plan = state["plans"]["active"]
+            self.assertIsNotNone(active_plan)
+            self.assertTrue((research_dir / "plans" / active_plan / "plan.yaml").exists())
+            self.assertEqual(state["project_status"]["current_stage"], "S4_EXECUTING_PLAN")
+
+    def test_research_loop_active_plan_complete_writes_feedback_insight_and_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            mark_prd_human_approved(research_dir)
+            make_execution_ready_spec(research_dir)
+            plan_result = run_cmd(
+                [
+                    "python3",
+                    str(PLAN_SCRIPT),
+                    "--research-dir",
+                    str(research_dir),
+                    "--date",
+                    "2026-05-10",
+                    "--purpose",
+                    "reproduce-b01",
+                    "--track",
+                    "reproduction",
+                ],
+                cwd=repo,
+            )
+            self.assertEqual(plan_result.returncode, 0, plan_result.stdout + plan_result.stderr)
+            plan_dir = research_dir / "plans" / "2026-05-10-reproduce-b01"
+            plan_yaml = read_yaml(plan_dir / "plan.yaml")
+            plan_yaml["status"] = "complete"
+            write_yaml(plan_dir / "plan.yaml", plan_yaml)
+            (plan_dir / "final_summary.md").write_text(
+                "# 最终总结\n\nPLAN_STATUS: COMPLETE\nHARNESS_EVIDENCE: documented in run_log.md\n",
+                encoding="utf-8",
+            )
+            (plan_dir / "run_log.md").write_text(
+                "# 运行日志\n\n- harness stdout/stderr paths recorded by executor.\n",
+                encoding="utf-8",
+            )
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((research_dir / "spec" / "feedback" / "2026-05-10-reproduce-b01_lessons.md").exists())
+            self.assertTrue((research_dir / "audits" / "2026-05-10-audit" / "audit_report.md").exists())
+            insight_log = (research_dir / "insights" / "insight_log.md").read_text(encoding="utf-8")
+            self.assertIn("2026-05-10-reproduce-b01", insight_log)
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["project_status"]["last_audit"], "docs/research/audits/2026-05-10-audit")
+
+    def test_research_loop_prd_ambiguity_writes_human_review_request(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            mark_prd_human_approved(research_dir, ambiguity=True)
+            shutil.rmtree(research_dir / "spec")
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            review_dir = research_dir / "audits" / "2026-05-10-prd-review"
+            self.assertTrue((review_dir / "prd_change_request.md").exists())
+            self.assertTrue((review_dir / "repair_plan.md").exists())
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["project_status"]["current_stage"], "S6_INSIGHT_REVIEW_REQUIRED")
+            self.assertTrue(state["project_status"]["blocked"])
+
+    def test_research_loop_open_pivot_blocks_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            mark_prd_human_approved(research_dir)
+            make_execution_ready_spec(research_dir)
+            pivot = research_dir / "insights" / "pivot_proposals" / "p01.md"
+            pivot.write_text("# Pivot Proposal\n\n## Human Decision Required\nApprove / reject / revise\n", encoding="utf-8")
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["project_status"]["current_stage"], "S6_INSIGHT_REVIEW_REQUIRED")
+            self.assertTrue(state["project_status"]["blocked"])
+            self.assertEqual(state["insights"]["open_pivot_proposals"], ["docs/research/insights/pivot_proposals/p01.md"])
+
+    def test_research_loop_stale_plan_blocks_execution_with_audit_repair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            mark_prd_human_approved(research_dir)
+            make_execution_ready_spec(research_dir)
+            plan_result = run_cmd(
+                [
+                    "python3",
+                    str(PLAN_SCRIPT),
+                    "--research-dir",
+                    str(research_dir),
+                    "--date",
+                    "2026-05-10",
+                    "--purpose",
+                    "run-e01-main-experiment",
+                    "--track",
+                    "experiment",
+                ],
+                cwd=repo,
+            )
+            self.assertEqual(plan_result.returncode, 0, plan_result.stdout + plan_result.stderr)
+            spec = research_dir / "spec" / "global_spec.yaml"
+            spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+
+            result = run_cmd(
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                cwd=repo,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state = read_yaml(research_dir / "state.yaml")
+            self.assertEqual(state["project_status"]["current_stage"], "S5_AUDIT_REQUIRED")
+            self.assertTrue(state["project_status"]["blocked"])
+            repair = (research_dir / "audits" / "2026-05-10-audit" / "repair_plan.md").read_text(encoding="utf-8")
+            self.assertIn("stale spec hash", repair)
 
     def test_valid_paper_placeholders_pass_paper_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

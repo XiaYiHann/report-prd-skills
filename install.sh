@@ -8,6 +8,7 @@ SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_D
 
 SKILLS=(
   report
+  research
   research-init
   research-prd
   research-paper
