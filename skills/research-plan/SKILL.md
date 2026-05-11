@@ -7,7 +7,7 @@ description: "Use when a dated research execution run needs a bounded plan, AI l
 
 ## Overview
 
-Create dated concrete execution plans under `docs/research/plans/YYYY-MM-DD-purpose/`. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `docs/research/spec/`, but its **scope and scheduling** should reference the formulation and experimental design narrative in `docs/research/paper/`. The paper provides context on what baselines to compare, what tables to fill, and what story the evidence must support; the spec provides the exact commands, harnesses, and gates to execute. When the two conflict, spec wins.
+Create bounded execution plans for the current epoch. New default outputs are `docs/research/{CURRENT}/PLAN.md`, `TASK_QUEUE.yaml`, and `NEXT_ACTION.md`; legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `Vn/SPEC.yaml`; Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
 
 Plan prose, AI loop prompts, and run logs must be Chinese. `plan.yaml` keeps English keys and stable IDs, but explanatory values such as `purpose`, `forbidden_actions`, and `completion_condition` should be Chinese.
 
@@ -27,6 +27,9 @@ Supported selectors:
 
 ## Outputs
 
+- `docs/research/{CURRENT}/PLAN.md`
+- `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+- `docs/research/{CURRENT}/NEXT_ACTION.md`
 - `plan.md`
 - `plan.yaml`
 - `ai_loop_prompt.md`
@@ -57,6 +60,43 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 ```
 
 ## AI Loop Contract
+
+For the epoch loop, Plan must encode:
+
+```yaml
+version: V0
+loop_target: paper_binding
+loop_mode:
+  claude_code: ralph_loop
+  codex: goal_driven
+active_task_source: TASK_QUEUE.yaml
+single_step_file: NEXT_ACTION.md
+```
+
+Loop rules:
+
+- Each loop may complete at most one active task.
+- After each loop, update `LOOP_LOG.md`.
+- If blocked twice by same cause, escalate to `gate_blocked`.
+- If no active task exists, generate one from `PLAN.md` or close version.
+- Do not start a new version unless current version is closed.
+- Stay inside `RESEARCH_DIRECTION.md`.
+- Plan complete does not equal Paper Binding.
+
+Codex goal rules:
+
+- Codex goal must name one concrete deliverable.
+- Codex must run tests when code changes.
+- Codex must cite terminal/test evidence in run report.
+- Codex should not perform broad literature search unless task `phase=literature` and network is available.
+
+Claude ralph-loop rules:
+
+- Read `NEXT_ACTION.md` first.
+- Do not expand scope mid-loop.
+- Use subagents for large search or audit work.
+- Write compact persistent state after each loop.
+- Never rely on previous chat memory.
 
 `ai_loop_prompt.md` must say:
 

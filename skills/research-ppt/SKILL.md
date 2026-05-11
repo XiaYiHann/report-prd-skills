@@ -14,6 +14,9 @@ Generate `docs/research/ppt/main_deck/` as a slide-image deck specification. Thi
 - Primary source: Research PRD.
 - Secondary source: Research Paper.
 - Constraint source: Research Spec.
+- Binding source: current `Vn/closeout.md` and `Vn/PAPER_BINDING_DECISION.md` when result claims are shown.
+
+PPT follows the same Paper Binding rule as Paper: result slides may use only claims from a current version with `status=closed_stable` or `paper_binding_ready` and `paper_binding_ready: true`. Otherwise, keep result cells as placeholders or write a deck gap report.
 
 ## Outputs
 
@@ -53,4 +56,6 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - white or very light background;
 - one clear takeaway per slide;
 - no invented experiments, results, or unregistered claims;
+- no prompt-only scaffold as a result slide;
+- no exploratory-only insight as a main result;
 - no `.pptx` assumption.

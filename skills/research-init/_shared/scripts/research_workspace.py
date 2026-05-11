@@ -81,6 +81,38 @@ SPEC_FILES = [
     "paper/result_binding.yaml",
 ]
 
+EPOCH_REQUIRED_FILES = [
+    "PRD.md",
+    "SPEC.yaml",
+    "PLAN.md",
+    "STATUS.yaml",
+    "TASK_QUEUE.yaml",
+    "NEXT_ACTION.md",
+]
+
+EPOCH_WIKI_FILES = [
+    "epoch_summary.md",
+    "evidence_map.md",
+    "positive_signals.md",
+    "negative_results.md",
+    "failed_paths.md",
+    "baseline_landscape.md",
+    "literature_notes.md",
+    "open_questions.md",
+    "next_version_seed.md",
+]
+
+CLOSED_VERSION_STATUSES = {
+    "closed_success",
+    "closed_negative",
+    "closed_blocked",
+    "closed_falsified",
+    "closed_pivot_required",
+    "closed_stable",
+}
+
+PAPER_BINDING_STATUSES = {"closed_stable", "paper_binding_ready"}
+
 
 AUDIT_MATRIX_KEYS = [
     "prd_to_paper",
@@ -1264,6 +1296,1054 @@ def latex_from_markdown(markdown: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def research_direction_template(title: str, purpose: str) -> str:
+    today = today_string()
+    return f"""# Research Direction
+
+> 自动科研不是自动写论文，而是一个按研究版本推进的闭环：每个版本都在顶层研究方向约束下，完整提出问题、签订实验合同、执行或被门禁阻断、把证据与洞察沉淀进 wiki，然后生成下一版更清晰的研究问题，直到某个版本 closed_stable 后进入 Paper Binding。
+
+> Auto research is not automatic paper writing. It is a charter-bounded, epoch-based loop where each research version fully frames, contracts, executes, gates, distills evidence into a wiki, and either seeds the next sharper version or enters paper binding.
+
+## 0. Direction Status
+
+- direction_id: `DIR-{slugify(title).upper()}`
+- status: draft
+- created_at: {today}
+- updated_at: {today}
+- current_version: V0
+- final_target: paper_binding
+- owner_decision_required: true
+
+## 1. Research Seed
+
+### A. ad hoc idea
+
+- seed_summary: `【待填写：尚未验证的研究直觉、机制假设或方法想法】`
+- minimum_viable_purpose: `{purpose}`
+
+### B. follow-up from existing paper
+
+- source_type: `【待填写：如不基于已有论文，写 none】`
+- gap_or_limitation: `【待填写：已有论文中的 gap、limitation、unanswered question、unfair baseline 或未充分验证机制】`
+
+## 2. Research Corridor
+
+- `【待填写：允许探索方向 1，例如 MoE routing analysis】`
+- `【待填写：允许探索方向 2，例如 expert-DAG / expert-subgraph representation】`
+- `【待填写：允许探索方向 3，例如 routing trace / routing intervention】`
+
+## 3. Out-of-Scope Directions
+
+- 与核心研究问题无关的普通 prompt engineering
+- 与 Research Corridor 无关的普通工程优化
+- 纯产品化工具但没有科研 claim
+- 没有证据链的论文叙事重写
+- 超出用户授权的全新研究主题
+
+## 4. Prior Work Basis
+
+- paper_id: `【待填写：如无则写 none】`
+- title: `【待填写：论文标题或 none】`
+- citation_or_url: `【待填写：文献占位或 literature blocker】`
+- relationship_to_project: `【待填写：与本项目的关系】`
+- inherited_claims: `【待填写：继承哪些 claim；没有则写 none】`
+- questioned_claims: `【待填写：质疑哪些 claim；没有则写 none】`
+- follow_up_gaps: `【待填写：继续研究哪些 gap】`
+- must_compare_baselines: `【待填写：必须比较的 baseline】`
+- novelty_risk: `【待填写：novelty risk 或 literature blocker】`
+
+> 如果当前环境无法联网或未完成检索，必须写入 literature blocker，不得编造文献。
+
+## 5. Desired Paper Shape
+
+优先级从高到低：
+
+1. mechanism analysis paper
+2. method paper
+3. causal intervention paper
+4. benchmark / tooling paper
+5. diagnostic paper
+6. negative result paper
+
+## 6. Autonomy Boundary
+
+### AI 可以自动做
+
+- 起草 Vn/PRD.md
+- 编译 Vn/SPEC.yaml
+- 生成 Vn/PLAN.md
+- 维护 TASK_QUEUE.yaml
+- 写 NEXT_ACTION.md
+- 实现代码 scaffold
+- 写测试
+- 写 run report
+- 写 wiki
+- 写 closeout
+- 在研究走廊内起草 Vn+1/PRD.md
+
+### AI 不可以自动做
+
+- 修改 RESEARCH_DIRECTION.md 的核心方向
+- pivot 到 Out-of-Scope Directions
+- 把 exploratory insight 写成 paper result
+- 伪造实验、benchmark、harness、stdout/stderr 或 artifact
+- 宣称未验证 claim 已稳定
+- 在当前版本未 closeout 前创建下一版本
+- 在 closed_stable 前进行 Paper Binding
+
+## 7. Global Stop Conditions
+
+- 连续两个版本没有产生任何可复用 insight
+- 核心机制被反复反驳
+- 所有可行版本都被 hard gate 阻断
+- 需要超出预算的数据、算力或权限
+- novelty risk 无法解决
+- paper binding 已完成
+"""
+
+
+def research_index_template() -> str:
+    return """# Research Workspace Index
+
+## Authority Chain
+
+```text
+RESEARCH_DIRECTION.md
+  -> CURRENT
+  -> Vn/PRD.md
+  -> Vn/SPEC.yaml
+  -> Vn/PLAN.md
+  -> Vn/TASK_QUEUE.yaml
+  -> Vn/NEXT_ACTION.md
+  -> Vn/runs + Vn/artifacts
+  -> Vn/audits
+  -> Vn/wiki
+  -> Vn/closeout.md
+  -> Vn+1/PRD.md 或 paper binding
+```
+
+## Current Epoch
+
+读取 `CURRENT` 得到当前版本。旧版本只作为 context / memory / history，不再有执行权。
+
+## Legacy Workspace
+
+旧目录 `prd/`、`paper/`、`spec/`、`plans/`、`audits/`、`insights/` 保留为 legacy workspace。新版默认采用 `V0/`、`V1/`、`V2/` 的 epoch 结构。
+"""
+
+
+def agent_runbook_template() -> str:
+    return """# Research Agent Runbook
+
+## Definition
+
+自动科研不是自动写论文，而是一个按研究版本推进的闭环：每个版本都在顶层研究方向约束下，完整提出问题、签订实验合同、执行或被门禁阻断、把证据与洞察沉淀进 wiki，然后生成下一版更清晰的研究问题，直到某个版本 closed_stable 后进入 Paper Binding。
+
+Auto research is not automatic paper writing. It is a charter-bounded, epoch-based loop where each research version fully frames, contracts, executes, gates, distills evidence into a wiki, and either seeds the next sharper version or enters paper binding.
+
+## Read Order
+
+1. `docs/research/RESEARCH_DIRECTION.md`
+2. `docs/research/CURRENT`
+3. `docs/research/{CURRENT}/STATUS.yaml`
+4. `docs/research/{CURRENT}/NEXT_ACTION.md`
+5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+6. `docs/research/{CURRENT}/PRD.md`
+7. `docs/research/{CURRENT}/SPEC.yaml`
+8. `docs/research/{CURRENT}/PLAN.md`
+
+旧版本只读 `closeout.md` 和 `wiki/` 中的 `epoch_summary.md`、`evidence_map.md`、`positive_signals.md`、`negative_results.md`、`failed_paths.md`、`next_version_seed.md`。禁止让旧版本 PRD 覆盖当前版本 PRD。
+
+## Epoch Loop
+
+Frame -> Contract -> Plan -> Execute -> Gate -> Interpret -> Wiki -> Closeout -> Next Version or Paper Binding
+
+## Status Handling
+
+- `initialized`：完善并人工批准 Direction 与 PRD。
+- `prd_locked`：从 PRD 编译 SPEC。
+- `spec_ready`：从 SPEC 生成 PLAN、TASK_QUEUE、NEXT_ACTION。
+- `plan_ready` / `running`：只执行 NEXT_ACTION。
+- `gate_blocked`：解释 blocker，更新 wiki，准备 closeout。
+- `interpreting`：写 wiki 与 closeout。
+- `closed_*`：根据 closeout 决定 Vn+1 或停止。
+- `closed_stable` / `paper_binding_ready`：允许 Paper Binding。
+
+## Next Version Rule
+
+工程问题留在当前版本；研究问题改变才开下一版本。
+
+创建 Vn+1 的条件：当前 closeout 完成，且 `create_next_version: true`；或计划完成后研究问题变化；或 hard gate 阻断后 wiki 给出更合理 framing；或核心假设被负结果反驳；或 baseline、metric、dataset、model 选择改变主 claim；或 exploration 结束需要进入 confirmatory/intervention/training 阶段。
+
+不创建 Vn+1：修 bug、补 artifact path、修测试、增加 sanity check、重跑 seed、小 baseline 补充、Spec 字段补全、Paper placeholder 修正、Plan stale 后重新生成。
+
+## Paper Binding
+
+只有当前版本 `status=closed_stable` 或 `paper_binding_ready`，且 `PAPER_BINDING_DECISION.md` 明确允许，才能把结果绑定到 paper。Exploratory insight 只能进入 motivation / discussion，不能写成 main result。
+"""
+
+
+def claude_loop_prompt_template() -> str:
+    return """# Claude Code Ralph-loop Prompt
+
+你处于持续循环中。不要重新规划整个项目。每轮只执行 `docs/research/{CURRENT}/NEXT_ACTION.md` 中的一个原子任务。
+
+Before every loop:
+
+1. Read `docs/research/RESEARCH_DIRECTION.md`.
+2. Resolve current epoch from `docs/research/CURRENT`.
+3. Read `docs/research/{CURRENT}/STATUS.yaml`.
+4. Read `docs/research/{CURRENT}/NEXT_ACTION.md`.
+5. Read `docs/research/{CURRENT}/TASK_QUEUE.yaml`.
+
+Rules:
+
+- Stay inside Research Corridor.
+- Do not modify `RESEARCH_DIRECTION.md` unless the user explicitly asks.
+- Do not create the next version unless current version is closed and closeout exists.
+- Do not fabricate execution result, artifact, benchmark, stdout/stderr, or paper result.
+- If code changes are required, run the relevant tests and record terminal evidence.
+- If literature is required but web access is unavailable, write `docs/research/{CURRENT}/runs/LITERATURE_REQUIRED_BLOCKER.md`.
+- If blocked, write a concrete blocker and update `STATUS.yaml`, `TASK_QUEUE.yaml`, `LOOP_LOG.md`, and `NEXT_ACTION.md`.
+- If completed, update `TASK_QUEUE.yaml`, `LOOP_LOG.md`, `wiki/`, and `NEXT_ACTION.md`.
+- Never rely on previous chat memory as evidence; use persisted files.
+"""
+
+
+def codex_goal_template() -> str:
+    return """# Codex Goal
+
+## Goal
+
+完成 `docs/research/{CURRENT}/NEXT_ACTION.md` 中的 active task。
+
+## Context
+
+Read:
+
+- `docs/research/RESEARCH_DIRECTION.md`
+- `docs/research/CURRENT`
+- `docs/research/{CURRENT}/STATUS.yaml`
+- `docs/research/{CURRENT}/NEXT_ACTION.md`
+- `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+- `docs/research/{CURRENT}/PRD.md`
+- `docs/research/{CURRENT}/SPEC.yaml`
+- `docs/research/{CURRENT}/PLAN.md`
+
+## Deliverables
+
+- `【待填写：必须改动或生成的文件】`
+
+## Constraints
+
+- Stay inside Research Corridor.
+- Do not modify `RESEARCH_DIRECTION.md`.
+- Do not create next version unless current version is closed.
+- Do not write paper results.
+- Do not claim real benchmark execution unless actually run.
+- If prompt-only, explicitly mark `prompt_only_scaffold`.
+
+## Validation
+
+Run:
+
+```bash
+python3 -m pytest tests -q
+```
+
+如当前任务不需要测试，必须写明原因。
+
+## Done When
+
+- success_criteria 全部满足；
+- 测试通过或 blocker 明确；
+- `LOOP_LOG.md` 更新；
+- `TASK_QUEUE.yaml` 更新；
+- `NEXT_ACTION.md` 更新；
+- 如产生 insight，`wiki/` 已更新。
+"""
+
+
+def subagent_policy_template() -> str:
+    return """# Subagent Policy
+
+主 agent 是 controller。Subagent 只能承担局部工作，不能替代主 controller。
+
+## Main Agent Responsibilities
+
+- 读取 `RESEARCH_DIRECTION.md`
+- 判断是否仍在 Research Corridor 内
+- 读取 `CURRENT`
+- 管理 Vn 状态
+- 执行或委派 `NEXT_ACTION`
+- 判断是否 closeout
+- 决定是否生成 Vn+1 draft
+- 阻止 paper claim 越权
+- 更新 `NEXT_ACTION.md`
+
+## literature_scout
+
+触发：version_start、baseline_lock_needed、new novelty claim appears、unexpected strong/negative result、paper_binding_related_work。
+能做：搜文献，写 `literature_notes.md`，更新 `baseline_landscape.md`，标记 novelty risk。
+不能做：改 PRD 主 claim，宣称 result，修改 `RESEARCH_DIRECTION.md`。
+
+## repo_explorer
+
+触发：需要定位代码文件；需要理解现有模块；read-only codebase mapping 超过 5 files。
+能做：只读搜索代码，总结模块关系。
+不能做：编辑文件。
+
+## experiment_engineer
+
+触发：实现 hook、harness、evaluator、artifact parser、schema。
+能做：写代码，写测试，更新 run report。
+不能做：写论文结论，改 Research Direction。
+
+## debugger
+
+触发：同一测试失败两次；gate 被可复现错误阻断。
+能做：分析错误，提出最小修复，修复当前 task 范围内问题。
+不能做：扩大研究范围，新开版本。
+
+## artifact_auditor
+
+触发：closeout 前；paper binding 前；task 声称实验完成时。
+能做：检查 artifact、run record、hash、mock 泄漏。
+不能做：创造 evidence。
+
+## wiki_synthesizer
+
+触发：每个 gate 后；closeout 前；negative result 出现时。
+能做：更新 wiki，写 `next_version_seed.md`。
+不能做：宣称 paper-ready。
+
+## paper_binder
+
+触发：`status=closed_stable` 或 `paper_binding_ready`。
+能做：从稳定版本 closeout 和 artifacts 绑定 paper placeholder。
+不能做：使用 exploratory result 当主结果。
+"""
+
+
+def literature_policy_template() -> str:
+    return """# Literature Policy
+
+## Mandatory Search Points
+
+1. Project start：写 `RESEARCH_DIRECTION.md` 或 `V0/PRD.md` 前后，确认问题是否已被做过。
+2. Version start：每个 `Vn/PRD.md` lock 前，确认本版本 RQ / baseline / method 合理。
+3. Baseline lock：任何 method superiority claim 出现前，确认必须比较的强 baseline。
+4. Unexpected strong/negative result：实验结果和预期冲突时，确认是否已有解释或类似现象。
+5. Before paper binding：补齐 related work、novelty risk、concurrent work。
+
+## No-search Situations
+
+- 修代码 bug
+- 补 artifact path
+- 跑测试
+- 更新 wiki
+- 执行已锁定 Plan
+- 小的工程重构
+
+## Output Contract
+
+检索输出必须写入：
+
+- `docs/research/Vn/wiki/literature_notes.md`
+- `docs/research/Vn/wiki/baseline_landscape.md`
+
+每条记录包含：
+
+- query
+- date
+- source
+- relevance
+- must_compare
+- novelty_risk
+- action_required
+
+如果没有 web access，不要编造，写：
+
+- `docs/research/Vn/runs/LITERATURE_REQUIRED_BLOCKER.md`
+"""
+
+
+def epoch_prd_template(version: str, title: str, purpose: str) -> str:
+    return f"""# {version} Research PRD
+
+> 最新版本 `{version}/PRD.md` 是当前研究真源；`RESEARCH_DIRECTION.md` 是上位边界。
+
+## 1. Version Frame
+
+- version: {version}
+- source_direction: `../RESEARCH_DIRECTION.md`
+- epoch_goal: `{purpose}`
+
+## 2. Core Question
+
+`【待填写：本轮核心问题是什么】`
+
+## 3. Core Hypothesis
+
+`【待填写：本轮核心假设是什么】`
+
+## 4. Validation Target
+
+`【待填写：本轮要验证什么】`
+
+## 5. Minimal Experiment
+
+`【待填写：本轮最小实验是什么】`
+
+## 6. Success Conditions
+
+- `【待填写：本轮成功条件】`
+
+## 7. Failure Conditions
+
+- `【待填写：本轮失败条件】`
+
+## 8. Non-goals
+
+- `【待填写：本轮不做什么】`
+
+## 9. Stop / Next / Paper Binding Decision
+
+- stop_condition: `【待填写：何时停止项目】`
+- next_version_condition: `【待填写：何时创建下一版本】`
+- paper_binding_condition: `【待填写：何时允许 Paper Binding】`
+
+## 10. Carry Forward From Older Versions
+
+- carry_forward: []
+- rule: 旧版本 artifact 不能直接支持当前版本 claim，除非本节或 `SPEC.yaml` 显式登记。
+"""
+
+
+def epoch_spec_payload(version: str) -> dict[str, Any]:
+    return {
+        "version": version,
+        "direction_ref": "../RESEARCH_DIRECTION.md",
+        "prd_ref": "PRD.md",
+        "experiments": [],
+        "datasets": [],
+        "models": [],
+        "baselines": [],
+        "metrics": [],
+        "seeds": [],
+        "harnesses": [],
+        "artifact_schemas": [],
+        "gates": [],
+        "anti_mock_policy": {
+            "allow_mock_for_unit_or_smoke": True,
+            "allow_mock_results_as_claim_evidence": False,
+            "allow_fake_execution": False,
+        },
+        "runtime_backend_truth": {
+            "executor": "prompt-only",
+            "notes": ["当前模板不实现真实 local-shell executor；执行报告必须由真实命令、artifact 或 prompt-only 标记支撑。"],
+        },
+        "runtime_contract": {
+            "supported_agents": ["claude_code_ralph_loop", "codex_goal"],
+            "execution_truth": [
+                "Spec defines executable research tasks.",
+                "Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.",
+            ],
+            "prompt_only_policy": {
+                "allow_scaffold": True,
+                "allow_fake_execution": False,
+                "allow_mock_results_as_claim_evidence": False,
+            },
+        },
+        "agent_autonomy": {
+            "can_create_next_action": True,
+            "can_update_task_queue": True,
+            "can_write_wiki": True,
+            "can_close_version": True,
+            "can_create_next_version_draft": True,
+            "can_modify_research_direction": False,
+            "can_bind_paper_results": "only_if_closed_stable",
+        },
+        "literature_policy": {
+            "required_at": ["project_start", "version_start", "baseline_lock", "unexpected_result", "paper_binding"],
+            "block_if_missing_for": ["new_method_claim", "baseline_superiority_claim", "related_work_section"],
+        },
+        "subagent_policy": {
+            "allow_subagents": True,
+            "allowed_subagents": [
+                "literature_scout",
+                "repo_explorer",
+                "experiment_engineer",
+                "debugger",
+                "artifact_auditor",
+                "wiki_synthesizer",
+                "paper_binder",
+            ],
+            "forbidden_subagent_actions": [
+                "modify_RESEARCH_DIRECTION",
+                "declare_paper_admissible_claim",
+                "fake_execution_result",
+                "create_next_version_without_closeout",
+            ],
+        },
+        "version_transition_policy": {
+            "create_next_version_when": [
+                "core_hypothesis_changed",
+                "main_research_question_changed",
+                "hard_gate_blocks_current_version",
+                "exploration_complete_and_confirmatory_phase_needed",
+                "baseline_landscape_changes_claim",
+                "metric_dataset_model_invalid",
+            ],
+            "do_not_create_next_version_for": [
+                "code_bug",
+                "missing_path",
+                "rerun_needed",
+                "minor_spec_field_fix",
+                "paper_placeholder_fix",
+            ],
+        },
+        "engineering_gates": [
+            {"id": "G_TESTS_PASS", "command": "python3 -m pytest tests -q", "required_for": "code_change"},
+            {"id": "G_NO_FAKE_ARTIFACTS", "required_for": "all"},
+            {"id": "G_WIKI_UPDATED", "required_for": "version_closeout"},
+            {"id": "G_CLOSEOUT_COMPLETE", "required_for": "next_version_creation"},
+            {"id": "G_PAPER_BINDING_ALLOWED", "required_for": "paper_binding"},
+        ],
+        "carry_forward": [],
+    }
+
+
+def epoch_plan_template(version: str) -> str:
+    return f"""# {version} Research Plan
+
+```yaml
+version: {version}
+loop_target: paper_binding
+loop_mode:
+  claude_code: ralph_loop
+  codex: goal_driven
+active_task_source: TASK_QUEUE.yaml
+single_step_file: NEXT_ACTION.md
+loop_rules:
+  - "Each loop may complete at most one active task."
+  - "After each loop, update LOOP_LOG.md."
+  - "If blocked twice by same cause, escalate to gate_blocked."
+  - "If no active task exists, generate one from PLAN.md or close version."
+  - "Do not start a new version unless current version is closed."
+  - "Stay inside RESEARCH_DIRECTION.md."
+codex_goal_rules:
+  - "Codex goal must name one concrete deliverable."
+  - "Codex must run tests when code changes."
+  - "Codex must cite terminal/test evidence in run report."
+  - "Codex should not perform broad literature search unless task phase=literature and network is available."
+claude_ralph_rules:
+  - "Read NEXT_ACTION.md first."
+  - "Do not expand scope mid-loop."
+  - "Use subagents for large search or audit work."
+  - "Write compact persistent state after each loop."
+  - "Never rely on previous chat memory."
+subagent_triggers:
+  literature_scout:
+    when:
+      - "version_start"
+      - "baseline_lock_needed"
+      - "new novelty claim appears"
+      - "paper_binding_related_work"
+  repo_explorer:
+    when:
+      - "need to locate files/modules"
+      - "read-only codebase mapping larger than 5 files"
+  experiment_engineer:
+    when:
+      - "implementing harness, hook, evaluator, artifact parser"
+  debugger:
+    when:
+      - "same test fails twice"
+      - "gate blocked by reproducible error"
+  artifact_auditor:
+    when:
+      - "before closeout"
+      - "before paper binding"
+  wiki_synthesizer:
+    when:
+      - "after every completed gate"
+      - "before closeout"
+  paper_binder:
+    when:
+      - "status=closed_stable"
+```
+
+## Execution Phases
+
+Frame -> Contract -> Plan -> Execute -> Gate -> Interpret -> Wiki -> Closeout -> Next Version or Paper Binding
+"""
+
+
+def epoch_status_payload(version: str) -> dict[str, Any]:
+    return {
+        "version": version,
+        "status": "initialized",
+        "allowed_status": [
+            "initialized",
+            "prd_locked",
+            "spec_ready",
+            "plan_ready",
+            "running",
+            "gate_blocked",
+            "interpreting",
+            "closed_success",
+            "closed_negative",
+            "closed_blocked",
+            "closed_falsified",
+            "closed_pivot_required",
+            "closed_stable",
+            "paper_binding_ready",
+        ],
+        "direction_ref": "../RESEARCH_DIRECTION.md",
+        "current_prd": "PRD.md",
+        "current_spec": "SPEC.yaml",
+        "current_plan": "PLAN.md",
+        "current_task_queue": "TASK_QUEUE.yaml",
+        "current_next_action": "NEXT_ACTION.md",
+        "current_gate": None,
+        "last_completed_task": None,
+        "last_loop_report": "LOOP_LOG.md",
+        "close_reason": None,
+        "next_action_policy": "consume_NEXT_ACTION_only",
+        "paper_binding": {"allowed": False, "reason": "当前版本尚未 closed_stable。"},
+    }
+
+
+def epoch_task_queue_payload(version: str) -> dict[str, Any]:
+    return {
+        "version": version,
+        "queue_status": "active",
+        "tasks": [
+            {
+                "id": "TASK_001",
+                "phase": "specification",
+                "title": "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md",
+                "status": "active",
+                "agent_mode": ["main"],
+                "allowed_files": [
+                    "docs/research/RESEARCH_DIRECTION.md",
+                    f"docs/research/{version}/PRD.md",
+                    f"docs/research/{version}/LOOP_LOG.md",
+                    f"docs/research/{version}/NEXT_ACTION.md",
+                    f"docs/research/{version}/TASK_QUEUE.yaml",
+                ],
+                "forbidden_files": [],
+                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.md"],
+                "output_refs": ["PRD.md", "LOOP_LOG.md", "NEXT_ACTION.md"],
+                "success_criteria": ["Research Direction 的核心方向已由用户批准或明确要求继续保持 draft。", "V0/PRD.md 已回答核心问题、假设、最小实验和停止条件。"],
+                "test_commands": [],
+                "evidence_required": ["human_approval_or_blocker", "updated_file_path"],
+                "after_completion": {
+                    "update": ["LOOP_LOG.md", "TASK_QUEUE.yaml", "NEXT_ACTION.md", "wiki/epoch_summary.md"]
+                },
+            }
+        ],
+    }
+
+
+def epoch_next_action_template(version: str, task_id: str = "TASK_001") -> str:
+    return f"""# NEXT ACTION
+
+## Current Version
+
+{version}
+
+## Active Task
+
+{task_id}
+
+## Objective
+
+本轮只完成一个原子动作。不要重新规划整个项目。
+
+## Read First
+
+1. `docs/research/RESEARCH_DIRECTION.md`
+2. `docs/research/CURRENT`
+3. `docs/research/{version}/STATUS.yaml`
+4. `docs/research/{version}/TASK_QUEUE.yaml`
+5. `docs/research/{version}/PRD.md`
+6. `docs/research/{version}/SPEC.yaml`
+7. `docs/research/{version}/PLAN.md`
+
+## Allowed Actions
+
+- 编辑 `docs/research/RESEARCH_DIRECTION.md` 仅限用户明确要求或人工批准阶段。
+- 编辑 `docs/research/{version}/PRD.md`。
+- 更新 `docs/research/{version}/LOOP_LOG.md`、`TASK_QUEUE.yaml`、`NEXT_ACTION.md`。
+
+## Forbidden Actions
+
+- 不自动修改 `RESEARCH_DIRECTION.md` 的核心方向
+- 不创建 V1，除非 V0 已 closeout
+- 不写 paper result
+- 不声称实验真实完成，除非命令确实执行并记录
+- 不改动无关模块
+- 不越过 Research Corridor
+
+## Success Criteria
+
+- Direction 和 `{version}/PRD.md` 的待填写项被明确填写，或 blocker 被具体记录。
+- 没有创建下一版本。
+- 没有伪造实验结果。
+
+## Test / Validation
+
+当前任务是研究框架填写，不需要运行代码测试；如后续改代码，必须运行 `python3 -m pytest tests -q` 或记录不能测试的原因。
+
+## If Blocked
+
+写入：
+
+`docs/research/{version}/runs/{task_id}_blocker.md`
+
+并更新：
+
+- `STATUS.yaml`
+- `TASK_QUEUE.yaml`
+- `LOOP_LOG.md`
+- `NEXT_ACTION.md`
+
+## After Completion
+
+更新：
+
+- `TASK_QUEUE.yaml`
+- `LOOP_LOG.md`
+- `wiki/*`
+- `NEXT_ACTION.md`
+"""
+
+
+def epoch_loop_log_template(version: str) -> str:
+    return f"""# {version} Loop Log
+
+## Entry Template
+
+- task_id: `TASK_001`
+- status: `【待填写：done / blocked / skipped】`
+- command_or_action: `【待填写：执行过的命令或 prompt-only action】`
+- evidence: `【待填写：terminal output 路径、artifact 路径或 blocker】`
+- next_action: `【待填写：下一个原子动作】`
+"""
+
+
+def epoch_closeout_template(version: str) -> str:
+    return f"""# {version} Closeout
+
+## 1. Version Status
+
+- version: {version}
+- final_status: `【待填写：closed_success / closed_negative / closed_blocked / closed_falsified / closed_pivot_required / closed_stable】`
+- close_reason: `【待填写：关闭原因】`
+- closed_at: `【待填写：YYYY-MM-DD】`
+
+## 2. Original Hypothesis
+
+本版本原本相信什么？
+
+`【待填写：原始假设】`
+
+## 3. What Was Executed
+
+- actually_executed: `【待填写：真实执行的 plan / task / run / artifact】`
+- prompt_only_scaffold: `【待填写：只完成提示或 scaffold 的部分】`
+- blocked: `【待填写：被阻断的部分】`
+- not_started: `【待填写：未开始的部分】`
+
+## 4. What Failed or Blocked
+
+- blocker_id: `【待填写：blocker ID】`
+- category: `【待填写：execution_failure / environment_failure / spec_gap / prd_gap / data_unavailable / compute_unavailable / metric_mismatch / research_falsification / insight_trigger】`
+- detail: `【待填写：具体 blocker】`
+
+## 5. What We Learned
+
+- fact: `【待填写：事实】`
+- artifact: `【待填写：artifact 路径】`
+- interpretation: `【待填写：解释】`
+- speculation: `【待填写：推测】`
+
+## 6. Positive Signals
+
+- `【待填写：值得保留的现象；如无，写明确无】`
+
+## 7. Negative Results
+
+- `【待填写：被削弱或反驳的假设；如无，写明确无】`
+
+## 8. Carry Forward
+
+- artifact: []
+- baseline: []
+- code_module: []
+- insight: []
+- open_question: []
+- dataset: []
+- metric: []
+- harness: []
+
+## 9. Drop
+
+- hypothesis: []
+- claim: []
+- baseline: []
+- experiment_path: []
+- method_variant: []
+- metric: []
+
+## 10. Next Version Decision
+
+- create_next_version: false
+- next_version_type: `【待填写：exploration / intervention / training / confirmatory / reproduction / paper_binding / stop】`
+- next_core_question: `【待填写：下一版核心问题；如不创建，写 none】`
+- next_minimal_experiments: `【待填写：下一版最小实验；如不创建，写 none】`
+- next_stop_conditions: `【待填写：下一版停止条件；如不创建，写 none】`
+- must_stay_inside_research_corridor: true
+
+## 11. Paper Binding Decision
+
+- paper_binding_ready: false
+- reason: `【待填写：为何可以或不可以绑定论文】`
+- allowed_claims: []
+- blocked_claims: []
+"""
+
+
+def paper_binding_decision_template(version: str) -> str:
+    return f"""# Paper Binding Decision
+
+## Status
+
+- paper_binding_ready: false
+- source_version: {version}
+- decision_reason: `当前版本尚未 closed_stable。`
+
+## Allowed Claims
+
+- `【待填写：允许写入论文结果的 claim；未 ready 时写 none】`
+
+## Blocked Claims
+
+- claim: `【待填写：不能写入论文结果的 claim】`
+- blocker: `【待填写：证据、baseline、metric、seed、artifact 或 audit blocker】`
+
+## Evidence Requirements
+
+每个 allowed claim 必须绑定：
+
+- experiment_id
+- run_id
+- artifact_path
+- metric
+- baseline
+- seed_protocol
+- audit_status
+
+## Forbidden
+
+- 不使用 exploratory-only insight 作为 main result。
+- 不使用 prompt-only scaffold 作为 result。
+- 不从 paper 反推实验。
+- 不填入 plausible but unverified numbers。
+"""
+
+
+def wiki_templates(version: str) -> dict[str, str]:
+    return {
+        "epoch_summary.md": f"""# {version} Epoch Summary
+
+## Original Belief
+
+`【待填写：这一版原本相信什么】`
+
+## What Was Done
+
+`【待填写：实际做了什么】`
+
+## Observations
+
+`【待填写：观察到什么】`
+
+## Supported Hypotheses
+
+- `【待填写：被支持的假设；如无，写明确无】`
+
+## Weakened Hypotheses
+
+- `【待填写：被削弱的假设；如无，写明确无】`
+
+## Failed or Blocked Paths
+
+- `【待填写：跑不通的路径；如无，写明确无】`
+""",
+        "evidence_map.md": f"""# {version} Evidence Map
+
+## Claim Evidence Entries
+
+- hypothesis_or_claim: `【待填写：hypothesis / claim ID】`
+  - supported_by: []
+  - challenged_by: []
+  - falsified_by: []
+  - unresolved: `【待填写：未解决问题】`
+  - evidence_level: exploratory
+
+允许值：exploratory | diagnostic | confirmatory | reproduced | paper_admissible
+""",
+        "positive_signals.md": f"""# {version} Positive Signals
+
+- signal_id: `【待填写：signal ID；如无，写 NONE】`
+  source_task: `【待填写】`
+  source_run: `【待填写】`
+  source_artifact: `【待填写】`
+  evidence_level: exploratory
+  why_it_matters: `【待填写】`
+  next_validation: `【待填写】`
+""",
+        "negative_results.md": f"""# {version} Negative Results
+
+- result_id: `【待填写：negative result ID；如无，写 NONE】`
+  category: unresolved
+  source_task: `【待填写】`
+  source_run: `【待填写】`
+  interpretation: `【待填写】`
+
+允许分类：execution_bug | spec_gap | metric_problem | data_problem | research_falsification | limitation | unresolved
+""",
+        "failed_paths.md": f"""# {version} Failed Paths
+
+- failed_path: `【待填写：失败路径；如无，写 NONE】`
+  why_failed: `【待填写】`
+  cost: `【待填写】`
+  future_avoidance_rule: `【待填写】`
+""",
+        "baseline_landscape.md": f"""# {version} Baseline Landscape
+
+- must_compare: []
+- strong_baseline: []
+- weak_baseline: []
+- unfair_baseline: []
+- appendix_only: []
+- novelty_risk: `【待填写：novelty risk 或 literature blocker】`
+""",
+        "literature_notes.md": f"""# {version} Literature Notes
+
+## Search Records
+
+- query: `【待填写：检索 query；如无网络，写 literature blocker】`
+  date: `【待填写：YYYY-MM-DD】`
+  source: `【待填写：source URL / citation / blocker】`
+  relevance: `【待填写】`
+  must_compare: false
+  novelty_risk: `【待填写】`
+  action_required: `【待填写】`
+
+如果没有网络，不要编造，写入 `{version}/runs/LITERATURE_REQUIRED_BLOCKER.md`。
+""",
+        "open_questions.md": f"""# {version} Open Questions
+
+- question_id: `【待填写：Q1】`
+  question: `【待填写：下一轮还没解决的问题】`
+  why_open: `【待填写】`
+  needed_evidence: `【待填写】`
+""",
+        "next_version_seed.md": f"""# {version} Next Version Seed
+
+- should_create_next_version: false
+- why: `【待填写：为什么创建或不创建下一版】`
+- keep: []
+- drop: []
+- new_core_question: `【待填写：新核心问题；如无，写 none】`
+- minimal_next_experiments: `【待填写：最小下一版实验；如无，写 none】`
+- next_stop_conditions: `【待填写：下一版停止条件；如无，写 none】`
+- out_of_scope_risk: `【待填写：是否有越过 Research Corridor 的风险】`
+- required_human_review: true
+""",
+    }
+
+
+def claude_root_template() -> str:
+    return """# CLAUDE.md
+
+- Always read `docs/research/RESEARCH_DIRECTION.md`.
+- Resolve current epoch from `docs/research/CURRENT`.
+- Execute only `docs/research/{CURRENT}/NEXT_ACTION.md` unless user explicitly overrides.
+- Keep all exploration inside Research Corridor.
+- Never fabricate execution, artifact, benchmark, or paper result.
+- Never create Vn+1 before Vn closeout.
+- Never modify `RESEARCH_DIRECTION.md` without explicit user instruction.
+- After each loop, update `LOOP_LOG.md`, `TASK_QUEUE.yaml`, and `NEXT_ACTION.md`.
+"""
+
+
+def agents_root_template() -> str:
+    return """# AGENTS.md
+
+Codex 每次工作先读：
+
+1. `docs/research/RESEARCH_DIRECTION.md`
+2. `docs/research/CURRENT`
+3. `docs/research/{CURRENT}/STATUS.yaml`
+4. `docs/research/{CURRENT}/NEXT_ACTION.md`
+5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+
+任务风格：
+
+- Complete the active task.
+- Run relevant tests if code changes.
+- Record terminal/test evidence.
+- Update research state files.
+- Do not change research direction.
+- Do not create paper results from unverified artifacts.
+- Do not create Vn+1 before closeout.
+"""
+
+
+def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str, force: bool = False) -> None:
+    version = "V0"
+    write_text(research_dir / "RESEARCH_DIRECTION.md", research_direction_template(title, purpose), force)
+    write_text(research_dir / "CURRENT", version + "\n", force)
+    write_text(research_dir / "INDEX.md", research_index_template(), force)
+
+    agent_dir = research_dir / "agent"
+    write_text(agent_dir / "RUNBOOK.md", agent_runbook_template(), force)
+    write_text(agent_dir / "CLAUDE_LOOP_PROMPT.md", claude_loop_prompt_template(), force)
+    write_text(agent_dir / "CODEX_GOAL_TEMPLATE.md", codex_goal_template(), force)
+    write_text(agent_dir / "SUBAGENT_POLICY.md", subagent_policy_template(), force)
+    write_text(agent_dir / "LITERATURE_POLICY.md", literature_policy_template(), force)
+
+    epoch_dir = research_dir / version
+    for dirname in ["plans", "runs", "artifacts", "audits", "wiki"]:
+        (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
+    write_text(epoch_dir / "PRD.md", epoch_prd_template(version, title, purpose), force)
+    write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
+    write_text(epoch_dir / "PLAN.md", epoch_plan_template(version), force)
+    write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
+    write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
+    write_text(epoch_dir / "NEXT_ACTION.md", epoch_next_action_template(version), force)
+    write_text(epoch_dir / "LOOP_LOG.md", epoch_loop_log_template(version), force)
+    write_text(epoch_dir / "closeout.md", epoch_closeout_template(version), force)
+    write_text(epoch_dir / "PAPER_BINDING_DECISION.md", paper_binding_decision_template(version), force)
+    for filename, content in wiki_templates(version).items():
+        write_text(epoch_dir / "wiki" / filename, content, force)
+    for path in [
+        epoch_dir / "plans" / ".gitkeep",
+        epoch_dir / "runs" / ".gitkeep",
+        epoch_dir / "artifacts" / ".gitkeep",
+        epoch_dir / "audits" / ".gitkeep",
+    ]:
+        write_text(path, "", force)
+
+    write_text(repo / "CLAUDE.md", claude_root_template(), force)
+    write_text(repo / "AGENTS.md", agents_root_template(), force)
+
+
 def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
     spec = research_dir / "spec"
     write_text(
@@ -1325,6 +2405,81 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "open_pivot_proposals": [],
                 "cumulative_negative_results": [],
             },
+            "epoch_loop_contract": {
+                "default_structure": "docs/research/V0/",
+                "current_epoch_pointer": "docs/research/CURRENT",
+                "direction_ref": "docs/research/RESEARCH_DIRECTION.md",
+                "next_action_file": "NEXT_ACTION.md",
+                "task_queue_file": "TASK_QUEUE.yaml",
+                "paper_binding_allowed_only_when": ["closed_stable", "paper_binding_ready"],
+            },
+            "runtime_contract": {
+                "supported_agents": ["claude_code_ralph_loop", "codex_goal"],
+                "execution_truth": [
+                    "Spec defines executable research tasks.",
+                    "Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.",
+                ],
+                "prompt_only_policy": {
+                    "allow_scaffold": True,
+                    "allow_fake_execution": False,
+                    "allow_mock_results_as_claim_evidence": False,
+                },
+            },
+            "agent_autonomy": {
+                "can_create_next_action": True,
+                "can_update_task_queue": True,
+                "can_write_wiki": True,
+                "can_close_version": True,
+                "can_create_next_version_draft": True,
+                "can_modify_research_direction": False,
+                "can_bind_paper_results": "only_if_closed_stable",
+            },
+            "literature_policy": {
+                "required_at": ["project_start", "version_start", "baseline_lock", "unexpected_result", "paper_binding"],
+                "block_if_missing_for": ["new_method_claim", "baseline_superiority_claim", "related_work_section"],
+            },
+            "subagent_policy": {
+                "allow_subagents": True,
+                "allowed_subagents": [
+                    "literature_scout",
+                    "repo_explorer",
+                    "experiment_engineer",
+                    "debugger",
+                    "artifact_auditor",
+                    "wiki_synthesizer",
+                    "paper_binder",
+                ],
+                "forbidden_subagent_actions": [
+                    "modify_RESEARCH_DIRECTION",
+                    "declare_paper_admissible_claim",
+                    "fake_execution_result",
+                    "create_next_version_without_closeout",
+                ],
+            },
+            "version_transition_policy": {
+                "create_next_version_when": [
+                    "core_hypothesis_changed",
+                    "main_research_question_changed",
+                    "hard_gate_blocks_current_version",
+                    "exploration_complete_and_confirmatory_phase_needed",
+                    "baseline_landscape_changes_claim",
+                    "metric_dataset_model_invalid",
+                ],
+                "do_not_create_next_version_for": [
+                    "code_bug",
+                    "missing_path",
+                    "rerun_needed",
+                    "minor_spec_field_fix",
+                    "paper_placeholder_fix",
+                ],
+            },
+            "engineering_gates": [
+                {"id": "G_TESTS_PASS", "command": "python3 -m pytest tests -q", "required_for": "code_change"},
+                {"id": "G_NO_FAKE_ARTIFACTS", "required_for": "all"},
+                {"id": "G_WIKI_UPDATED", "required_for": "version_closeout"},
+                {"id": "G_CLOSEOUT_COMPLETE", "required_for": "next_version_creation"},
+                {"id": "G_PAPER_BINDING_ALLOWED", "required_for": "paper_binding"},
+            ],
             "blockers": ["【阻塞】尚未从 PRD 填入 RQ -> Hypothesis -> Claim -> Experiment -> Harness -> Evidence 链。"],
         },
         force,
@@ -1808,6 +2963,7 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
         research_dir / "insights" / "negative_results" / ".gitkeep",
     ]:
         write_text(path, "", force)
+    init_epoch_scaffold(repo, research_dir, title, purpose, force)
     return research_dir
 
 
@@ -1894,8 +3050,13 @@ def generate_plan(
     repo = research_dir.parents[1] if research_dir.name == "research" and research_dir.parent.name == "docs" else research_dir.parent
     payload = {
         "plan_id": plan_id,
+        "version": (read_text(research_dir / "CURRENT").strip() if (research_dir / "CURRENT").exists() else "legacy"),
         "created_at": date,
         "purpose": f"执行目标：{purpose}",
+        "loop_target": "paper_binding",
+        "loop_mode": {"claude_code": "ralph_loop", "codex": "goal_driven"},
+        "active_task_source": "TASK_QUEUE.yaml",
+        "single_step_file": "NEXT_ACTION.md",
         "source_versions": {
             "prd_hash": hash_path(research_dir / "prd"),
             "paper_hash": hash_path(research_dir / "paper"),
@@ -1924,6 +3085,36 @@ def generate_plan(
         "gates": selected_gates,
         "harnesses": harnesses,
         "artifacts": ["artifacts/**"],
+        "loop_rules": [
+            "Each loop may complete at most one active task.",
+            "After each loop, update LOOP_LOG.md.",
+            "If blocked twice by same cause, escalate to gate_blocked.",
+            "If no active task exists, generate one from PLAN.md or close version.",
+            "Do not start a new version unless current version is closed.",
+            "Stay inside RESEARCH_DIRECTION.md.",
+        ],
+        "codex_goal_rules": [
+            "Codex goal must name one concrete deliverable.",
+            "Codex must run tests when code changes.",
+            "Codex must cite terminal/test evidence in run report.",
+            "Codex should not perform broad literature search unless task phase=literature and network is available.",
+        ],
+        "claude_ralph_rules": [
+            "Read NEXT_ACTION.md first.",
+            "Do not expand scope mid-loop.",
+            "Use subagents for large search or audit work.",
+            "Write compact persistent state after each loop.",
+            "Never rely on previous chat memory.",
+        ],
+        "subagent_triggers": {
+            "literature_scout": {"when": ["version_start", "baseline_lock_needed", "new novelty claim appears", "paper_binding_related_work"]},
+            "repo_explorer": {"when": ["need to locate files/modules", "read-only codebase mapping larger than 5 files"]},
+            "experiment_engineer": {"when": ["implementing harness, hook, evaluator, artifact parser"]},
+            "debugger": {"when": ["same test fails twice", "gate blocked by reproducible error"]},
+            "artifact_auditor": {"when": ["before closeout", "before paper binding"]},
+            "wiki_synthesizer": {"when": ["after every completed gate", "before closeout"]},
+            "paper_binder": {"when": ["status=closed_stable"]},
+        },
         "insight_loop": {
             "required": True,
             "output_file": f"docs/research/plans/{plan_id}/insight_log.md",
@@ -2784,6 +3975,275 @@ class Validation:
         return True
 
 
+def non_placeholder_lines(text: str) -> list[str]:
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+        and "【待填写" not in line
+        and not line.strip().startswith(">")
+        and "TODO" not in line
+    ]
+
+
+def markdown_section(text: str, heading: str) -> str:
+    pattern = re.compile(rf"^##\s+\d*\.?\s*{re.escape(heading)}.*$", re.MULTILINE)
+    match = pattern.search(text)
+    if not match:
+        return ""
+    next_match = re.search(r"^##\s+", text[match.end() :], re.MULTILINE)
+    if not next_match:
+        return text[match.end() :]
+    return text[match.end() : match.end() + next_match.start()]
+
+
+def markdown_status_value(text: str, key: str) -> str:
+    match = re.search(rf"^\s*-?\s*{re.escape(key)}\s*:\s*`?([^`\n]+)`?\s*$", text, re.MULTILINE)
+    return match.group(1).strip() if match else ""
+
+
+def current_epoch_name(research_dir: Path) -> str:
+    current = research_dir / "CURRENT"
+    return read_text(current).strip() if current.exists() else ""
+
+
+def current_epoch_dir(research_dir: Path) -> Path:
+    return research_dir / current_epoch_name(research_dir)
+
+
+def version_sort_key(path: Path) -> int:
+    match = re.fullmatch(r"V(\d+)", path.name)
+    return int(match.group(1)) if match else -1
+
+
+def epoch_versions(research_dir: Path) -> list[Path]:
+    return sorted(
+        [path for path in research_dir.iterdir() if path.is_dir() and re.fullmatch(r"V\d+", path.name)]
+        if research_dir.exists()
+        else [],
+        key=version_sort_key,
+    )
+
+
+def direction_path_from_epoch(epoch_dir: Path, status: dict[str, Any]) -> Path:
+    ref = str(status.get("direction_ref") or "../RESEARCH_DIRECTION.md")
+    return (epoch_dir / ref).resolve()
+
+
+def active_task_id_from_next_action(next_action_text: str) -> str:
+    match = re.search(r"## Active Task\s+([A-Za-z0-9_\-]+)", next_action_text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"Active Task\s*\n+\s*([A-Za-z0-9_\-]+)", next_action_text)
+    return match.group(1).strip() if match else ""
+
+
+def task_changes_code(task: dict[str, Any]) -> bool:
+    if task.get("code_change") is True:
+        return True
+    phase = str(task.get("phase", "")).strip()
+    if phase in {"implementation", "experiment", "evaluation"}:
+        return True
+    files = " ".join(str(item) for item in as_list(task.get("allowed_files")))
+    return bool(re.search(r"\b(src|app|apps|packages|tests|scripts)/", files))
+
+
+def markdown_has_real_value(text: str, label: str) -> bool:
+    value = markdown_status_value(text, label)
+    return bool(value and "【待填写" not in value and value.lower() not in {"none", "null", "false"})
+
+
+def validate_direction_ready(research_dir: Path) -> Validation:
+    validation = Validation()
+    path = research_dir / "RESEARCH_DIRECTION.md"
+    if not validation.require_file(path, "RESEARCH_DIRECTION.md"):
+        return validation
+    text = read_text(path)
+    status = markdown_status_value(text, "status")
+    if status not in {"human_approved", "frozen"}:
+        validation.error("RESEARCH_DIRECTION.md status must be human_approved or frozen")
+    corridor = markdown_section(text, "Research Corridor")
+    out_of_scope = markdown_section(text, "Out-of-Scope Directions")
+    autonomy = markdown_section(text, "Autonomy Boundary")
+    stop_conditions = markdown_section(text, "Global Stop Conditions")
+    if len([line for line in non_placeholder_lines(corridor) if line.startswith("-")]) == 0:
+        validation.error("Research Corridor must contain at least one concrete allowed direction")
+    if len([line for line in non_placeholder_lines(out_of_scope) if line.startswith("-")]) == 0:
+        validation.error("Out-of-Scope Directions must contain at least one concrete forbidden direction")
+    if "AI 可以自动做" not in autonomy or "AI 不可以自动做" not in autonomy:
+        validation.error("Autonomy Boundary must define what AI can and cannot do")
+    if len([line for line in non_placeholder_lines(stop_conditions) if line.startswith("-")]) == 0:
+        validation.error("Global Stop Conditions must contain concrete stop conditions")
+    return validation
+
+
+def validate_epoch_ready(research_dir: Path) -> Validation:
+    validation = Validation()
+    current_path = research_dir / "CURRENT"
+    if not validation.require_file(current_path, "CURRENT"):
+        return validation
+    version = current_epoch_name(research_dir)
+    if not version:
+        validation.error("CURRENT is empty")
+        return validation
+    epoch_dir = research_dir / version
+    if not epoch_dir.exists():
+        validation.error(f"missing current epoch directory: {epoch_dir.as_posix()}")
+        return validation
+    for name in EPOCH_REQUIRED_FILES:
+        validation.require_file(epoch_dir / name, f"{version}/{name}")
+    status = load_yaml(epoch_dir / "STATUS.yaml")
+    if status.get("version") != version:
+        validation.error(f"STATUS.yaml version {status.get('version')} does not match CURRENT {version}")
+    direction_ref = direction_path_from_epoch(epoch_dir, status)
+    if not direction_ref.exists():
+        validation.error(f"direction_ref does not exist: {direction_ref.as_posix()}")
+    current_status = str(status.get("status", "")).strip()
+    later_versions = [path.name for path in epoch_versions(research_dir) if version_sort_key(path) > version_sort_key(epoch_dir)]
+    if later_versions and current_status not in CLOSED_VERSION_STATUSES and current_status != "paper_binding_ready":
+        validation.error("cannot create next version before current epoch has closed_* status")
+    out_of_scope_section = markdown_section(read_text(direction_ref), "Out-of-Scope Directions") if direction_ref.exists() else ""
+    forbidden_terms = [
+        re.sub(r"^[`'\"]|[`'\"]$", "", line.lstrip("- ").strip())
+        for line in non_placeholder_lines(out_of_scope_section)
+        if line.startswith("-")
+    ]
+    current_text = "\n".join(read_text(epoch_dir / name) for name in ["PRD.md", "PLAN.md", "NEXT_ACTION.md"] if (epoch_dir / name).exists())
+    for term in forbidden_terms:
+        if term and term in current_text and "out-of-scope" not in current_text.lower():
+            validation.error(f"current epoch may cross Research Direction out-of-scope term: {term}")
+    return validation
+
+
+def validate_loop_ready(research_dir: Path) -> Validation:
+    validation = validate_epoch_ready(research_dir)
+    if not validation.ok:
+        return validation
+    epoch_dir = current_epoch_dir(research_dir)
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    active = [task for task in tasks if str(task.get("status")) == "active"]
+    if len(active) != 1:
+        validation.error("TASK_QUEUE.yaml must have exactly one active task")
+        return validation
+    active_task = active[0]
+    next_action = read_text(epoch_dir / "NEXT_ACTION.md")
+    next_task_id = active_task_id_from_next_action(next_action)
+    if next_task_id != str(active_task.get("id")):
+        validation.error(f"NEXT_ACTION.md active task {next_task_id or '<missing>'} does not match TASK_QUEUE active task {active_task.get('id')}")
+    if not as_list(active_task.get("success_criteria")):
+        validation.error(f"active task {active_task.get('id')} has no success_criteria")
+    if not as_list(active_task.get("allowed_files")):
+        validation.error(f"active task {active_task.get('id')} has no allowed_files")
+    if "forbidden_files" not in active_task:
+        validation.error(f"active task {active_task.get('id')} has no forbidden_files")
+    if task_changes_code(active_task) and not as_list(active_task.get("test_commands")):
+        validation.error(f"code-changing active task {active_task.get('id')} must define test_commands")
+    return validation
+
+
+def closeout_final_status(text: str) -> str:
+    match = re.search(r"final_status\s*:\s*`?([^`\n]+)`?", text)
+    return match.group(1).strip() if match else ""
+
+
+def closeout_create_next_version(text: str) -> bool:
+    match = re.search(r"create_next_version\s*:\s*(true|false)", text, flags=re.IGNORECASE)
+    return bool(match and match.group(1).lower() == "true")
+
+
+def validate_closeout_ready(research_dir: Path) -> Validation:
+    validation = validate_epoch_ready(research_dir)
+    if not validation.ok:
+        return validation
+    epoch_dir = current_epoch_dir(research_dir)
+    wiki_dir = epoch_dir / "wiki"
+    for name in EPOCH_WIKI_FILES:
+        path = wiki_dir / name
+        if validation.require_file(path, f"wiki/{name}") and not read_text(path).strip():
+            validation.error(f"wiki/{name} is empty")
+    for name in ["positive_signals.md", "negative_results.md", "failed_paths.md"]:
+        text = read_text(wiki_dir / name) if (wiki_dir / name).exists() else ""
+        if "NONE" not in text and "明确无" not in text and not re.search(r"-\s+(signal_id|result_id|failed_path)\s*:", text):
+            validation.error(f"wiki/{name} must contain a structured entry or an explicit none statement")
+    closeout = epoch_dir / "closeout.md"
+    if not validation.require_file(closeout, "closeout.md"):
+        return validation
+    text = read_text(closeout)
+    final_status = closeout_final_status(text)
+    if final_status not in CLOSED_VERSION_STATUSES:
+        validation.error("closeout.md final_status must be an allowed closed status")
+    required_labels = ["close_reason", "closed_at", "next_version_type"]
+    for label in required_labels:
+        if not markdown_has_real_value(text, label):
+            validation.error(f"closeout.md missing concrete {label}")
+    if closeout_create_next_version(text):
+        if not markdown_has_real_value(text, "next_core_question"):
+            validation.error("create_next_version=true requires next_core_question")
+        if not markdown_has_real_value(text, "next_minimal_experiments"):
+            validation.error("create_next_version=true requires next_minimal_experiments")
+    return validation
+
+
+def allowed_claim_blocks(text: str) -> list[str]:
+    section = re.search(r"## Allowed Claims(?P<body>.*?)(?:^## |\Z)", text, flags=re.MULTILINE | re.DOTALL)
+    if not section:
+        return []
+    body = section.group("body")
+    blocks = re.split(r"\n(?=-\s+claim_id\s*:)", body)
+    return [block.strip() for block in blocks if "claim_id" in block]
+
+
+def current_has_carry_forward(research_dir: Path, old_version: str, artifact_path: str) -> bool:
+    epoch_dir = current_epoch_dir(research_dir)
+    haystack = ""
+    for name in ["PRD.md", "SPEC.yaml"]:
+        path = epoch_dir / name
+        if path.exists():
+            haystack += "\n" + read_text(path)
+    if "carry_forward" not in haystack:
+        return False
+    if artifact_path in haystack:
+        return True
+    return bool(re.search(rf"(from_version|source_version|from)\s*:\s*`?{re.escape(old_version)}`?", haystack))
+
+
+def validate_paper_binding_ready(research_dir: Path) -> Validation:
+    validation = validate_epoch_ready(research_dir)
+    if not validation.ok:
+        return validation
+    epoch_dir = current_epoch_dir(research_dir)
+    version = epoch_dir.name
+    status = load_yaml(epoch_dir / "STATUS.yaml")
+    if str(status.get("status")) not in PAPER_BINDING_STATUSES:
+        validation.error("STATUS.yaml status must be closed_stable or paper_binding_ready")
+    decision = epoch_dir / "PAPER_BINDING_DECISION.md"
+    if not validation.require_file(decision, "PAPER_BINDING_DECISION.md"):
+        return validation
+    text = read_text(decision)
+    if "paper_binding_ready: true" not in text:
+        validation.error("PAPER_BINDING_DECISION.md must set paper_binding_ready: true")
+    blocks = allowed_claim_blocks(text)
+    if not blocks:
+        validation.error("Allowed Claims must contain at least one claim_id")
+    for block in blocks:
+        claim_match = re.search(r"claim_id\s*:\s*`?([^`\n]+)`?", block)
+        claim_id = claim_match.group(1).strip() if claim_match else "<missing>"
+        for field in ["experiment_id", "run_id", "artifact_path", "metric", "baseline", "seed_protocol", "audit_status"]:
+            if not re.search(rf"{field}\s*:\s*`?([^`\n]+)`?", block):
+                validation.error(f"allowed claim {claim_id} missing evidence field {field}")
+        if re.search(r"prompt_only_scaffold", block, flags=re.IGNORECASE):
+            validation.error(f"allowed claim {claim_id} uses prompt_only_scaffold as result evidence")
+        if re.search(r"exploratory(?:-only)?", block, flags=re.IGNORECASE) and not re.search(r"evidence_level\s*:\s*`?(paper_admissible|confirmatory|reproduced)", block):
+            validation.error(f"allowed claim {claim_id} uses exploratory-only evidence as main result")
+        artifact_match = re.search(r"artifact_path\s*:\s*`?([^`\n]+)`?", block)
+        artifact_path = artifact_match.group(1).strip() if artifact_match else ""
+        old_match = re.search(r"(?:docs/research/|\.\./)?(V\d+)/", artifact_path)
+        if old_match and old_match.group(1) != version and not current_has_carry_forward(research_dir, old_match.group(1), artifact_path):
+            validation.error(f"allowed claim {claim_id} uses old-version artifact without explicit carry_forward: {artifact_path}")
+    return validation
+
+
 def validate_prd(research_dir: Path) -> Validation:
     validation = Validation()
     prd = research_dir / "prd" / "research_prd.md"
@@ -3159,6 +4619,11 @@ def validate_alignment(research_dir: Path) -> Validation:
 
 def validate_research(research_dir: Path, mode: str) -> Validation:
     validators = {
+        "direction-ready": validate_direction_ready,
+        "epoch-ready": validate_epoch_ready,
+        "loop-ready": validate_loop_ready,
+        "closeout-ready": validate_closeout_ready,
+        "paper-binding-ready": validate_paper_binding_ready,
         "prd-ready": validate_prd,
         "paper-ready": validate_paper,
         "spec-ready": validate_spec,

@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Unified file-based controller for docs/research workspaces."""
+"""Unified file-based controller for docs/research workspaces.
+
+The controller remains prompt-only. New workspaces include a
+Charter-bounded Epoch Research Loop (`RESEARCH_DIRECTION.md`, `CURRENT`,
+and `Vn/NEXT_ACTION.md`). The legacy deterministic controller below is kept
+compatible with `prd/spec/plans/audits`; generated runbooks define the epoch
+controller contract for Claude Code and Codex without claiming shell execution.
+"""
 
 from __future__ import annotations
 

@@ -7,11 +7,26 @@ description: "Use when a planned top-conference-style research paper under docs/
 
 ## Overview
 
-Generate or update `docs/research/paper/` as the academic expression derived from the PRD. The target style is NeurIPS/ICLR/AAAI: sharp motivation, clear gap, rigorous formulation, concise contributions, strong method narrative, and structured evaluation design.
+Generate or update `docs/research/paper/` as the academic expression derived from the current closed epoch. Paper is an expression layer, not an experiment source. The target style is NeurIPS/ICLR/AAAI: sharp motivation, clear gap, rigorous formulation, concise contributions, strong method narrative, and structured evaluation design.
 
 The final output of this skill must be a **complete, submission-ready conference manuscript draft**, not a fill-in template. It should read like a real NeurIPS / ICLR / AA AI paper: Abstract, Introduction, Related Work, Problem Formulation, Method, Experiments, Results, Limitations, and Conclusion. Do not leave visible `【待填写】` placeholders in the final paper.
 
 The paper surface may be English, because it targets top-conference manuscript style. Explanatory blockers and gap reports are Chinese. The paper must remain derived from PRD and checked against Spec; it cannot create executable experiments by itself.
+
+## Paper Binding Gate
+
+Paper Binding can happen only when all conditions hold:
+
+- `docs/research/CURRENT` points to a version whose `STATUS.yaml` is `closed_stable` or `paper_binding_ready`;
+- `Vn/closeout.md` exists;
+- `Vn/PAPER_BINDING_DECISION.md` sets `paper_binding_ready: true`;
+- paper claim does not exceed `Vn/closeout.md`;
+- exploratory insight is used only for motivation / discussion, not main result;
+- prompt-only scaffold is not used as experiment result;
+- no unresolved negative result undermines the claim;
+- artifact, run record, metric, baseline, seed protocol, and audit status support the claim.
+
+If the gate is not satisfied, write a placeholder-complete manuscript or a gap report. Do not inject result numbers.
 
 When empirical evidence is not ready, write a **placeholder-complete manuscript**. The Results section, tables, figure captions, and narrative should be structurally complete, but every unverified result value must remain an experiment-bound placeholder such as `{{E01.OURS.primary_metric}}`. Do not insert plausible numeric mock values.
 
@@ -105,3 +120,11 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 ```
 
 If the paper needs a missing claim, experiment, dataset, baseline, metric, formula, or table, record it in `paper_gap_report.md`; do not invent it.
+
+Validate paper binding:
+
+```bash
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
+  --repo /absolute/path/to/repo \
+  --mode paper-binding-ready
+```

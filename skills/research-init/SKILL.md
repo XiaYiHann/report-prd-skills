@@ -7,7 +7,13 @@ description: "Use when a repo needs a new docs/research workspace or when an old
 
 ## Overview
 
-Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates a Chinese, top-level Research PRD template, a top-conference planned paper template, global spec contract templates, plans, audits, and slide-image deck directories without inventing datasets, baselines, metrics, commands, or results.
+Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates the **Charter-bounded Epoch Research Loop** workspace plus legacy-compatible PRD/Paper/Spec/Plan/Audit/PPT directories without inventing datasets, baselines, metrics, commands, or results.
+
+Definition:
+
+> 自动科研不是自动写论文，而是一个按研究版本推进的闭环：每个版本都在顶层研究方向约束下，完整提出问题、签订实验合同、执行或被门禁阻断、把证据与洞察沉淀进 wiki，然后生成下一版更清晰的研究问题，直到某个版本 closed_stable 后进入 Paper Binding。
+
+> Auto research is not automatic paper writing. It is a charter-bounded, epoch-based loop where each research version fully frames, contracts, executes, gates, distills evidence into a wiki, and either seeds the next sharper version or enters paper binding.
 
 The initializer must produce a serious research template, not an empty `TODO` skeleton. `research_prd.tex` is the canonical source and uses `ctex` + TikZ tables/figures; `research_prd.md` is the Chinese companion reading artifact.
 
@@ -35,7 +41,30 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
   --purpose "minimum viable research goal"
 ```
 
-The command creates:
+The command creates the new default structure:
+
+- `docs/research/RESEARCH_DIRECTION.md`
+- `docs/research/CURRENT`
+- `docs/research/INDEX.md`
+- `docs/research/agent/RUNBOOK.md`
+- `docs/research/agent/CLAUDE_LOOP_PROMPT.md`
+- `docs/research/agent/CODEX_GOAL_TEMPLATE.md`
+- `docs/research/agent/SUBAGENT_POLICY.md`
+- `docs/research/agent/LITERATURE_POLICY.md`
+- `docs/research/V0/PRD.md`
+- `docs/research/V0/SPEC.yaml`
+- `docs/research/V0/PLAN.md`
+- `docs/research/V0/STATUS.yaml`
+- `docs/research/V0/TASK_QUEUE.yaml`
+- `docs/research/V0/NEXT_ACTION.md`
+- `docs/research/V0/LOOP_LOG.md`
+- `docs/research/V0/wiki/*`
+- `docs/research/V0/closeout.md`
+- `docs/research/V0/PAPER_BINDING_DECISION.md`
+- root `AGENTS.md`
+- root `CLAUDE.md`
+
+It also keeps legacy-compatible directories:
 
 - `docs/research/prd/`
 - `docs/research/paper/`
@@ -51,8 +80,11 @@ If `latexmk` or `xelatex` is available, initialization renders a real PDF from t
 1. Resolve the repository root.
 2. Run the initializer.
 3. Inspect `docs/research/prd/research_prd.md` and fill the Research PRD before treating the spec as executable.
-4. Run `research-spec` only after the PRD has concrete RQs, hypotheses, benchmarks, experiments, harnesses, and evidence boundaries.
-5. Run validation:
+4. Inspect `docs/research/RESEARCH_DIRECTION.md`, then fill and approve the Research Corridor before letting agents explore.
+5. Resolve current epoch through `docs/research/CURRENT`; default is `V0`.
+6. Fill `docs/research/V0/PRD.md`; this is the active epoch's research truth.
+7. Run `research-spec` only after the active PRD has concrete RQs, hypotheses, benchmarks, experiments, harnesses, and evidence boundaries.
+8. Run validation:
 
 ```bash
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
@@ -69,3 +101,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - PRD, Plan, prompts, gap reports, and explanatory YAML values must be Chinese.
 - YAML keys and stable IDs stay English for parser compatibility.
 - Use structured placeholders such as `【待填写：...】`; do not leave raw `TODO` placeholders.
+- `CURRENT` defaults to `V0`.
+- `V0/STATUS.yaml` defaults to `status=initialized`.
+- `V0/NEXT_ACTION.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
+- Do not delete legacy `prd/spec/plans/audits`; mark them as legacy-compatible context.

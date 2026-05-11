@@ -39,16 +39,6 @@ CLAUDE_SUBAGENTS=(
   research-audit
 )
 
-WORKSPACE_DIRS=(
-  docs/research/prd
-  docs/research/paper
-  docs/research/spec
-  docs/research/plans
-  docs/research/ppt
-  docs/research/audits
-  docs/research/insights
-)
-
 usage() {
   cat <<'EOF'
 Usage: install.sh [options]
@@ -58,7 +48,7 @@ research skills into ~/.claude/skills and project-level subagents into
 ./.claude/agents. It does not initialize docs/research unless requested.
 
 Options:
-  --init-workspace   create a basic docs/research directory scaffold
+  --init-workspace   create the docs/research epoch scaffold
   --no-agents        install skills only; do not install subagents
   --project-agents   install subagents into ./.claude/agents (default)
   --user-agents      install subagents into ~/.claude/agents
@@ -258,9 +248,15 @@ fi
 
 if [[ "$INIT_WORKSPACE" == "true" ]]; then
   log "Workspace scaffold:"
-  for dir in "${WORKSPACE_DIRS[@]}"; do
-    run_mkdir "$dir"
-  done
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "would initialize docs/research with Charter-bounded epoch scaffold"
+  else
+    INIT_ARGS=(--repo "$PWD" --title "$(basename "$PWD")" --purpose "initial-research-scaffold")
+    if [[ "$FORCE" == "true" ]]; then
+      INIT_ARGS+=(--force)
+    fi
+    python3 "$SOURCE_DIR/skills/research-init/scripts/init_research.py" "${INIT_ARGS[@]}"
+  fi
 else
   log "Workspace scaffold not initialized. Pass --init-workspace to create docs/research directories."
 fi

@@ -9,6 +9,9 @@ description: "Use when landed research artifacts may be stale, inconsistent, or 
 
 Audit already-written files. This is not a paper review only; it is a cross-file drift detector for:
 
+- RESEARCH_DIRECTION.md
+- CURRENT
+- Current `Vn`
 - PRD
 - Paper
 - Spec
@@ -18,6 +21,12 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 
 ## Required Questions
 
+- Does current `Vn/PRD.md`, `Vn/PLAN.md`, or `Vn/NEXT_ACTION.md` exceed the Research Corridor?
+- Has any agent modified `RESEARCH_DIRECTION.md` without explicit user instruction?
+- Does `CURRENT` match `Vn/STATUS.yaml.version`?
+- Is the active task in `TASK_QUEUE.yaml` the same as `NEXT_ACTION.md`?
+- Is there exactly one active task?
+- Was `Vn+1` created before current `Vn/closeout.md` and closed status?
 - PRD updated but paper not updated?
 - PRD updated but spec not updated?
 - Spec updated but existing plan is stale?
@@ -30,6 +39,9 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 - Are negative results hidden (not logged)?
 - Does the PRD still claim something contradicted by a recorded insight?
 - Are diagnostic experiments proposed but not scheduled in spec/plan?
+- Is an old-version artifact used for a current claim without explicit `carry_forward` in current PRD or SPEC?
+- Is paper binding attempted before `closed_stable` or `paper_binding_ready`?
+- Is exploratory-only or prompt-only evidence used as a main result?
 
 ## Outputs
 
@@ -60,3 +72,10 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 ```
 
 `repair_plan.md` must separate must-fix-before-execution, can-fix-later, and recommended next `research-plan` target.
+
+## Epoch Audit Rules
+
+- Audit current `Vn` first; legacy folders are context unless `CURRENT` is absent.
+- Old versions may contribute hypothesis seeds and history, not current claim evidence.
+- Wiki and closeout completeness are gates for `closeout-ready`.
+- Paper/PPT claims must not exceed `PAPER_BINDING_DECISION.md`.

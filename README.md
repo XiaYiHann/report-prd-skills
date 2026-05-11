@@ -11,11 +11,159 @@ Research Audit = PRD / Paper / Spec / Plan / PPT / artifacts 的漂移审计
 Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 ```
 
-核心原则：执行权只属于 `docs/research/spec/`。不能从论文正文反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；当前 `Vn/PRD.md` 是当前 epoch 的研究真源；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml`、`Vn/NEXT_ACTION.md` 只从 Spec 派生；Paper / PPT 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+
+## Charter-bounded Epoch Research Loop
+
+新版系统定义为 **Charter-bounded Epoch Research Loop**。
+
+中文定义：
+
+> 自动科研不是自动写论文，而是一个按研究版本推进的闭环：每个版本都在顶层研究方向约束下，完整提出问题、签订实验合同、执行或被门禁阻断、把证据与洞察沉淀进 wiki，然后生成下一版更清晰的研究问题，直到某个版本 closed_stable 后进入 Paper Binding。
+
+English definition:
+
+> Auto research is not automatic paper writing. It is a charter-bounded, epoch-based loop where each research version fully frames, contracts, executes, gates, distills evidence into a wiki, and either seeds the next sharper version or enters paper binding.
+
+线性循环被升级为：
+
+```text
+Research Direction
+  -> V0 PRD
+  -> V0 Spec
+  -> V0 Plan
+  -> V0 Task Queue
+  -> Claude/Codex executes NEXT_ACTION
+  -> Gate
+  -> Wiki
+  -> Closeout
+  -> V1 PRD
+  -> ...
+  -> Vn closed_stable
+  -> Paper Binding
+```
+
+## Research Direction / Charter
+
+`docs/research/RESEARCH_DIRECTION.md` 是所有版本的上位约束。它记录 research seed、Research Corridor、Out-of-Scope Directions、prior work basis、desired paper shape、AI autonomy boundary 和 global stop conditions。AI 不能自动修改核心方向，不能越过走廊 pivot，也不能把 exploratory insight 写成 paper result。
+
+## Epoch Versions: V0, V1, V2
+
+新版默认工作区是 epoch-based：
+
+```text
+docs/research/
+  RESEARCH_DIRECTION.md
+  CURRENT
+  INDEX.md
+  agent/
+    RUNBOOK.md
+    CLAUDE_LOOP_PROMPT.md
+    CODEX_GOAL_TEMPLATE.md
+    SUBAGENT_POLICY.md
+    LITERATURE_POLICY.md
+  V0/
+    PRD.md
+    SPEC.yaml
+    PLAN.md
+    STATUS.yaml
+    TASK_QUEUE.yaml
+    NEXT_ACTION.md
+    LOOP_LOG.md
+    plans/
+    runs/
+    artifacts/
+    audits/
+    wiki/
+    closeout.md
+    PAPER_BINDING_DECISION.md
+```
+
+每个 `Vn` 是完整研究轮次，不是 PRD minor version。旧版本 `V0...Vn-1` 只能作为 context / memory / history，不再有执行权。旧版本 artifact 不能直接支持当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 `carry_forward`。
+
+## Current Version Resolution
+
+`docs/research/CURRENT` 只包含当前版本名，例如 `V0`。读取顺序固定为：
+
+1. `docs/research/RESEARCH_DIRECTION.md`
+2. `docs/research/CURRENT`
+3. `docs/research/{CURRENT}/STATUS.yaml`
+4. `docs/research/{CURRENT}/NEXT_ACTION.md`
+5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+6. `docs/research/{CURRENT}/PRD.md`
+7. `docs/research/{CURRENT}/SPEC.yaml`
+8. `docs/research/{CURRENT}/PLAN.md`
+
+## Claude Code Ralph-loop Usage
+
+Claude Code 持续循环时读取 `docs/research/agent/CLAUDE_LOOP_PROMPT.md`。每轮只执行 `NEXT_ACTION.md` 中的一个原子任务；完成后更新 `LOOP_LOG.md`、`TASK_QUEUE.yaml`、`NEXT_ACTION.md`，如果产生 insight 则更新 `wiki/`。如果 blocked，写具体 blocker，不伪造 stdout/stderr、artifact 或 benchmark。
+
+## Codex Goal Usage
+
+Codex 使用 `docs/research/agent/CODEX_GOAL_TEMPLATE.md`：目标必须是完成当前 `NEXT_ACTION.md` 的 active task。若改代码，运行相关测试；若不能测试，写明 blocker。Codex 不修改 Research Direction，不在 closeout 前创建下一版本，不把未验证 artifact 写成 paper result。
+
+## Task Queue and Next Action
+
+`TASK_QUEUE.yaml` 是队列；同一时间只能有一个 `active` task，除非显式并行且 `allowed_files` 不冲突。`NEXT_ACTION.md` 是 Claude Code / ralph-loop / Codex 的单步控制文件。短规则：
+
+> 工程问题留在当前版本；研究问题改变才开下一版本。
+
+## Version Wiki
+
+每个版本保留轻量 wiki，不引入 graph database：
+
+```text
+wiki/
+  epoch_summary.md
+  evidence_map.md
+  positive_signals.md
+  negative_results.md
+  failed_paths.md
+  baseline_landscape.md
+  literature_notes.md
+  open_questions.md
+  next_version_seed.md
+```
+
+wiki 记录成功信号、失败路径、负结果、baseline 认知、文献 blocker 和下一版种子。
+
+## Version Closeout
+
+每个版本必须以 `closeout.md` 结束。关闭状态包括 `closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable`。`gate_blocked` 不是失败，而是合法 closeout 条件。
+
+## When to Create Next Version
+
+只有当前版本 `closeout.md` 完成且 status 为 `closed_*` 时，才允许创建 `Vn+1` draft。创建条件包括研究问题变化、hard gate 阻断但出现更合理 framing、核心假设被负结果反驳、baseline/metric/dataset/model 改变主 claim、exploration 结束需要进入 confirmatory/intervention/training。
+
+不创建新版本：修 bug、补 artifact path、修测试、增加 sanity check、重跑 seed、小 baseline 补充、Spec 字段补全、Paper placeholder 修正、Plan stale 后重新生成。
+
+## Paper Binding
+
+Paper Binding 只能在当前版本 `status=closed_stable` 或 `paper_binding_ready` 时发生，且必须存在 `PAPER_BINDING_DECISION.md`，明确 `paper_binding_ready: true`。Allowed claim 必须绑定 experiment、run、artifact、metric、baseline、seed protocol 和 audit status。Exploratory insight 只能进入 motivation / discussion；prompt-only scaffold 不能成为实验结果。
+
+## Subagent Policy
+
+`docs/research/agent/SUBAGENT_POLICY.md` 定义 `literature_scout`、`repo_explorer`、`experiment_engineer`、`debugger`、`artifact_auditor`、`wiki_synthesizer`、`paper_binder`。主 agent 仍负责读取 Direction、判断 corridor、管理状态、更新 NEXT_ACTION、阻止 paper claim 越权。
+
+## Literature Policy
+
+`docs/research/agent/LITERATURE_POLICY.md` 要求在 project start、version start、baseline lock、unexpected strong/negative result、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 literature blocker，不编造文献。
+
+## Validator Modes
+
+新增 validator mode：
+
+- `direction-ready`
+- `epoch-ready`
+- `loop-ready`
+- `closeout-ready`
+- `paper-binding-ready`
+
+保留 legacy readiness mode：`prd-ready`、`paper-ready`、`spec-ready`、`plan-ready`、`ppt-ready`、`audit-ready`、`insight-ready`、`alignment-check`。
 
 ## Unified `/research` Loop
 
-`/research` 是默认入口。用户完成并人工批准 Research PRD 后，统一控制器会检查 `docs/research/`，用文件系统事实重算当前阶段，并按 PRD / Spec / Plan / Harness / Audit / Insight 约束推进项目。
+`/research` 是默认入口。新版优先解析 `RESEARCH_DIRECTION.md`、`CURRENT` 和当前 `Vn`；legacy workspace 仍保留兼容。用户完成并人工批准 Research Direction 与当前版本 PRD 后，统一控制器会检查 `docs/research/`，用文件系统事实重算当前阶段，并按 Direction / PRD / Spec / Plan / Task Queue / Next Action / Audit / Wiki 约束推进项目。
 
 标准循环：
 
@@ -41,7 +189,7 @@ Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 
 除 `prompt-only` 外，backend 槽位只记录意图，不代表已经能真实执行 shell、Codex goal 或 Hermes 任务。
 
-初始化产物不是空 `TODO` 骨架。`research-init` 会生成中文顶级 Research PRD 模板：LaTeX 是真源，使用 `ctex`、TikZ、`booktabs`、`tabularx` 组织图表；Markdown 是伴随审阅稿。它也会生成 planned top-conference paper 模板和 Spec 执行合同模板。若本机有 `latexmk` 或 `xelatex`，脚本会真实渲染 PDF；否则写入中文 `render_blocker.md`，不会伪造 PDF。
+初始化产物不是空 `TODO` 骨架。`research-init` 会生成 `RESEARCH_DIRECTION.md`、`CURRENT`、`V0/` epoch、agent runbook、`AGENTS.md`、`CLAUDE.md`，同时保留 legacy 的中文顶级 Research PRD 模板：LaTeX 是真源，使用 `ctex`、TikZ、`booktabs`、`tabularx` 组织图表；Markdown 是伴随审阅稿。它也会生成 planned top-conference paper 模板和 Spec 执行合同模板。若本机有 `latexmk` 或 `xelatex`，脚本会真实渲染 PDF；否则写入中文 `render_blocker.md`，不会伪造 PDF。
 
 ## 安装与迁移
 
@@ -90,7 +238,7 @@ curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/instal
 常用选项：
 
 ```bash
-./install.sh --init-workspace   # 同时创建 docs/research/ 基础目录
+./install.sh --init-workspace   # 同时创建 docs/research/ epoch 工作区
 ./install.sh --no-agents        # 只安装 skills
 ./install.sh --user-agents      # subagents 安装到 ~/.claude/agents
 ./install.sh --project-agents   # subagents 安装到 ./.claude/agents，默认
@@ -153,7 +301,9 @@ research-ppt/
 
 不要新增独立的 `research-evidence`、`research-writing` 或 `research-goal`。证据由 Spec / Plan / Audit 字段承担；写作优化属于 `research-paper`；长期执行 prompt 属于 `research-plan`。
 
-## 标准工作区
+## Legacy 标准工作区
+
+以下 legacy 结构仍可被旧命令读取；新版默认入口是上文的 `RESEARCH_DIRECTION.md` + `CURRENT` + `Vn/` epoch。
 
 ```text
 docs/research/
