@@ -1,24 +1,25 @@
 # research-execution-skills
 
-`research-execution-skills` 是一组面向 Claude Code / Codex 的研究执行技能。它不再是通用的 `report PRD` 工具，而是把一个研究想法推进成可执行研究工作区：
+`research-execution-skills` 是一组面向 Claude Code 的研究执行技能。它的目标是**全自动科研**：用户只需与 AI 讨论研究方向并审批 AI 生成的 PRD，之后所有 Gate 按顺序自动执行。
+
+整个流程分为三个阶段：
 
 ```text
-Research PRD   = 人类研究真源
-Research Paper = 从 PRD 派生的学术论文表达
-Research Spec  = 从 PRD 编译出的全局机器执行合同
-Research Plan  = 从 Spec 派生的 dated 具体执行计划
-Research Audit = PRD / Paper / Spec / Plan / PPT / artifacts 的漂移审计
-Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
+阶段 0：初始化       → research-init 创建 docs/research/ epoch 工作区
+阶段 1：PRD 讨论生成  → AI 与用户逐章讨论，AI 填写 16 章 PRD（含 Gate 调度表），用户审批
+阶段 2：自动执行      → AI 按 Gate 顺序自动执行所有 task，遇阻断才停，直到 closed_* 或 Paper Binding
 ```
 
-核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml`、`Vn/NEXT_ACTION.md` 只从 Spec 派生；Git 记录真实工程变化；Paper / PPT 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源（由 AI 在用户指导下生成）；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml`、`Vn/NEXT_ACTION.md` 只从 Spec 派生；`update_state.py` 在每次任务完成后原子更新 6 个状态文件；Git 记录真实工程变化；Paper 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
 
-升级后的系统名是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
+系统名是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
 ```text
+用户 + AI 讨论方向 → AI 填写 PRD → 用户审批 → AI 自动执行所有 Gate → 遇阻断停
 Explore 负责想
 Vn 负责做
 Git 负责记
+Insight 负责解释
 Wiki 负责沉淀
 Audit 负责守门
 Closeout 负责进入下一轮或论文绑定
@@ -67,12 +68,6 @@ docs/research/
   RESEARCH_DIRECTION.md
   CURRENT
   INDEX.md
-  agent/
-    RUNBOOK.md
-    CLAUDE_LOOP_PROMPT.md
-    CODEX_GOAL_TEMPLATE.md
-    SUBAGENT_POLICY.md
-    LITERATURE_POLICY.md
   V0/
     PRD.md
     SPEC.yaml
@@ -81,14 +76,36 @@ docs/research/
     TASK_QUEUE.yaml
     NEXT_ACTION.md
     LOOP_LOG.md
+    GIT_STATE.yaml
     plans/
     runs/
+      TASK_XXX_report.yaml    # 机器可读 YAML 运行报告
+      TASK_XXX_report.md      # 人类可读 Markdown 运行报告
     artifacts/
     audits/
     wiki/
     closeout.md
     PAPER_BINDING_DECISION.md
+
+.claude/
+  agents/
+    research-math.md          # Claude Code project-level subagents
+    research-literature.md
+    research-reproduce.md
+    research-coding.md
+    research-experiment.md
+    research-analysis.md
+    research-paper.md
+    research-audit.md
 ```
+
+关键执行工具：
+
+| 文件 | 作用 |
+|------|------|
+| `skills/research/scripts/update_state.py` | 原子状态更新器：每次任务完成后一键更新 TASK_QUEUE、LOOP_LOG、GIT_STATE、STATUS、run report、NEXT_ACTION |
+| `skills/research/scripts/research_loop.py` | 确定性状态机控制器：检测 PRD readiness、生成 Spec/Plan/TASK_QUEUE、推进 Gate |
+| `skills/research-init/_shared/scripts/research_workspace.py` | 共享库：所有模板、NEXT_ACTION 生成、run report schema、Gate 检测 |
 
 每个 `Vn` 是完整研究轮次，不是 PRD minor version。旧版本 `V0...Vn-1` 只能作为 context / memory / history，不再有执行权。旧版本 artifact 不能直接支持当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 `carry_forward`。
 
@@ -105,11 +122,61 @@ docs/research/
 7. `docs/research/{CURRENT}/SPEC.yaml`
 8. `docs/research/{CURRENT}/PLAN.md`
 
-## Claude Code Ralph-loop Usage
+## 三阶段工作流
 
-Claude Code 持续循环时读取 `docs/research/agent/CLAUDE_LOOP_PROMPT.md`。每轮只执行 `NEXT_ACTION.md` 中的一个原子任务；完成后更新 `LOOP_LOG.md`、`TASK_QUEUE.yaml`、`NEXT_ACTION.md`，如果产生 insight 则更新 `wiki/`。如果 blocked，写具体 blocker，不伪造 stdout/stderr、artifact 或 benchmark。
+### 阶段 0：初始化
 
-## Codex Goal Usage
+若 `docs/research/` 不存在，`research-init` 创建 epoch 工作区：
+
+```bash
+python3 ~/.claude/skills/research-init/scripts/init_research.py \
+  --repo . --title "项目标题" --purpose "研究目标"
+```
+
+产物包括 `RESEARCH_DIRECTION.md`、`CURRENT`、`V0/` epoch、`CLAUDE.md`、`AGENTS.md`。
+
+### 阶段 1：PRD 讨论与生成
+
+初始化后 `NEXT_ACTION.md` 的 Active Task 为 TASK_001：完善 PRD。AI 与用户逐章讨论 16 章 PRD，AI 填写所有内容：
+
+- 第 2 章背景教程、第 3 章相关工作地图：AI 搜索文献帮助理清 landscape
+- 第 4 章基准与复现计划：AI 帮助选 concrete baseline、dataset、metric
+- 第 6 章研究问题与假设：AI 帮用户把模糊 idea 变成可证伪的 RQ
+- 第 10 章实验设计：AI 帮助设计 experiment matrix
+- **第 11.2 章 Gate 调度表（关键）**：AI 帮用户把研究拆成有序 Gate，每个 Gate 定义 task 清单和可验证的 pass_condition
+- 第 12 章 Harness：AI 帮用户定义每个 task 的 harness 命令和验收标准
+
+用户审批后，AI 在 PRD.md 末尾添加 `PRD_STATUS: HUMAN_APPROVED`，运行 `update_state.py` 标记 TASK_001 done，进入阶段 2。
+
+### 阶段 2：自动执行（Continuous Loop）
+
+PRD 锁定后，控制器自动推进：
+
+```bash
+# Bootstrap：重复运行直到生成 SPEC/PLAN/TASK_QUEUE/NEXT_ACTION
+python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
+```
+
+当 NEXT_ACTION.md 中出现具体执行任务后，进入持续循环：
+
+```
+while STATUS.yaml.status not in (closed_*, gate_blocked):
+    1. 读取 NEXT_ACTION.md（含完整 task 执行细节）
+    2. 执行 task（写代码/跑实验/复现 baseline）
+    3. 完成后运行 update_state.py 原子更新 6 个状态文件
+    4. NEXT_ACTION.md 已自动更新为下一个任务
+    5. 继续循环，不询问用户
+```
+
+**停止条件**：`gate_blocked`（报告 blocker 等待人工决策）、`closed_*`（报告 closeout 摘要）、实验证据反驳 PRD 核心假设（写 negative_result 请求 review）。
+
+若要在 Claude Code 中用 ralph-loop 驱动自动执行：
+
+```bash
+/ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+```
+
+## Codex Goal Usage（遗留）
 
 Codex 使用 `docs/research/agent/CODEX_GOAL_TEMPLATE.md`：目标必须是完成当前 `NEXT_ACTION.md` 的 active task。若改代码，运行相关测试；若不能测试，写明 blocker。Codex 不修改 Research Direction，不在 closeout 前创建下一版本，不把未验证 artifact 写成 paper result。
 
@@ -154,11 +221,24 @@ Paper Binding 只能在当前版本 `status=closed_stable` 或 `paper_binding_re
 
 ## Subagent Policy
 
-`docs/research/agent/SUBAGENT_POLICY.md` 定义 `literature_scout`、`repo_explorer`、`experiment_engineer`、`debugger`、`artifact_auditor`、`wiki_synthesizer`、`paper_binder`。主 agent 仍负责读取 Direction、判断 corridor、管理状态、更新 NEXT_ACTION、阻止 paper claim 越权。
+Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML frontmatter 的 Markdown 文件：
+
+| Subagent | 职责 |
+|----------|------|
+| `research-math` | 数学公式、符号检查 |
+| `research-literature` | 文献搜索、baseline 分析 |
+| `research-reproduce` | 复现 baseline |
+| `research-coding` | 实现方法代码 |
+| `research-experiment` | 运行声明实验 |
+| `research-analysis` | 结果分析、异常检测、pivot 提案 |
+| `research-paper` | 论文 placeholder 安全更新 |
+| `research-audit` | 跨文件一致性检查 |
+
+主 agent（`/research` controller）始终负责：状态推进、gate 判定、NEXT_ACTION 执行、wiki/closeout。
 
 ## Literature Policy
 
-`docs/research/agent/LITERATURE_POLICY.md` 要求在 project start、version start、baseline lock、unexpected strong/negative result、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 literature blocker，不编造文献。
+要求在 project start、version start、baseline lock、unexpected strong/negative result、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 literature blocker，不编造文献。
 
 ## Git Memory Layer
 
@@ -211,6 +291,25 @@ docs/research/explore/syntheses/
 docs/research/explore/proposals/
 ```
 
+## Research Insight Skill
+
+`research-insight` 是显式的解释与沉淀入口。它不执行实验、不改 PRD、不做 Paper Binding；它只把已经存在的 run、artifact、blocker、negative result、failed path 或已保存 explore session 转成当前 epoch 的 evidence-grounded wiki 记录。
+
+当前主路径是：
+
+```text
+TASK_XXX_report / LOOP_LOG / runs / artifacts / explore session
+  -> research-insight
+  -> Vn/wiki/evidence_map.md
+  -> Vn/wiki/positive_signals.md
+  -> Vn/wiki/negative_results.md
+  -> Vn/wiki/failed_paths.md
+  -> Vn/wiki/open_questions.md
+  -> Vn/wiki/next_version_seed.md
+```
+
+`docs/research/insights/insight_log.md` 进入逐步退役状态：它仍作为 legacy workspace 的兼容读写目标和 migration source，但在存在 `CURRENT` 与 `Vn/wiki/` 时不再是默认 insight 真源。旧 insight 只能作为候选材料，不能直接支撑当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 `carry_forward`。
+
 ## Audit Modernization
 
 `research-audit` 同时是格式守门员、迁移指导器、证据审计器。概念模式：
@@ -247,6 +346,7 @@ Explore
   -> Claude/Codex execution
   -> Git checkpoint
   -> Gate
+  -> Insight interpretation
   -> Wiki
   -> Audit
   -> Closeout
@@ -255,7 +355,7 @@ Explore
 
 总结句：
 
-> Explore 负责想，Vn 负责做，Git 负责记，Wiki 负责沉淀，Audit 负责守门，Closeout 负责进入下一轮或论文绑定。
+> Explore 负责想，Vn 负责做，Git 负责记，Insight 负责解释，Wiki 负责沉淀，Audit 负责守门，Closeout 负责进入下一轮或论文绑定。
 
 ## Validator Modes
 
@@ -270,26 +370,49 @@ Explore
 - `migration-ready`
 - `git-ready`
 
-保留 legacy readiness mode：`prd-ready`、`paper-ready`、`spec-ready`、`plan-ready`、`ppt-ready`、`audit-ready`、`insight-ready`、`alignment-check`。
+保留 legacy readiness mode：`prd-ready`、`paper-ready`、`spec-ready`、`plan-ready`、`audit-ready`、`insight-ready`、`alignment-check`。其中 `insight-ready` 只服务旧 `docs/research/insights/` 兼容路径；新项目默认用 `research-insight` 更新当前 `Vn/wiki/*`。
 
 ## Unified `/research` Loop
 
-`/research` 是默认入口。新版优先解析 `RESEARCH_DIRECTION.md`、`CURRENT` 和当前 `Vn`；legacy workspace 仍保留兼容。用户完成并人工批准 Research Direction 与当前版本 PRD 后，统一控制器会检查 `docs/research/`，用文件系统事实重算当前阶段，并按 Direction / PRD / Spec / Plan / Task Queue / Next Action / Audit / Wiki 约束推进项目。
+`/research` 是默认入口。新版优先解析 `RESEARCH_DIRECTION.md`、`CURRENT` 和当前 `Vn`；legacy workspace 仍保留兼容。
 
-标准循环：
+### 三阶段自动化流程
 
-1. 用户填写 Research PRD，并加入 `PRD_STATUS: HUMAN_APPROVED`。
-2. `/research` 检查 PRD readiness；未批准或缺少 RQ、证伪条件、benchmark、实验、dataset、baseline、metric、harness 时停止。
-3. PRD ready 后，`/research` 编译或修复 `docs/research/spec/`。仅当缺口是 PRD-compatible 的执行细节时自动修；如果需要决定数据集、baseline、metric、核心 RQ 或主 claim，则写入 `docs/research/audits/YYYY-MM-DD-prd-review/` 并停止。
-4. Spec ready 后，`/research` 创建或更新 `docs/research/plans/plan_queue.yaml`，选择最高优先级 pending entry，生成下一份 dated plan。
-5. 执行阶段只按 Plan 和 Spec 的最早 gate 推进。当前脚本实现是 deterministic file controller：它会写状态、计划、prompt、反馈和 audit，但不会伪造 harness stdout/stderr 或实验 artifact。
-6. 计划完成或阻塞后，`/research` 写 `docs/research/spec/feedback/`、追加 insight log，并生成 audit。
-7. 失败会被分类为 Execution Failure、Spec Gap、PRD Ambiguity 或 Research Falsification / Insight Trigger。PRD ambiguity、核心假设失败、open pivot proposal 和未解决负结果都会阻断自动执行并请求人类审查。
-8. Paper / PPT 是表达层，只能从 PRD、Spec 和已验证 artifacts 更新；不得从论文反推实验，也不得填入未验证结果。
+**阶段 0：初始化。** 若 `docs/research/` 不存在，`research-init` 创建完整 epoch 工作区。
 
-旧的分技能仍可手动使用：`research-prd`、`research-paper`、`research-spec`、`research-plan`、`research-audit`、`research-ppt`。但自动托管研究项目时，默认先运行 `/research`。
+**阶段 1：AI 生成 PRD。** 用户无需手动填写 PRD。AI 与用户逐章讨论 16 章内容，AI 负责填写所有章节（包括 Gate 调度表和 Harness 表），用户只需审批。用户确认后 AI 添加 `PRD_STATUS: HUMAN_APPROVED`。
 
-执行 backend 目前显式保守：
+**阶段 2：自动执行。** PRD 锁定后，Bootstrap 控制器自动生成 Spec → Plan → TASK_QUEUE → NEXT_ACTION。之后进入持续循环：每轮执行 NEXT_ACTION.md 中的一个原子任务，完成后运行 `update_state.py` 原子更新 6 个状态文件，NEXT_ACTION.md 自动更新为下一个任务。循环不询问用户，直到：
+- `STATUS.yaml.status` 为 `closed_*` 或 `paper_binding_ready` → 研究完成
+- `STATUS.yaml.status` 为 `gate_blocked` → 报告 blocker，等待人工决策
+- 实验证据反驳 PRD 核心假设 → 写 negative_result，请求人工 review
+
+### 控制器命令
+
+```bash
+# Bootstrap 状态机（生成 Spec/Plan/TASK_QUEUE/NEXT_ACTION）
+python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
+
+# 原子状态更新（每次任务完成后执行）
+python3 ~/.claude/skills/research/scripts/update_state.py \
+  --repo . --task-id TASK_002 --status done --commit-hash abc123 --gate-id G01
+
+# 标记阻塞
+python3 ~/.claude/skills/research/scripts/update_state.py \
+  --repo . --task-id TASK_003 --status blocked --blocker-reason "具体原因"
+```
+
+### Ralph-Loop 自动循环
+
+```bash
+# 启动自动执行（50 轮上限）
+/ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+
+# 取消
+/cancel-ralph
+```
+
+### 执行 Backend
 
 ```text
 --executor prompt-only   # 当前已实现
@@ -300,51 +423,39 @@ Explore
 
 除 `prompt-only` 外，backend 槽位只记录意图，不代表已经能真实执行 shell、Codex goal 或 Hermes 任务。
 
-初始化产物不是空 `TODO` 骨架。`research-init` 会生成 `RESEARCH_DIRECTION.md`、`CURRENT`、`V0/` epoch、agent runbook、`AGENTS.md`、`CLAUDE.md`，同时保留 legacy 的中文顶级 Research PRD 模板：LaTeX 是真源，使用 `ctex`、TikZ、`booktabs`、`tabularx` 组织图表；Markdown 是伴随审阅稿。它也会生成 planned top-conference paper 模板和 Spec 执行合同模板。若本机有 `latexmk` 或 `xelatex`，脚本会真实渲染 PDF；否则写入中文 `render_blocker.md`，不会伪造 PDF。
+旧的分技能仍可手动使用：`research-prd`、`research-paper`、`research-spec`、`research-plan`、`research-audit`。但自动托管研究项目时，默认先运行 `/research`。
 
 ## 安装与迁移
 
-一行在线安装（默认安装 Claude Code skills，并在当前项目安装 Claude Code project-level subagents）：
+一行在线安装（默认安装 Claude Code skills + 当前项目 subagents）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash
 ```
 
-默认写入：
+安装后目标目录：
 
 ```text
-~/.claude/skills/research
-~/.claude/skills/research-explore
-~/.claude/skills/research-init
-~/.claude/skills/research-prd
-~/.claude/skills/research-paper
-~/.claude/skills/research-spec
-~/.claude/skills/research-plan
-~/.claude/skills/research-audit
-~/.claude/skills/research-ppt
+~/.claude/skills/
+  research/            # unified autonomous controller
+  research-explore/    # pure exploration
+  research-insight/    # evidence-grounded interpretation into Vn/wiki
+  research-init/       # workspace initialization
+  research-prd/        # PRD maintenance
+  research-paper/      # paper generation
+  research-spec/       # spec compilation
+  research-plan/       # plan generation
+  research-audit/      # cross-file consistency audit
 
-./.claude/agents/research-math.md
-./.claude/agents/research-literature.md
-./.claude/agents/research-reproduce.md
-./.claude/agents/research-coding.md
-./.claude/agents/research-experiment.md
-./.claude/agents/research-analysis.md
-./.claude/agents/research-paper.md
-./.claude/agents/research-ppt.md
-./.claude/agents/research-audit.md
-```
-
-从本地 checkout 安装：
-
-```bash
-RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
-```
-
-安装器不会默认创建 `docs/research/`，避免污染当前项目。如需同时创建基础目录：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh \
-  | bash -s -- --init-workspace
+.claude/agents/
+  research-math.md          # math formulation checks
+  research-literature.md    # literature search
+  research-reproduce.md     # baseline reproduction
+  research-coding.md        # implementation
+  research-experiment.md    # experiment execution
+  research-analysis.md      # result analysis
+  research-paper.md         # paper updates
+  research-audit.md         # cross-file drift detection
 ```
 
 常用选项：
@@ -353,67 +464,36 @@ curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/instal
 ./install.sh --init-workspace   # 同时创建 docs/research/ epoch 工作区
 ./install.sh --no-agents        # 只安装 skills
 ./install.sh --user-agents      # subagents 安装到 ~/.claude/agents
-./install.sh --project-agents   # subagents 安装到 ./.claude/agents，默认
+./install.sh --project-agents   # subagents 安装到 ./.claude/agents（默认）
 ./install.sh --skills-only      # 只安装 skills
 ./install.sh --agents-only      # 只安装 subagents
 ./install.sh --force            # 覆盖已有目标文件
 ./install.sh --dry-run          # 只打印计划，不写文件
 ```
 
-自定义目标目录：
+从本地 checkout 安装：
 
 ```bash
-RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" \
-RESEARCH_EXECUTION_SKILLS_TARGET_DIR=/path/to/.claude/skills \
-RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR=/path/to/project/.claude/agents \
-bash install.sh
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 ```
 
-subagent 模板源位于：
-
-```text
-agents/claude-code/*.md
-```
-
-默认复制到当前项目的 Claude Code 标准 subagent 目录：
-
-```text
-.claude/agents/
-```
-
-第一版安装 9 个 Claude Code project-level subagents：`research-math`、`research-literature`、`research-reproduce`、`research-coding`、`research-experiment`、`research-analysis`、`research-paper`、`research-ppt`、`research-audit`。这些文件是 Claude Code 原生的 Markdown + YAML frontmatter 格式；不要把自定义 registry 当成主 subagent 定义格式。
-
-一键安装完成后，目标目录里应主要看到：
-
-```text
-research/            # unified autonomous controller
-research-explore/    # pure exploration, literature/baseline/next-version discussion
-research-init/
-research-prd/
-research-paper/
-research-spec/
-research-plan/
-research-audit/
-research-ppt/
-```
-
-旧的 `report-*` skill 不再默认安装。安装器默认遵守已有文件：目标已存在时跳过；传 `--force` 才覆盖。
+安装器默认遵守已有文件：目标已存在时跳过；传 `--force` 才覆盖。
 
 ## 技能列表
 
 | Skill | 用途 |
 |---|---|
-| [`research`](skills/research/SKILL.md) | 默认统一入口：检查 `docs/research/`，维护 state/queue，推进 PRD、Spec、Plan、执行提示、Audit、Insight、Paper/PPT 边界。 |
+| [`research`](skills/research/SKILL.md) | 默认统一入口：检查 `docs/research/`，维护 state/queue，推进 PRD、Spec、Plan、执行提示、Audit、Insight、Paper 边界。 |
 | [`research-explore`](skills/research-explore/SKILL.md) | 纯探索入口：讨论 idea、文献、baseline、novelty、failure analysis、paper shape、next-version framing；可保存 EXP session，但不执行。 |
-| [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建中文 LaTeX 真源 Research PRD、paper、spec、plans、audits、ppt scaffold。 |
+| [`research-insight`](skills/research-insight/SKILL.md) | 显式解释入口：把 run、artifact、blocker、负结果、失败路径或 explore session 沉淀到当前 `Vn/wiki/*`，并把 legacy `insight_log.md` 逐步退役。 |
+| [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建中文 LaTeX 真源 Research PRD、paper、spec、plans、audits 和 epoch scaffold。 |
 | [`research-prd`](skills/research-prd/SKILL.md) | 维护专业 Research PRD，面向能够执行项目但未必熟悉完整背景的硕士生，默认图文并茂。 |
 | [`research-paper`](skills/research-paper/SKILL.md) | 从 PRD 生成和打磨 planned NeurIPS / ICLR / AAAI 风格论文，并强制实验结果 placeholder 绑定。 |
 | [`research-spec`](skills/research-spec/SKILL.md) | 把 PRD 编译成全局执行合同：数据集、基线、复现目标、实验、模型、指标、seed、task graph、harness、evidence contract、anti-mock 规则。 |
 | [`research-plan`](skills/research-plan/SKILL.md) | 从 Spec 生成 dated 具体执行计划：`docs/research/plans/YYYY-MM-DD-purpose/`。 |
-| [`research-audit`](skills/research-audit/SKILL.md) | 审计 PRD、Paper、Spec、Plans、PPT、artifacts 之间的一致性与漂移。 |
-| [`research-ppt`](skills/research-ppt/SKILL.md) | 生成 slide-image deck spec、逐页 ImageGen prompt、PNG 页面输出计划和 PDF 导出计划；不生成 `.pptx`。 |
+| [`research-audit`](skills/research-audit/SKILL.md) | 审计 PRD、Paper、Spec、Plans、artifacts、insight 之间的一致性与漂移。 |
 
-不要新增独立的 `research-evidence`、`research-writing` 或 `research-goal`。证据由 Spec / Plan / Audit 字段承担；写作优化属于 `research-paper`；长期执行 prompt 属于 `research-plan`。
+不要新增独立的 `research-evidence`、`research-writing` 或 `research-goal`。证据由 Spec / Plan / Audit 字段承担；洞察解释属于 `research-insight`；写作优化属于 `research-paper`；长期执行 prompt 属于 `research-plan`。
 
 ## Legacy 标准工作区
 
@@ -487,24 +567,6 @@ docs/research/
       run_log.md
       final_summary.md
 
-  ppt/
-    main_deck/
-      deck_spec.yaml
-      slide_manifest.yaml
-      slide_prompts/
-        01_title.md
-        02_motivation.md
-        ...
-      slide_notes.md
-      deck_gap_report.md
-      render_plan.md
-      pages/
-        01_title.png
-        02_motivation.png
-        ...
-      exports/
-        main_deck.pdf
-
   audits/
     YYYY-MM-DD-audit/
       audit_report.md
@@ -522,100 +584,45 @@ docs/research/
 
 ## 实际工作流案例
 
-这套系统的核心不是线性执行，而是**假设驱动的研究循环**。以下是三种典型操作模式。
-
-### 模式 A：控制器托管（适合 reproduction / implementation）
-
-```bash
-# 09:00 你启动
-research-plan --date 2026-05-10 --track reproduction --purpose reproduce-b01
-
-# 09:05 /research 生成或刷新下一步执行 prompt
-# 你去做别的（读 paper、开会、写代码）
-
-# 17:00 你回来检查
-cat docs/research/plans/2026-05-10-reproduce-b01/final_summary.md
-# → "全部 gate 通过，baseline 复现成功"
-# → 无 Mismatch，无 Surprise
-# → Action: continue original plan
-
-# 你：确认无异常，运行 research-audit
-```
-
-**你的投入：5 分钟启动 + 5 分钟检查。**
-
-**接入真实 executor 后的放手条件**：
-- 所有命令/路径/seed 已在 spec 中完整定义
-- track 是 reproduction / implementation / experiment
-- 没有 open pivot proposal
-- insight_log.md 的 Action = continue original plan
-
----
-
-### 模式 B：诊断模式（适合 diagnostic experiment / insight-feedback）
-
-```bash
-# 09:00 你启动
-cat docs/research/plans/2026-05-10-diagnose-m1/insight_log.md
-# → "Observation: M1 的 attention weight 在 90% samples 上接近 uniform"
-
-# 11:00 你：读到这个，意识到可能是关键
-# 你：手动添加 follow-up experiment 到 spec，重新运行 plan
-
-# 15:00 你：确认这是真实 insight，不是 bug
-# 你：运行 research-audit
-# 你：阅读 repair_plan.md 的 insight-opportunity 部分
-# 你：决定是否写 pivot proposal
-```
-
-**你的投入：持续参与，但 AI 帮你做所有执行和记录。**
-
-**介入信号**：
-- insight_log.md 出现 Mismatch / Surprise
-- 任何一轮执行出现了未预期的异常
-- validate_research --mode insight-ready 出现警告
-
----
-
-### 模式 C：Pivot 决策模式（必须人类主导）
+### 典型全流程
 
 ```
-Day 1  AI：提交 pivot_proposal 到 insights/pivot_proposals/
-       系统状态：insight_loop.status = "pivot_proposed"
-       AI 停止所有执行，等待人类决策
+Day 1  用户：我想研究 X 方向，核心 idea 是 Y
+       AI：初始化 docs/research/，开始逐章讨论 PRD
+       AI：搜索文献，帮用户理清 baseline landscape
+       AI：填写 PRD 第 1-16 章（含 Gate 调度表）
+       用户：审阅 PRD，确认 Gate 顺序和 pass_condition 合理
+       用户：批准 → AI 添加 PRD_STATUS: HUMAN_APPROVED
 
-Day 1-3 你：深度阅读
-       - 原始 PRD v1 的 Chapter 6, 8, 10
-       - 所有 anomaly_reports
-       - 对比 pivot proposal 中的 "Required PRD Changes"
+Day 1-3 AI：自动 Bootstrap → 生成 Spec → Plan → TASK_QUEUE → NEXT_ACTION
+       AI：按 Gate 顺序自动执行每个 task
+       AI：每完成一个 task 运行 update_state.py，自动推进到下一个
+       AI：跨越 Gate 时运行 research-insight 更新 wiki
 
-Day 3  你：做决策
-       [ ] Approve  → 进入 PRD v2，AI 辅助生成文本
-       [ ] Reject   → 写回复，要求补充实验
-       [ ] Revise   → 修改 pivot 角度，再 submit
-
-Day 4  你：如果 Approve，运行 research-spec 重新编译
-       AI：自动级联更新 spec → plan → audit
+Day 3  场景 A：所有 Gate 通过 → closeout → 报告研究完成
+       场景 B：Gate 阻断 → 报告 blocker，等用户决策
+       场景 C：负结果反驳假设 → 写 negative_result，请求 review
 ```
 
-**你的投入：数小时深度思考。这是科研中不可替代的部分。**
+### 用户角色
 
-**强制停止信号**：
-- insight_log.md 的 Action = propose pivot
-- blocker_log.md 出现研究类 blocker（假设矛盾）
-- AI 试图修改核心 RQ / Claim / 论文故事线
+用户在整个流程中只做三件事：
 
----
+1. **讨论方向**：在阶段 1 与 AI 讨论研究方向，帮助 AI 理解问题
+2. **审批 PRD**：检查 AI 生成的 PRD（特别是 Gate 调度表和 pass_condition）
+3. **关键决策**：当执行被 blocker 阻断或核心假设被证据反驳时做决策
+
+其他一切——文档填写、Spec 编译、Plan 生成、任务执行、状态更新、wiki 沉淀——全部由 AI 自动完成。
 
 ### 三层自动化边界
 
 | 层级 | 内容 | AI 权限 | 人类角色 |
 |------|------|---------|---------|
-| **执行层** | 代码运行、环境修复、实验执行、日志更新 | 当前仅 prompt-only；接入 backend 后才可自动迭代 | 定期查看 summary |
-| **洞察层** | Insight 记录、异常分类、Pivot 提案生成 | ✅ 自动准备材料 | 做决策（Approve/Reject/Revise） |
-| **战略层** | 核心 RQ、问题表述、主 Claim、论文故事线 | ❌ 只辅助文本 | 完全控制，AI 不得修改 |
+| **执行层** | 文档填写、Spec/Plan 生成、代码运行、实验执行、状态更新 | 当前 prompt-only；接入 backend 后可自动迭代 | 无需参与 |
+| **洞察层** | Insight 记录、异常分类、Pivot 提案生成 | 自动准备材料 | 做决策（Approve/Reject/Revise） |
+| **战略层** | 核心 RQ、问题表述、主 Claim、论文故事线 | 辅助文本，需人类审批 | 完全控制，AI 不得单方面修改 |
 
-> **执行交给 AI，洞察留给自己。让 AI 做你最快的实验员和诚实的记录员，但让最终的方向判断永远属于人类。**
+> **方向由人定，PRD 由 AI 写，执行全部自动。让 AI 做你最快的实验员和诚实的记录员，但让最终的方向判断永远属于人类。**
 
 ## Research PRD
 
@@ -730,7 +737,7 @@ research-plan --target ralph-loop
 
 每个 plan 必须记录 PRD、Paper、Spec 和 git commit 的 source hash。若 Spec 在 plan 创建后改变，`plan-ready` 必须失败，直到显式生成或更新 plan。
 
-`ai_loop_prompt.md` 会包含 Claude Code `Subagent Dispatch` 段落。需要数学、文献、复现、编码、实验、分析、论文、PPT 或审计工作时，主会话应委派 `.claude/agents/research-*.md` 中的标准 Claude Code subagent；`/research` controller 仍负责 state、gate、promotion 和 audit 阻断。
+`ai_loop_prompt.md` 会包含 Claude Code `Subagent Dispatch` 段落。需要数学、文献、复现、编码、实验、分析、论文或审计工作时，主会话应委派 `.claude/agents/research-*.md` 中的标准 Claude Code subagent；`/research` controller 仍负责 state、gate、promotion 和 audit 阻断。
 
 ## Research Audit
 
@@ -741,36 +748,13 @@ research-plan --target ralph-loop
 - Spec -> Plan alignment
 - Paper -> Spec alignment
 - Plan -> Artifact alignment
-- PRD / Paper / Spec -> PPT alignment
+- Insight -> Spec / Plan alignment
 
 `repair_plan.md` 必须区分：
 
 - must fix before execution
 - can fix later
 - recommended next `research-plan` target
-
-## Research PPT
-
-`research-ppt` 生成面向 Codex + ImageGen 的 slide-image deck spec：
-
-- 每页幻灯片生成一个 PNG。
-- 最终从 PNG 页面导出 PDF。
-- 不创建传统 `.pptx`。
-
-默认 `standard` 模式是 10 到 12 页：
-
-1. Title
-2. Background and motivation
-3. Problem gap and research questions
-4. Problem formulation
-5. Key insight
-6. Method overview
-7. Method details / system design
-8. Benchmark and reproduction plan
-9. Experiment design
-10. Expected contributions
-11. Risks / challenges
-12. Summary and next steps
 
 ## 校验器
 
@@ -781,7 +765,6 @@ python3 skills/research-spec/scripts/validate_research.py --repo . --mode prd-re
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode paper-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode spec-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode plan-ready
-python3 skills/research-spec/scripts/validate_research.py --repo . --mode ppt-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode audit-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode insight-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignment-check

@@ -7,7 +7,7 @@ description: "Use when a repo needs a new docs/research workspace or when an old
 
 ## Overview
 
-Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates the **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop** workspace plus legacy-compatible PRD/Paper/Spec/Plan/Audit/PPT directories without inventing datasets, baselines, metrics, commands, or results.
+Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates the **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop** workspace plus legacy-compatible PRD/Paper/Spec/Plan/Audit directories without inventing datasets, baselines, metrics, commands, or results.
 
 Definition:
 
@@ -29,8 +29,8 @@ The generated paper and spec are also real templates, not empty files:
 - Research Paper is derived academic expression.
 - Research Spec is the machine-readable execution contract.
 - Research Plan is a dated concrete execution run.
+- Research Insight interprets existing evidence into current `Vn/wiki/*`.
 - Research Audit checks drift among all artifacts.
-- Research PPT is a PNG/PDF slide-image workflow, not `.pptx`.
 
 ## Command
 
@@ -77,8 +77,8 @@ It also keeps legacy-compatible directories:
 - `docs/research/paper/`
 - `docs/research/spec/`
 - `docs/research/plans/`
-- `docs/research/ppt/`
 - `docs/research/audits/`
+- `docs/research/insights/` as compatibility storage only; current epoch insight belongs in `docs/research/V0/wiki/*`.
 
 If `latexmk` or `xelatex` is available, initialization renders a real PDF from the `.tex` source. If no LaTeX engine is available, it writes a Chinese `render_blocker.md` and does not create a fake PDF.
 
@@ -102,8 +102,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 ## Hard Rules
 
 - Do not initialize `docs/report/` for new work.
-- Do not create `research-evidence`, `research-writing`, or `research-goal`.
-- Do not create `.pptx` output.
+- Do not create `research-evidence`, `research-writing`, or `research-goal`; use `research-insight` for interpretation.
 - Scaffold files may contain blockers; readiness validators must fail until contracts are concrete.
 - PRD, Plan, prompts, gap reports, and explanatory YAML values must be Chinese.
 - YAML keys and stable IDs stay English for parser compatibility.
@@ -113,4 +112,4 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - `V0/NEXT_ACTION.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
 - `V0/TASK_QUEUE.yaml` tasks include a Git policy block.
 - `V0/GIT_STATE.yaml` disables push by default and records commit/tag policies.
-- Do not delete legacy `prd/spec/plans/audits`; mark them as legacy-compatible context.
+- Do not delete legacy `prd/spec/plans/audits/insights`; mark them as legacy-compatible context.

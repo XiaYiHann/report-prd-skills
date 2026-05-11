@@ -18,7 +18,6 @@ INIT_SCRIPT = REPO_ROOT / "skills" / "research-init" / "scripts" / "init_researc
 VALIDATE_SCRIPT = REPO_ROOT / "skills" / "research-spec" / "scripts" / "validate_research.py"
 PAPER_SCRIPT = REPO_ROOT / "skills" / "research-paper" / "scripts" / "generate_research_paper.py"
 PLAN_SCRIPT = REPO_ROOT / "skills" / "research-plan" / "scripts" / "generate_research_plan.py"
-PPT_SCRIPT = REPO_ROOT / "skills" / "research-ppt" / "scripts" / "generate_research_ppt.py"
 AUDIT_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "generate_research_audit.py"
 RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop.py"
 INSTALL_SCRIPT = REPO_ROOT / "install.sh"
@@ -26,13 +25,13 @@ CLAUDE_AGENT_TEMPLATES_DIR = REPO_ROOT / "agents" / "claude-code"
 SKILL_NAMES = [
     "research",
     "research-explore",
+    "research-insight",
     "research-init",
     "research-prd",
     "research-paper",
     "research-spec",
     "research-plan",
     "research-audit",
-    "research-ppt",
 ]
 CLAUDE_RESEARCH_AGENT_NAMES = [
     "research-math",
@@ -42,7 +41,6 @@ CLAUDE_RESEARCH_AGENT_NAMES = [
     "research-experiment",
     "research-analysis",
     "research-paper",
-    "research-ppt",
     "research-audit",
 ]
 

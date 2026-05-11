@@ -29,12 +29,13 @@ RESEARCH_DIRECTION.md
   -> Vn/NEXT_ACTION.md
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
+  -> research-insight
   -> Vn/wiki
   -> Vn/closeout.md
   -> Vn+1/PRD.md 或 paper binding
 ```
 
-The authority chain now explicitly includes the **Insight Feedback Loop**. Experiments produce not only evidence but also observations that may refine the hypothesis.
+The authority chain now explicitly includes the **Insight Feedback Loop**. Experiments produce not only evidence but also observations that may refine the hypothesis. In epoch_v1, `research-insight` performs the interpretation step and writes durable insight to `Vn/wiki/*`; legacy `docs/research/insights/` is compatibility storage.
 
 Do not infer experiments from the paper. Paper placeholders can be checked against the spec, but they cannot create executable work.
 

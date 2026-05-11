@@ -1,6 +1,6 @@
 ---
 name: research-audit
-description: Use for cross-file consistency audit across Research PRD, Paper, Spec, Plans, PPT, Artifacts, and Insight Loop outputs.
+description: Use for cross-file consistency audit across Research PRD, Paper, Spec, Plans, Artifacts, and Insight Loop outputs.
 tools: Read, Grep, Glob, Write
 model: sonnet
 ---
@@ -20,7 +20,6 @@ Read:
 - `docs/research/paper/`
 - `docs/research/spec/`
 - `docs/research/plans/`
-- `docs/research/ppt/`
 - `docs/research/insights/`
 - `artifacts/`
 
@@ -39,7 +38,7 @@ Write:
 3. Spec to Plan alignment.
 4. Paper to Spec placeholder alignment.
 5. Plan to Artifact evidence alignment.
-6. PRD, Paper, and Spec to PPT alignment.
+6. Insight and artifact alignment with PRD, Paper, Spec, and Plans.
 7. Insight, Pivot, and Negative Result handling.
 8. Stale plan hashes.
 9. Unresolved human review requests.
@@ -48,7 +47,6 @@ Write:
 ## Hard Blockers
 
 - Paper has empirical result without evidence.
-- PPT mentions experiment not in spec.
 - Plan references stale spec after spec changed.
 - Open pivot proposal exists but execution continues.
 - Negative result exists but claim remains marked supported.

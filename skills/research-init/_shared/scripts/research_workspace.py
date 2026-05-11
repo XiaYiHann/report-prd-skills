@@ -133,38 +133,9 @@ AUDIT_MATRIX_KEYS = [
     "spec_to_plan",
     "paper_to_spec",
     "plan_to_artifact",
-    "prd_paper_spec_to_ppt",
     "prd_to_insight",
     "insight_to_spec",
     "insight_to_plan",
-]
-
-
-STANDARD_SLIDES = [
-    ("S01", "01_title.png", "01_title.md", "Title", "Introduce the project and one-sentence thesis"),
-    (
-        "S02",
-        "02_motivation.png",
-        "02_motivation.md",
-        "Background and motivation",
-        "Explain why the research problem matters",
-    ),
-    ("S03", "03_rq.png", "03_rq.md", "Problem gap and research questions", "State the gap and RQs"),
-    ("S04", "04_formulation.png", "04_formulation.md", "Problem formulation", "Show the formal setup"),
-    ("S05", "05_key_insight.png", "05_key_insight.md", "Key insight", "Communicate the central idea"),
-    ("S06", "06_method_overview.png", "06_method_overview.md", "Method overview", "Show the method pipeline"),
-    ("S07", "07_system_design.png", "07_system_design.md", "Method details / system design", "Detail modules"),
-    (
-        "S08",
-        "08_reproduction.png",
-        "08_reproduction.md",
-        "Benchmark and reproduction plan",
-        "Explain baseline reproduction",
-    ),
-    ("S09", "09_experiments.png", "09_experiments.md", "Experiment design", "Describe evaluation protocol"),
-    ("S10", "10_contributions.png", "10_contributions.md", "Expected contributions", "Summarize planned contributions"),
-    ("S11", "11_risks.png", "11_risks.md", "Risks / challenges", "Show technical and evidence risks"),
-    ("S12", "12_summary.png", "12_summary.md", "Summary and next steps", "Close with execution plan"),
 ]
 
 
@@ -334,8 +305,13 @@ def render_pdf_from_tex(tex_path: Path, pdf_path: Path, force: bool = False) -> 
 def _insight_log_template() -> str:
     return """# Insight Log
 
+> Legacy compatibility note: 新版 epoch workspace 的当前 insight 真源是 `docs/research/{CURRENT}/wiki/*`。
+> 本文件只作为旧 `docs/research/insights/` 路径的兼容日志、迁移来源或用户显式要求的 legacy 记录。
+> 旧 insight 不能直接支撑当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 carry_forward。
+
 > 本文件记录从 Plan 执行中产生的洞察、异常、负结果和 pivot 提案。
-> 每次 plan 执行完毕后，必须在这里追加一个 entry，而不是只写"任务完成"。
+> legacy dated plan 执行完毕后，可以在这里追加一个 entry，而不是只写"任务完成"。
+> 新版 epoch task 完成后，优先使用 `research-insight` 更新当前 `Vn/wiki/*`。
 
 ## 待填写 Entry 模板
 
@@ -569,31 +545,65 @@ def prd_markdown(title: str, purpose: str) -> str:
 
 ## 11. 任务图与学生工作计划（Task Graph and Student Work Plan）
 
-**章节目标**：把研究拆成可执行 phase、task、dependencies、acceptance criteria、weekly milestones 和 Go / No-Go checkpoint。
+**章节目标**：把研究拆成可执行 phase、task、dependencies、acceptance criteria、weekly milestones 和 Go / No-Go checkpoint。本版本必须包含 Gate 调度表，定义每个 Gate 的 task 清单、harness 绑定和通过条件。
 
-| task_id | phase | dependency | input | output | acceptance_criteria | owner |
-| --- | --- | --- | --- | --- | --- | --- |
-| T01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
+### 11.1 任务表（Task Table）
 
-**常见错误**：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate。
+| task_id | phase | gate_id | dependency | input | output | acceptance_criteria | owner |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T01 | 【待填写】 | G01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 |
 
-**证据边界**：任务完成只能由对应 harness、artifact 和日志证明。
+### 11.2 Gate 调度表（Gate Schedule）
 
-**验收标准**：学生能按依赖顺序执行任务，并在阻塞时写出 blocker 而不是编造结果。
+**定义规则**：
+- 每个 Gate 必须包含 `gate_id`、`tasks`（关联的 task_id 列表）、`pass_condition`（明确的通过条件）、`on_fail`（失败时的处理方式）
+- gate_id 格式：`G_XX`（如 `G01`、`G02`），按执行顺序排列
+- tasks 字段引用 11.1 表中定义的 task_id
+- pass_condition 必须可验证（不能写"结果看起来不错"）
+- 系统按 gate_id 顺序执行，前一个 Gate 未通过不得进入下一个
+
+| gate_id | order | tasks | pass_condition | on_fail | status |
+| --- | --- | --- | --- | --- | --- |
+| G01 | 1 | 【待填写：例如 T01, T02】 | 【待填写：可验证的通过条件】 | 【待填写：retry / escalate / block】 | planned |
+| G02 | 2 | 【待填写】 | 【待填写】 | 【待填写】 | planned |
+
+**常见错误**：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate；pass_condition 不可验证；Gate 之间的依赖未声明。
+
+**证据边界**：任务完成只能由对应 harness、artifact 和日志证明。Gate 通过需要该 Gate 下所有 task 完成 + harness 通过或产生 documented blocker。
+
+**验收标准**：学生能按 Gate 顺序执行任务，并在阻塞时写出 blocker 而不是编造结果。每个 Gate 的 pass_condition 在 PRD 审查时可被独立验证。
 
 ## 12. Harness 与验收标准（Harness and Acceptance Criteria）
 
-**章节目标**：定义 unit、integration、experiment、reproduction harness，以及证据要求和 anti-mock policy。
+**章节目标**：定义 unit、integration、experiment、reproduction harness，每个 harness 必须绑定到至少一个 gate_id 和 task_id。以及证据要求和 anti-mock policy。
 
-| harness_id | type | linked_target | command_or_blocker | required_output | pass_criteria | may_support_claim |
-| --- | --- | --- | --- | --- | --- | --- |
-| H01 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | 【待填写】 | false |
+### 12.1 Harness 表（Harness Table）
 
-**常见错误**：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim。
+| harness_id | type | gate_id | task_id | command_or_blocker | required_output | pass_criteria | may_support_claim |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| H01 | 【待填写：unit / integration / experiment / reproduction】 | G01 | T01 | 【待填写：可执行命令，或无法自动化的 blocker 原因】 | 【待填写：stdout/stderr/artifact 路径】 | 【待填写：可验证的通过条件】 | false |
+
+### 12.2 Harness 类型要求（Harness Type Requirements）
+
+| harness_type | min_seeds | require_independent_rerun | require_artifact_hash | may_support_claim |
+| --- | --- | --- | --- | --- |
+| unit | 1 | false | false | false |
+| integration | 1 | false | false | false |
+| reproduction | all_declared_seeds | true | true | true |
+| experiment | all_declared_seeds | true | true | true |
+
+### 12.3 Anti-Mock 政策（Anti-Mock Policy）
+
+- mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke harness。
+- reproduction 和 experiment harness 必须使用真实数据、真实 baseline、真实 metric。
+- 任何使用 mock 数据的 harness，其 `may_support_claim` 必须为 false。
+- Engineering gate `G_NO_FAKE_ARTIFACTS` 在所有 gate 执行前自动检查。
+
+**常见错误**：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim；harness 不绑定 gate_id。
 
 **证据边界**：mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke，不能用于论文表格或 Go / No-Go。
 
-**验收标准**：每个 task 和 experiment 都有 harness；每个 harness 都有输入、输出、schema、pass criteria 和 evidence capture。
+**验收标准**：每个 task 和 experiment 都有 harness；每个 harness 都有 gate_id、task_id、输入、输出、schema、pass criteria 和 evidence capture。
 
 ## 13. 证据台账（Evidence Ledger）
 
@@ -964,16 +974,35 @@ E01 & RQ1 & D01 & B01 & M01 / 【待填写】 & 【待填写】 \\
 \textbf{{验收标准}}：每个实验都有可执行命令、artifact、harness、统计协议和证伪条件。
 
 \chapter{{任务图与学生工作计划（Task Graph and Student Work Plan）}}
-\textbf{{章节目标}}：把研究拆成 phase、task、dependencies、acceptance criteria、weekly milestones 和 Go / No-Go checkpoint。
+\textbf{{章节目标}}：把研究拆成 phase、task、dependencies、acceptance criteria、weekly milestones 和 Go / No-Go checkpoint。本版本必须包含 Gate 调度表。
+
+\subsection*{{任务表（Task Table）}}
 
 \begin{{table}}[H]
 \centering
 \caption{{Task Graph Table}}
-\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}Y Y Y Y}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.10\textwidth}}L{{0.10\textwidth}}L{{0.10\textwidth}}Y Y Y}}
 \toprule
-任务 & 阶段 & 依赖 & 输出 & 验收 \\
+task\_id & phase & gate\_id & 依赖 & 输出 & 验收 \\
 \midrule
-T01 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
+T01 & 【待填写】 & G01 & 【待填写】 & 【待填写】 & 【待填写】 \\
+\bottomrule
+\end{{tabularx}}
+\end{{table}}
+
+\subsection*{{Gate 调度表（Gate Schedule）}}
+
+\textbf{{定义规则}}：每个 Gate 必须包含 gate\_id、tasks（关联的 task\_id 列表）、pass\_condition（明确的通过条件）、on\_fail（失败时的处理方式）。gate\_id 格式为 G\_XX，按执行顺序排列。系统按 gate\_id 顺序执行，前一个 Gate 未通过不得进入下一个。pass\_condition 必须可验证。
+
+\begin{{table}}[H]
+\centering
+\caption{{Gate Schedule Table}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.08\textwidth}}L{{0.06\textwidth}}L{{0.16\textwidth}}Y Y L{{0.14\textwidth}}}}
+\toprule
+gate\_id & order & tasks & pass\_condition & on\_fail & status \\
+\midrule
+G01 & 1 & 【待填写：例如 T01, T02】 & 【待填写：可验证的通过条件】 & 【待填写：retry/escalate/block】 & planned \\
+G02 & 2 & 【待填写】 & 【待填写】 & 【待填写】 & planned \\
 \bottomrule
 \end{{tabularx}}
 \end{{table}}
@@ -997,24 +1026,28 @@ T01 & 【待填写】 & 【待填写】 & 【待填写】 & 【待填写】 \\
 \label{{fig:spec-plan-audit-loop}}
 \end{{figure}}
 
-\textbf{{常见错误}}：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate。
-\textbf{{证据边界}}：任务完成只能由对应 harness、artifact 和日志证明。
-\textbf{{验收标准}}：学生能按依赖顺序执行任务，并在阻塞时写 blocker 而不是编造结果。
+\textbf{{常见错误}}：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate；pass\_condition 不可验证；Gate 之间的依赖未声明。
+\textbf{{证据边界}}：任务完成只能由对应 harness、artifact 和日志证明。Gate 通过需要该 Gate 下所有 task 完成 + harness 通过或产生 documented blocker。
+\textbf{{验收标准}}：学生能按 Gate 顺序执行任务，并在阻塞时写 blocker 而不是编造结果。每个 Gate 的 pass\_condition 在 PRD 审查时可被独立验证。
 
 \chapter{{Harness 与验收标准（Harness and Acceptance Criteria）}}
-\textbf{{章节目标}}：定义 unit、integration、experiment、reproduction harness，以及证据要求和 anti-mock policy。
+\textbf{{章节目标}}：定义 unit、integration、experiment、reproduction harness，每个 harness 必须绑定到至少一个 gate\_id 和 task\_id。以及证据要求和 anti-mock policy。
 
 \begin{{table}}[H]
 \centering
 \caption{{Harness Acceptance Table}}
-\begin{{tabularx}}{{\textwidth}}{{L{{0.12\textwidth}}L{{0.16\textwidth}}Y Y Y}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.08\textwidth}}L{{0.12\textwidth}}L{{0.08\textwidth}}L{{0.08\textwidth}}Y Y L{{0.08\textwidth}}}}
 \toprule
-Harness & 类型 & 命令/阻塞 & 输出 & 支撑 claim \\
+harness\_id & type & gate\_id & task\_id & 命令/阻塞 & 输出 & 支撑claim \\
 \midrule
-H01 & 【待填写】 & 【待填写】 & 【待填写】 & false \\
+H01 & 【待填写】 & G01 & T01 & 【待填写】 & 【待填写】 & false \\
 \bottomrule
 \end{{tabularx}}
 \end{{table}}
+
+\textbf{{Harness 类型要求}}：unit/integration 不要求多 seed 或 independent rerun。reproduction/experiment 必须使用所有声明的 seed、真实 baseline 和 metric，要求 independent rerun，并记录 artifact hash。
+
+\textbf{{Anti-Mock 政策}}：mock/toy/synthetic/cached/proxy output 只能用于 unit 或 smoke harness。reproduction 和 experiment harness 必须使用真实数据。Engineering gate G\_NO\_FAKE\_ARTIFACTS 在所有 gate 执行前自动检查。
 
 \textbf{{常见错误}}：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim。
 \textbf{{证据边界}}：mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke，不能用于论文表格或 Go / No-Go。
@@ -1454,6 +1487,7 @@ RESEARCH_DIRECTION.md
   -> Vn/NEXT_ACTION.md
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
+  -> research-insight
   -> Vn/wiki
   -> Vn/closeout.md
   -> Vn+1/PRD.md 或 paper binding
@@ -1465,7 +1499,7 @@ RESEARCH_DIRECTION.md
 
 ## Legacy Workspace
 
-旧目录 `prd/`、`paper/`、`spec/`、`plans/`、`audits/`、`insights/` 保留为 legacy workspace。新版默认采用 `V0/`、`V1/`、`V2/` 的 epoch 结构。
+旧目录 `prd/`、`paper/`、`spec/`、`plans/`、`audits/`、`insights/` 保留为 legacy workspace。新版默认采用 `V0/`、`V1/`、`V2/` 的 epoch 结构，当前 insight 真源是 `Vn/wiki/*`。
 """
 
 
@@ -1497,9 +1531,10 @@ Frame -> Contract -> Plan -> Execute -> Gate -> Interpret -> Wiki -> Closeout ->
 
 ## Explore / Git / Audit Closure
 
-Explore 负责想，Vn 负责做，Git 负责记，Wiki 负责沉淀，Audit 负责守门，Closeout 负责进入下一轮或论文绑定。
+Explore 负责想，Vn 负责做，Git 负责记，Insight 负责解释，Wiki 负责沉淀，Audit 负责守门，Closeout 负责进入下一轮或论文绑定。
 
 - `/research explore` 是纯探索入口：可以讨论 idea、文献、baseline、novelty、next-version framing；可以保存 explore session；不能直接改 PRD、Spec、Plan、Paper Binding。
+- `research-insight` 是显式解释入口：只把已有 run、artifact、blocker、negative result、failed path 或 explore session 沉淀到当前 `Vn/wiki/*`。
 - Git Memory Layer 记录每个 task、gate、closeout、paper binding 的 branch、commit、diff、tag 和 dirty-tree 状态；禁止 push、reset、clean、rebase、force push，除非用户明确授权。
 - Audit Modernization 覆盖 format、migration、epoch、git、evidence、paper-binding、full modes；audit 可以检测、分类、生成 migration plan，但不能默认改写研究主张或把旧 insight 变成 paper evidence。
 
@@ -1531,27 +1566,82 @@ Explore 负责想，Vn 负责做，Git 负责记，Wiki 负责沉淀，Audit 负
 def claude_loop_prompt_template() -> str:
     return """# Claude Code Ralph-loop Prompt
 
-你处于持续循环中。不要重新规划整个项目。每轮只执行 `docs/research/{CURRENT}/NEXT_ACTION.md` 中的一个原子任务。
+你处于 ralph-loop 持续循环中。每轮收到相同的提示词，但通过读取持久化的状态文件来推进研究。每轮只执行一个原子任务。
 
-Before every loop:
+## Per-Iteration Workflow
 
-1. Read `docs/research/RESEARCH_DIRECTION.md`.
-2. Resolve current epoch from `docs/research/CURRENT`.
-3. Read `docs/research/{CURRENT}/STATUS.yaml`.
-4. Read `docs/research/{CURRENT}/NEXT_ACTION.md`.
-5. Read `docs/research/{CURRENT}/TASK_QUEUE.yaml`.
+### Step 1: Read state files
 
-Rules:
+严格按顺序读取：
 
-- Stay inside Research Corridor.
+1. `docs/research/RESEARCH_DIRECTION.md` — 研究走廊边界
+2. `docs/research/CURRENT` — 当前 epoch 版本号
+3. `docs/research/{CURRENT}/STATUS.yaml` — 当前状态
+4. `docs/research/{CURRENT}/NEXT_ACTION.md` — 本轮唯一要执行的任务
+5. `docs/research/{CURRENT}/TASK_QUEUE.yaml` — 任务详情（success_criteria、test_commands、evidence_required）
+
+### Step 2: Check termination conditions
+
+读取 STATUS.yaml 后，先检查是否该停止：
+
+- 若 `status` 为 `closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable` 或 `paper_binding_ready`：
+  输出 `<promise>RESEARCH_COMPLETE</promise>` 并停止。
+- 若 `status` 为 `gate_blocked` 且 `runs/TASK_XXX_blocker.md` 存在：
+  输出 `<promise>RESEARCH_BLOCKED</promise>` 并停止。
+
+### Step 3: Execute the task
+
+Read NEXT_ACTION.md. It describes exactly one atomic task. Execute it:
+
+- 若任务是**代码实现**：写代码、写测试、运行测试、记录 terminal 输出
+- 若任务是**实验执行**：运行声明 harness、保存 stdout/stderr、记录 artifact hash
+- 若任务是**文献调研**：搜索、阅读、写 literature_notes.md
+- 若任务是**文档撰写**：编辑 PRD/wiki/closeout 等文件
+- 若任务引用 subagent（如 `research-coding`、`research-experiment`），用 Agent 工具委派
+
+### Step 4: Record evidence
+
+- 代码变更：运行 `git status --short` 和 `git diff --stat`
+- 实验执行：保存 stdout/stderr 到 `runs/` 目录
+- 所有任务：写 `runs/TASK_XXX_report.md`
+
+run report 最小格式：
+```markdown
+# TASK_XXX Report
+- task_id: TASK_XXX
+- status: done | blocked
+- command_or_action: 执行过的命令或动作
+- evidence: stdout/stderr/artifact 路径
+- diff_summary: git diff --stat 输出（如有代码变更）
+- commit_hash: abc123（如有提交）
+- next_action: 下一个原子动作建议
+```
+
+### Step 5: Update state files
+
+更新以下文件以推进状态：
+
+1. `LOOP_LOG.md` — 追加一条 loop entry
+2. `TASK_QUEUE.yaml` — 当前 task status 改为 `done` 或 `blocked`；下一个 task status 改为 `active`
+3. `NEXT_ACTION.md` — 写入下一个原子任务（task_id、objective、allowed actions、success criteria）
+4. `STATUS.yaml` — 若 gate 通过或阻塞，更新 status
+5. `GIT_STATE.yaml` — 若有 commit，记录 commit hash
+
+### Step 6: Check for gate boundary
+
+若刚完成的任务是一个 gate 的最后一个 task，调用 `research-insight` 更新 `Vn/wiki/*`（epoch_summary、evidence_map、positive_signals 或 negative_results）。
+
+## Rules
+
+- Stay inside Research Corridor（不得超越 RESEARCH_DIRECTION.md 定义的边界）。
 - Do not modify `RESEARCH_DIRECTION.md` unless the user explicitly asks.
 - Do not create the next version unless current version is closed and closeout exists.
 - Do not fabricate execution result, artifact, benchmark, stdout/stderr, or paper result.
+- Never rely on previous chat memory as evidence — only persisted files are authoritative.
+- If NEXT_ACTION.md is ambiguous, write a concrete blocker instead of guessing.
+- If the same task fails twice with the same cause, escalate to `gate_blocked` in STATUS.yaml.
 - If code changes are required, run the relevant tests and record terminal evidence.
 - If literature is required but web access is unavailable, write `docs/research/{CURRENT}/runs/LITERATURE_REQUIRED_BLOCKER.md`.
-- If blocked, write a concrete blocker and update `STATUS.yaml`, `TASK_QUEUE.yaml`, `LOOP_LOG.md`, and `NEXT_ACTION.md`.
-- If completed, update `TASK_QUEUE.yaml`, `LOOP_LOG.md`, `wiki/`, and `NEXT_ACTION.md`.
-- Never rely on previous chat memory as evidence; use persisted files.
 """
 
 
@@ -2071,7 +2161,96 @@ def epoch_task_queue_payload(version: str) -> dict[str, Any]:
     }
 
 
-def epoch_next_action_template(version: str, task_id: str = "TASK_001") -> str:
+def _fmt_list(items: list[str] | None, indent: str = "- ") -> str:
+    if not items:
+        return "（无）"
+    return "\n".join(f"{indent}{item}" for item in items)
+
+
+def _fmt_git_protocol(task: dict[str, Any]) -> str:
+    git = task.get("git", {}) if isinstance(task.get("git"), dict) else {}
+    require_clean = git.get("require_clean_before_start", False)
+    commit_after = git.get("commit_after_done", True)
+    commit_msg = git.get("commit_message", f"research: complete {task.get('id', 'TASK')}")
+    record_hash = git.get("record_commit_hash", True)
+    return f"""Before work:
+- Run `git status --short` if git is available.
+- Record current commit hash.
+- Working tree must be clean: {'YES' if require_clean else 'no'}
+
+After completion:
+- Run tests if code changed.
+- Run `git diff --stat`.
+- Write diff summary to `LOOP_LOG.md`.
+- Commit after done: {'YES' if commit_after else 'no'}
+- Commit message: `{commit_msg}`
+- Record commit hash in GIT_STATE.yaml: {'YES' if record_hash else 'no'}
+- Do not push unless explicitly instructed."""
+
+
+def _resolve_gate_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
+    gate_id = str(task.get("gate_id") or "")
+    if gate_id:
+        return gate_id
+    spec = load_yaml(epoch_dir / "SPEC.yaml")
+    gates = as_list(spec.get("gates"))
+    task_id = str(task.get("id") or "")
+    for gate in gates:
+        if not isinstance(gate, dict):
+            continue
+        gate_tasks = as_list(gate.get("tasks"))
+        if task_id in [str(t) for t in gate_tasks]:
+            return str(gate.get("gate_id") or gate.get("id") or "")
+        for gt in gate_tasks:
+            if isinstance(gt, dict) and str(gt.get("task_id") or "") == task_id:
+                return str(gate.get("gate_id") or gate.get("id") or "")
+    return "ungated"
+
+
+def _resolve_harness_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
+    harness_ref = str(task.get("harness") or "")
+    if harness_ref:
+        return harness_ref
+    spec = load_yaml(epoch_dir / "SPEC.yaml")
+    task_id = str(task.get("id") or "")
+    for key in ("harnesses", "experiment_harnesses", "reproduction_harnesses"):
+        for h in as_list(spec.get(key)):
+            if not isinstance(h, dict):
+                continue
+            h_tasks = as_list(h.get("tasks"))
+            if task_id in [str(t) for t in h_tasks]:
+                h_path = str(h.get("path") or h.get("harness_path") or "")
+                h_cmd = str(h.get("command") or h.get("run") or "")
+                if h_path and h_cmd:
+                    return f"路径: {h_path}\n- 调用方式: {h_cmd}"
+                if h_path:
+                    return f"路径: {h_path}"
+                if h_cmd:
+                    return f"调用方式: {h_cmd}"
+                return str(h.get("id") or h.get("harness_id") or "unnamed")
+    return "N/A"
+
+
+def epoch_next_action_template(version: str, task: dict[str, Any] | None = None) -> str:
+    task_id = str(task.get("id") or "TASK_001") if task else "TASK_001"
+    title = str(task.get("title") or "【待填写】") if task else "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md"
+    success_criteria = as_list(task.get("success_criteria")) if task else []
+    test_commands = as_list(task.get("test_commands")) if task else []
+    evidence_required = as_list(task.get("evidence_required")) if task else []
+    input_refs = as_list(task.get("input_refs")) if task else []
+    output_refs = as_list(task.get("output_refs")) if task else []
+    allowed_files = as_list(task.get("allowed_files")) if task else []
+    forbidden_files = as_list(task.get("forbidden_files")) if task else []
+    phase = str(task.get("phase") or "") if task else ""
+
+    gate_line = "ungated"
+    harness_block = "N/A"
+    git_block = _fmt_git_protocol(task) if task else _fmt_git_protocol({})
+    if task:
+        version_dir = Path("docs") / "research" / version
+        gate_line = _resolve_gate_for_task(version_dir, task)
+        harness_block = _resolve_harness_for_task(version_dir, task)
+
     return f"""# NEXT ACTION
 
 ## Current Version
@@ -2082,9 +2261,17 @@ def epoch_next_action_template(version: str, task_id: str = "TASK_001") -> str:
 
 {task_id}
 
+## Phase
+
+{phase or "unspecified"}
+
+## Title
+
+{title}
+
 ## Objective
 
-本轮只完成一个原子动作。不要重新规划整个项目。
+本轮只完成一个原子动作。不要重新规划整个项目。不要跳过 TASK_QUEUE.yaml。
 
 ## Read First
 
@@ -2096,69 +2283,109 @@ def epoch_next_action_template(version: str, task_id: str = "TASK_001") -> str:
 6. `docs/research/{version}/SPEC.yaml`
 7. `docs/research/{version}/PLAN.md`
 
+## Task Details
+
+- **title**: {title}
+- **phase**: {phase or 'unspecified'}
+- **success_criteria**:
+{_fmt_list(success_criteria, '  - ')}
+- **test_commands**:
+{_fmt_list(test_commands, '  - ')}
+- **evidence_required**:
+{_fmt_list(evidence_required, '  - ')}
+- **input_refs**:
+{_fmt_list(input_refs, '  - ')}
+- **output_refs**:
+{_fmt_list(output_refs, '  - ')}
+
+## Gate
+
+本任务所属 Gate: `{gate_line}`
+
+Gate 通过条件：该 Gate 下所有 task 完成且 harness 通过或产生 documented blocker。
+
+## Harness
+
+{harness_block}
+
+期望产物：stdout、stderr、artifact hash
+
+## Allowed Files
+
+{_fmt_list(allowed_files, '- `docs/research/{version}/` 下: ') if allowed_files else '- TASK_QUEUE.yaml 中 allowed_files 范围内的文件'}
+
+## Forbidden Files
+
+{_fmt_list(forbidden_files, '- ') if forbidden_files else '（无额外禁止文件）'}
+
 ## Allowed Actions
 
-- 编辑 `docs/research/RESEARCH_DIRECTION.md` 仅限用户明确要求或人工批准阶段。
-- 编辑 `docs/research/{version}/PRD.md`。
+- 编辑 TASK_QUEUE.yaml 中 allowed_files 范围内的文件。
 - 更新 `docs/research/{version}/LOOP_LOG.md`、`TASK_QUEUE.yaml`、`NEXT_ACTION.md`。
+{'  - 编辑 `docs/research/RESEARCH_DIRECTION.md` 仅限用户明确要求或人工批准阶段。' if phase == 'specification' else ''}
 
 ## Forbidden Actions
 
 - 不自动修改 `RESEARCH_DIRECTION.md` 的核心方向
-- 不创建 V1，除非 V0 已 closeout
-- 不写 paper result
+- 不创建 Vn+1，除非当前 Vn 已 closeout
+- 不写 paper result（paper 由 Paper Binding gate 控制）
 - 不声称实验真实完成，除非命令确实执行并记录
-- 不改动无关模块
+- 不改动 TASK_QUEUE.yaml 中 forbidden_files 范围内的文件
 - 不越过 Research Corridor
 
 ## Success Criteria
 
-- Direction 和 `{version}/PRD.md` 的待填写项被明确填写，或 blocker 被具体记录。
-- 没有创建下一版本。
-- 没有伪造实验结果。
+{_fmt_list(success_criteria, '- ')}
 
 ## Test / Validation
 
-当前任务是研究框架填写，不需要运行代码测试；如后续改代码，必须运行 `python3 -m pytest tests -q` 或记录不能测试的原因。
+{_fmt_list(test_commands, '- ') if test_commands else '当前任务阶段为 ' + phase + '，不需要运行代码测试。'}
 
 ## Git Protocol
 
-Before work:
-
-- Run `git status --short` if git is available.
-- Record current commit hash.
-
-After completion:
-
-- Run tests if code changed.
-- Run `git diff --stat`.
-- Write diff summary to `LOOP_LOG.md`.
-- Commit if task is done and commit policy allows.
-- Record commit hash in `GIT_STATE.yaml` and `runs/{task_id}_report.md`.
-- Do not push unless explicitly instructed.
+{git_block}
 
 ## If Blocked
 
 写入：
 
-`docs/research/{version}/runs/{task_id}_blocker.md`
+`docs/research/{version}/runs/{task_id}_blocker.yaml` 和 `docs/research/{version}/runs/{task_id}_blocker.md`
 
 并更新：
 
-- `STATUS.yaml`
-- `TASK_QUEUE.yaml`
+- `STATUS.yaml`（设为 `gate_blocked`）
+- `TASK_QUEUE.yaml`（标记当前 task 为 blocked）
 - `LOOP_LOG.md`
-- `NEXT_ACTION.md`
+- `NEXT_ACTION.md`（描述 blocker 状态）
 
 ## After Completion
 
+写入 `docs/research/{version}/runs/{task_id}_report.yaml`（机器可读）和 `docs/research/{version}/runs/{task_id}_report.md`（人类可读）。
+
 更新：
 
-- `TASK_QUEUE.yaml`
+- `TASK_QUEUE.yaml`（当前 task: done，下一个 task: active）
 - `LOOP_LOG.md`
-- `wiki/*`
-- `NEXT_ACTION.md`
+- `NEXT_ACTION.md`（写入下一个原子任务）
+- `wiki/*`（若跨越 gate 边界，调用 research-insight）
 """
+
+
+def write_next_action_from_task_queue(epoch_dir: Path, version: str) -> Path:
+    """Read TASK_QUEUE.yaml, find the active task, and write a fully populated NEXT_ACTION.md."""
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    tasks = as_list(queue.get("tasks"))
+    active_task = None
+    for task in tasks:
+        if isinstance(task, dict) and str(task.get("status", "")).strip() == "active":
+            active_task = task
+            break
+    if active_task is None:
+        active_task = {"id": "NO_ACTIVE_TASK", "title": "无活跃任务——请检查 TASK_QUEUE.yaml", "phase": "blocked"}
+    content = markdown_template(epoch_next_action_template(version, active_task))
+    path = epoch_dir / "NEXT_ACTION.md"
+    path.write_text(content, encoding="utf-8")
+    return path
 
 
 def epoch_loop_log_template(version: str) -> str:
@@ -2518,6 +2745,115 @@ def task_run_report_template(version: str, task_id: str = "TASK_001") -> str:
 """
 
 
+def task_run_report_payload(version: str, task_id: str = "TASK_001") -> dict[str, Any]:
+    """Generate the machine-readable YAML run report for a completed task execution."""
+    return {
+        **template_metadata(),
+        "report_version": 1,
+        "task": {
+            "version": version,
+            "task_id": task_id,
+            "status": "pending",
+            "gate_id": None,
+        },
+        "git": {
+            "branch": None,
+            "pre_commit": None,
+            "post_commit": None,
+            "commit_created": False,
+            "commit_hash": None,
+            "dirty_tree_after_task": False,
+        },
+        "execution": {
+            "commands_run": [],
+            "stdout_path": None,
+            "stderr_path": None,
+            "exit_code": None,
+            "files_changed": [],
+        },
+        "evidence": {
+            "tests": {"passed": False, "output_path": None},
+            "artifacts": [],
+            "blockers": [],
+        },
+        "gate_outcome": {
+            "gate_passed": False,
+            "gate_blocked": False,
+            "blocker_reason": None,
+        },
+        "next_action": {
+            "recommendation": None,
+            "wiki_update_needed": False,
+            "insight_generated": False,
+        },
+    }
+
+
+def write_task_run_report(epoch_dir: Path, version: str, task_id: str, report: dict[str, Any] | None = None) -> tuple[Path, Path]:
+    """Write both the YAML (machine-readable) and MD (human-readable) task run report.
+
+    If report is None, writes a fresh template. Otherwise writes the completed report.
+    Returns (yaml_path, md_path).
+    """
+    runs_dir = epoch_dir / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    yaml_path = runs_dir / f"{task_id}_report.yaml"
+    md_path = runs_dir / f"{task_id}_report.md"
+    if report is None:
+        report = task_run_report_payload(version, task_id)
+    write_yaml(yaml_path, report, force=True)
+    md_content = f"""# {task_id} Run Report
+
+## Task
+
+- version: {version}
+- task_id: {task_id}
+- status: {report.get('task', {}).get('status', 'pending')}
+- gate_id: {report.get('task', {}).get('gate_id', 'N/A')}
+
+## Git State
+
+- branch: `{report.get('git', {}).get('branch', 'N/A')}`
+- pre_commit: `{report.get('git', {}).get('pre_commit', 'N/A')}`
+- post_commit: `{report.get('git', {}).get('post_commit', 'N/A')}`
+- commit_created: {report.get('git', {}).get('commit_created', False)}
+- commit_hash: `{report.get('git', {}).get('commit_hash', 'N/A')}`
+- dirty_tree_after_task: {report.get('git', {}).get('dirty_tree_after_task', False)}
+
+## Commands Run
+
+{chr(10).join('- ' + c for c in report.get('execution', {}).get('commands_run', [])) or '（无）'}
+
+## Evidence
+
+- tests_passed: {report.get('evidence', {}).get('tests', {}).get('passed', False)}
+- artifacts: {report.get('evidence', {}).get('artifacts', [])}
+- blockers: {report.get('evidence', {}).get('blockers', [])}
+
+## Gate Outcome
+
+- gate_passed: {report.get('gate_outcome', {}).get('gate_passed', False)}
+- gate_blocked: {report.get('gate_outcome', {}).get('gate_blocked', False)}
+- blocker_reason: {report.get('gate_outcome', {}).get('blocker_reason', 'N/A')}
+
+## Next Action
+
+- recommendation: {report.get('next_action', {}).get('recommendation', 'N/A')}
+- wiki_update_needed: {report.get('next_action', {}).get('wiki_update_needed', False)}
+- insight_generated: {report.get('next_action', {}).get('insight_generated', False)}
+"""
+    write_text(md_path, md_content, force=True)
+    return yaml_path, md_path
+
+
+def read_task_run_report(epoch_dir: Path, task_id: str) -> dict[str, Any]:
+    """Read the machine-readable YAML run report for a task."""
+    yaml_path = epoch_dir / "runs" / f"{task_id}_report.yaml"
+    if not yaml_path.exists():
+        return {}
+    return load_yaml(yaml_path)
+
+
 def explore_session_template(version: str = "V0") -> str:
     return f"""---
 id: EXP_0001
@@ -2629,14 +2965,121 @@ Explore 只能建议，不能直接修改 PRD、RESEARCH_DIRECTION、Spec、Plan
 def claude_root_template() -> str:
     return """# CLAUDE.md
 
-- Always read `docs/research/RESEARCH_DIRECTION.md`.
-- Resolve current epoch from `docs/research/CURRENT`.
-- Execute only `docs/research/{CURRENT}/NEXT_ACTION.md` unless user explicitly overrides.
+## 核心指令
+
+你是本项目的自动科研执行器。用户只负责与你讨论研究方向并做关键决策，所有文档和实验由你自动完成。
+
+整个流程分为三个阶段：**初始化 → PRD 生成 → 自动执行**。
+
+---
+
+### 阶段 0：初始化（若 workspace 不存在）
+
+若 `docs/research/` 不存在，运行：
+
+```bash
+python3 ~/.claude/skills/research-init/scripts/init_research.py \
+  --repo . --title "与用户讨论后确定的项目标题" \
+  --purpose "与用户讨论后确定的研究目标"
+```
+
+初始化完成后跳转到阶段 1。
+
+---
+
+### 阶段 1：PRD 讨论与生成
+
+此时 `docs/research/{CURRENT}/NEXT_ACTION.md` 的 Active Task 为 TASK_001：完善 PRD。
+
+**你需要做**：
+
+1. 读取 `docs/research/{CURRENT}/PRD.md` 模板（16 章结构）。
+2. 逐章与用户讨论：
+   - 第 2 章背景教程、第 3 章相关工作地图：你需要搜索文献帮用户理清 landscape
+   - 第 4 章基准与复现计划：你需要帮用户选 concrete baseline、dataset、metric
+   - 第 6 章研究问题与假设：帮用户把模糊 idea 变成可证伪的 RQ
+   - 第 10 章实验设计：帮用户设计 experiment matrix
+   - **第 11.2 章 Gate 调度表（最关键）**：帮用户把研究拆成有序 Gate，每个 Gate 定义 task 清单和可验证的 pass_condition
+   - 第 12 章 Harness：帮用户定义每个 task 的 harness 命令和验收标准
+3. 填写 PRD.md 时将 `【待填写：...】` 替换为具体内容。
+4. 第 11.2 章 Gate 调度表**不可留空**——必须定义至少 2 个 Gate，每个 Gate 绑定具体 task_id。
+5. PRD 全部填完后，**请用户审阅并确认**。
+6. 用户确认后，在 PRD.md 末尾添加 `PRD_STATUS: HUMAN_APPROVED`。
+7. 运行 `python3 ~/.claude/skills/research/scripts/update_state.py --repo . --task-id TASK_001 --status done`。
+8. 进入阶段 2。
+
+**注意**：PRD 讨论阶段不要跳过任何一章。每章都要确保用户理解并同意。
+
+---
+
+### 阶段 2：自动执行（Continuous Loop）
+
+PRD 锁定后，Bootstrap 控制器推进：
+
+```bash
+# 重复运行直到 NEXT_ACTION.md 的 Active Task 不再停留在 specification phase
+python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
+```
+
+当 NEXT_ACTION.md 中出现具体执行任务（非 TASK_001），进入持续循环：
+
+```
+while STATUS.yaml.status not in (closed_*, gate_blocked):
+    1. 读取 NEXT_ACTION.md（含完整 task 执行细节）
+    2. 执行 task（写代码/跑实验/复现 baseline）
+    3. 完成后：
+       python3 ~/.claude/skills/research/scripts/update_state.py \
+         --repo . --task-id <ID> --status done \
+         --commit-hash <HASH> --gate-id <GATE>
+    4. 若任务被阻塞（同原因两次失败）：
+       python3 ~/.claude/skills/research/scripts/update_state.py \
+         --repo . --task-id <ID> --status blocked \
+         --blocker-reason "具体原因"
+    5. 若跨越 Gate 边界 → research-insight → wiki
+    6. 重新读取 NEXT_ACTION.md（已由 update_state.py 自动生成下一个任务）
+    7. 继续循环，不询问用户
+```
+
+**不要停下来问用户是否继续**，除非命中停止条件。
+
+---
+
+### 停止条件
+
+| 触发条件 | 行为 |
+|----------|------|
+| STATUS.yaml → `gate_blocked` | 报告 blocker，等待人工决策 |
+| STATUS.yaml → `closed_*` | 报告 closeout 摘要，若 closeout 指示创建下一版本则进入阶段 1 起草 Vn+1/PRD.md |
+| 实验证据反驳 PRD 核心假设 | 写 negative_result，请求人工 review |
+| 需要修改 RESEARCH_DIRECTION.md | 请求人工批准 |
+| 所有 Gate 通过 + closeout 完成 | 报告研究完成，若 closeout 允许 Paper Binding 则继续 |
+
+---
+
+### 子代理调度
+
+| 场景 | 子代理 |
+|------|--------|
+| 数学公式、符号检查 | research-math |
+| 文献搜索、baseline 分析 | research-literature |
+| 复现 baseline | research-reproduce |
+| 实现方法代码 | research-coding |
+| 运行声明实验 | research-experiment |
+| 结果分析、异常检测 | research-analysis |
+| 论文更新 | research-paper |
+| 跨文件一致性检查 | research-audit |
+
+主 agent 始终负责：状态推进、gate 判定、NEXT_ACTION 执行、wiki/closeout。
+
+---
+
+### 硬规则
+
 - Keep all exploration inside Research Corridor.
 - Never fabricate execution, artifact, benchmark, or paper result.
 - Never create Vn+1 before Vn closeout.
 - Never modify `RESEARCH_DIRECTION.md` without explicit user instruction.
-- After each loop, update `LOOP_LOG.md`, `TASK_QUEUE.yaml`, and `NEXT_ACTION.md`.
+- Never use mock/toy/synthetic output as claim evidence.
 - Git allowed: `git status`, `git diff`, `git log`, `git add` allowed files, `git commit` current task, `git tag` closeout/paper binding.
 - Git forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git clean -fd`, `git rebase`, checkout that overwrites user changes, history rewrite, force push, deleting files outside task scope.
 """
@@ -2645,22 +3088,51 @@ def claude_root_template() -> str:
 def agents_root_template() -> str:
     return """# AGENTS.md
 
-Codex 每次工作先读：
+Codex / Claude Code 每次工作：
+
+## Read First
 
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
 4. `docs/research/{CURRENT}/NEXT_ACTION.md`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+6. `docs/research/{CURRENT}/PRD.md`
+7. `docs/research/{CURRENT}/SPEC.yaml`
 
-任务风格：
+## Bootstrap
 
-- Complete the active task.
+If `docs/research/{CURRENT}/SPEC.yaml` is missing or has empty gates, run:
+```bash
+python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
+```
+Repeat until `NEXT_ACTION.md` has a concrete active task beyond specification phase.
+
+## Continuous Loop
+
+After completing each task, run update_state.py. It atomically advances to the next task and regenerates NEXT_ACTION.md. Then re-read NEXT_ACTION.md and continue. **Do not ask the user whether to continue** unless hitting a stop condition.
+
+```bash
+python3 ~/.claude/skills/research/scripts/update_state.py \
+  --repo . --task-id <TASK_ID> --status done \
+  --commit-hash <HASH> --gate-id <GATE_ID>
+```
+
+## Stop Conditions
+
+- STATUS.yaml status is `gate_blocked` or `closed_*`
+- PRD core hypothesis is contradicted by evidence
+- RESEARCH_DIRECTION.md modification is needed (human approval required)
+- All gates complete and closeout done
+
+## Rules
+
+- Complete the active task from NEXT_ACTION.md.
 - Run relevant tests if code changes.
-- Record terminal/test evidence.
-- Update research state files.
-- Do not change research direction.
+- Record terminal/test evidence in run report.
+- Do not change research direction without human approval.
 - Do not create paper results from unverified artifacts.
+- Do not fabricate execution, artifact, benchmark, or paper result.
 - Do not create Vn+1 before closeout.
 - Git allowed: status, diff, log, add allowed files, commit current task, tag closeout / paper binding.
 - Git forbidden unless explicitly authorized: git push, git reset --hard, git clean -fd, git rebase, checkout overwriting user changes, rewrite history, force push, deleting files outside task scope.
@@ -2700,12 +3172,15 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
     write_text(epoch_dir / "NEXT_ACTION.md", markdown_template(epoch_next_action_template(version)), force)
+    if not force:
+        write_next_action_from_task_queue(epoch_dir, version)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
     write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
     write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
     write_text(epoch_dir / "runs" / "TASK_001_report.md", markdown_template(task_run_report_template(version)), force)
+    write_yaml(epoch_dir / "runs" / "TASK_001_report.yaml", task_run_report_payload(version), force)
     for filename, content in wiki_templates(version).items():
         write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
     for path in [
@@ -3306,7 +3781,7 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
 
 def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = False) -> Path:
     research_dir = repo / DEFAULT_RESEARCH_DIR
-    for dirname in ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]:
+    for dirname in ["prd", "paper", "spec", "plans", "audits", "insights"]:
         (research_dir / dirname).mkdir(parents=True, exist_ok=True)
     for sub in ["anomaly_reports", "pivot_proposals", "negative_results"]:
         (research_dir / "insights" / sub).mkdir(parents=True, exist_ok=True)
@@ -3332,7 +3807,6 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
     write_text(research_dir / "insights" / "insight_log.md", _insight_log_template(), force)
     for path in [
         research_dir / "plans" / ".gitkeep",
-        research_dir / "ppt" / ".gitkeep",
         research_dir / "audits" / ".gitkeep",
         research_dir / "insights" / "anomaly_reports" / ".gitkeep",
         research_dir / "insights" / "pivot_proposals" / ".gitkeep",
@@ -3494,13 +3968,15 @@ def generate_plan(
         "insight_loop": {
             "required": True,
             "output_file": f"docs/research/plans/{plan_id}/insight_log.md",
+            "epoch_output": "docs/research/{CURRENT}/wiki/* via research-insight",
+            "legacy_status": "compatibility_only",
             "auto_classify": ["execution_failure", "spec_gap"],
             "human_review": ["research_failure", "pivot_proposal", "anomaly"],
         },
         "completion_condition": [
             "所有选定 gate 通过，或阻塞原因已写入 blocker_log.md",
             "声明的 harness stdout/stderr 已保存",
-            "current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md 和 insight_log.md 已更新",
+            "current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md 已更新；epoch workspace 还需要 research-insight 更新 Vn/wiki/*",
         ],
     }
     write_yaml(plan_dir / "plan.yaml", payload, force)
@@ -3540,7 +4016,8 @@ def generate_plan(
                 "若 Paper 与 Spec 冲突，以 Spec 为准。",
                 "始终执行最早尚未完成的 gate。",
                 "运行 Spec 声明的 harness，并保存 stdout/stderr、artifact hash 和日志路径。",
-                "每轮执行后更新 current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md 和 insight_log.md。",
+                "每轮执行后更新 current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md；legacy dated plan 可继续写 insight_log.md。",
+                "若存在 CURRENT/Vn，正式 insight promotion 交给 research-insight 写入当前 Vn/wiki/*。",
                 "禁止将 mock / planning 值当作已验证结果写入证据或论文结论。",
                 "当 required information 缺失时，停止执行并记录 blocker，不得补造。",
                 "",
@@ -3555,13 +4032,12 @@ def generate_plan(
                 "- full experiment execution → `research-experiment`",
                 "- result analysis / anomaly / pivot → `research-analysis`",
                 "- paper writing/update → `research-paper`",
-                "- PPT PNG deck generation → `research-ppt`",
-                "- cross-file consistency check → `research-audit`",
+            "- cross-file consistency check → `research-audit`",
                 "",
                 "The controller remains responsible for state, gates, and promotion.",
                 "Subagents must not modify PRD core claims or bypass Spec/Plan constraints.",
                 "",
-                "执行每轮后，除了更新常规日志，还必须回答以下洞察问题并写入 insight_log.md：",
+                "执行每轮后，除了更新常规日志，还必须回答以下洞察问题；新项目交给 research-insight 写入当前 Vn/wiki/*，legacy dated plan 才写入 insight_log.md：",
                 "- 我们理解到了什么？",
                 "- 有没有异常？",
                 "- 有没有与 PRD 假设冲突的现象？",
@@ -3616,111 +4092,6 @@ low / medium / high
         write_text(plan_dir / name, content, force)
     return plan_dir
 
-
-def generate_ppt(research_dir: Path, mode: str = "standard", force: bool = False) -> Path:
-    deck_dir = research_dir / "ppt" / "main_deck"
-    prompt_dir = deck_dir / "slide_prompts"
-    (deck_dir / "pages").mkdir(parents=True, exist_ok=True)
-    (deck_dir / "exports").mkdir(parents=True, exist_ok=True)
-    prompt_dir.mkdir(parents=True, exist_ok=True)
-    slides = STANDARD_SLIDES
-    if mode == "short":
-        slides = STANDARD_SLIDES[:6]
-    elif mode == "long":
-        slides = STANDARD_SLIDES + [
-            ("S13", "13_ablation.png", "13_ablation.md", "Ablation plan", "Show planned ablations"),
-            ("S14", "14_statistics.png", "14_statistics.md", "Statistical protocol", "Show seed and test protocol"),
-            ("S15", "15_timeline.png", "15_timeline.md", "Execution timeline", "Show dated execution plan"),
-        ]
-    write_yaml(
-        deck_dir / "deck_spec.yaml",
-        {
-            "deck_id": "main_deck",
-            "mode": mode,
-            "page_count_target": len(slides),
-            "aspect_ratio": "16:9",
-            "style": {
-                "tone": "top-tier academic conference talk",
-                "visual_style": "clean, modern, minimal, professional",
-                "density": "medium",
-                "figure_priority": "high",
-            },
-            "constraints": {
-                "no_fake_results": True,
-                "no_unbound_claims": True,
-                "no_unregistered_experiments": True,
-                "each_slide_one_takeaway": True,
-                "no_pptx": True,
-            },
-        },
-        force,
-    )
-    manifest = {
-        "slides": [
-            {
-                "slide_id": slide_id,
-                "filename": filename,
-                "prompt": prompt,
-                "title": title,
-                "purpose": purpose,
-                "source_sections": [{"prd": "Research PRD"}, {"paper": "planned paper"}],
-                "required_elements": ["title", "figure_or_structure", "takeaway"],
-                "takeaway": purpose,
-            }
-            for slide_id, filename, prompt, title, purpose in slides
-        ]
-    }
-    write_yaml(deck_dir / "slide_manifest.yaml", manifest, force)
-    for _, filename, prompt_name, title, purpose in slides:
-        write_text(
-            prompt_dir / prompt_name,
-            "\n".join(
-                [
-                    "Generate a single 16:9 academic presentation slide as a polished PNG.",
-                    "",
-                    f"Slide title: \"{title}\"",
-                    "",
-                    "This slide should look like a top-tier conference talk slide: clean, professional, visually balanced, not crowded, white background, modern academic design, strong typography, and one clear takeaway.",
-                    "",
-                    "Content requirements:",
-                    f"- Purpose: {purpose}.",
-                    "- Use only content grounded in the Research PRD, planned paper, and spec.",
-                    f"- Save the rendered page as `pages/{filename}`.",
-                    "",
-                    "Important constraints:",
-                    "- Do not invent experiments or results.",
-                    "- Do not create a .pptx file.",
-                    "- Maintain the same visual language as the deck.",
-                ]
-            )
-            + "\n",
-            force,
-        )
-    write_text(deck_dir / "slide_notes.md", "# Slide Notes\n\n", force)
-    write_text(deck_dir / "deck_gap_report.md", "# Deck Gap Report\n\n- No empirical result may appear without evidence or placeholder binding.\n", force)
-    write_text(
-        deck_dir / "render_plan.md",
-        "\n".join(
-            [
-                "# Render Plan",
-                "",
-                "1. Read `deck_spec.yaml`.",
-                "2. Read `slide_manifest.yaml`.",
-                "3. For each slide, read prompt under `slide_prompts/`.",
-                "4. Generate a PNG page at 16:9.",
-                "5. Save into `pages/`.",
-                "6. Verify all pages exist.",
-                "7. Combine PNG pages into `exports/main_deck.pdf`.",
-                "8. Do not invent content or empirical results.",
-                "9. Do not create `.pptx` output.",
-            ]
-        )
-        + "\n",
-        force,
-    )
-    return deck_dir
-
-
 def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
     audit_dir = research_dir / "audits" / f"{date}-audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -3735,12 +4106,12 @@ def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
     write_yaml(audit_dir / "drift_findings.yaml", {"schema_version": SCHEMA_VERSION, "findings": []}, force)
     write_text(
         audit_dir / "audit_report.md",
-        "# Research Audit Report\n\nThis audit checks PRD, Paper, Spec, Plans, PPT, and artifacts for alignment drift.\n",
+        "# Research Audit Report\n\nThis audit checks PRD, Paper, Spec, Plans, artifacts, and insight records for alignment drift.\n",
         force,
     )
     write_text(
         audit_dir / "repair_plan.md",
-        "# Repair Plan\n\n## Must fix before execution（执行失败）\n\n- Review alignment findings.\n\n## Insight opportunity（研究失败 / 异常 / 诊断实验）\n\n- 检查 docs/research/insights/ 中未纳入 spec/plan 的 anomaly 或 pivot proposal。\n\n## Can fix later\n\n- TBD.\n\n## Recommended next research-plan target\n\n- TBD.\n\n## Recommended next insight-feedback target\n\n- TBD.\n",
+        "# Repair Plan\n\n## Must fix before execution（执行失败）\n\n- Review alignment findings.\n\n## Insight opportunity（研究失败 / 异常 / 诊断实验）\n\n- 优先检查当前 Vn/wiki/* 中未纳入 spec/plan 的 positive signal、negative result、failed path 或 next_version_seed。\n- legacy docs/research/insights/ 只作为迁移候选，不直接当作当前 evidence。\n\n## Can fix later\n\n- TBD.\n\n## Recommended next research-plan target\n\n- TBD.\n\n## Recommended next research-insight target\n\n- TBD.\n",
         force,
     )
     return audit_dir
@@ -5164,37 +5535,6 @@ def validate_plan(research_dir: Path) -> Validation:
     return validation
 
 
-def validate_ppt(research_dir: Path) -> Validation:
-    validation = Validation()
-    deck_dir = research_dir / "ppt" / "main_deck"
-    for name in ["deck_spec.yaml", "slide_manifest.yaml", "render_plan.md", "slide_notes.md", "deck_gap_report.md"]:
-        validation.require_file(deck_dir / name, name)
-    if list(deck_dir.rglob("*.pptx")):
-        validation.error("ppt-ready forbids .pptx output")
-    manifest = load_yaml(deck_dir / "slide_manifest.yaml")
-    experiment_ids = spec_experiment_ids(research_dir)
-    for slide in as_list(manifest.get("slides")):
-        if not isinstance(slide, dict):
-            continue
-        prompt_name = str(slide.get("prompt") or "").strip()
-        slide_id = str(slide.get("slide_id") or "").strip()
-        if not prompt_name:
-            validation.error(f"slide {slide_id} missing prompt field")
-            continue
-        prompt_path = deck_dir / "slide_prompts" / prompt_name
-        if not prompt_path.exists():
-            validation.error(f"missing slide prompt: {prompt_name}")
-            continue
-        prompt_text = read_text(prompt_path)
-        for phrase in FORBIDDEN_RESULT_PHRASES:
-            if phrase in prompt_text.lower():
-                validation.error(f"slide prompt {prompt_name} has fake empirical result phrase: {phrase}")
-        for experiment_id in re.findall(r"\bE\d+\b", prompt_text):
-            if experiment_ids and experiment_id not in experiment_ids:
-                validation.error(f"slide prompt {prompt_name} references unregistered experiment {experiment_id}")
-    return validation
-
-
 def validate_insight(research_dir: Path) -> Validation:
     validation = Validation()
     validation.require_file(research_dir / "insights" / "insight_log.md", "insights/insight_log.md")
@@ -5240,7 +5580,7 @@ def validate_audit(research_dir: Path) -> Validation:
 
 def validate_alignment(research_dir: Path) -> Validation:
     validation = Validation()
-    for child_validation in [validate_prd(research_dir), validate_paper(research_dir), validate_spec(research_dir), validate_ppt(research_dir)]:
+    for child_validation in [validate_prd(research_dir), validate_paper(research_dir), validate_spec(research_dir)]:
         validation.issues.extend(child_validation.issues)
     return validation
 
@@ -5259,7 +5599,6 @@ def validate_research(research_dir: Path, mode: str) -> Validation:
         "paper-ready": validate_paper,
         "spec-ready": validate_spec,
         "plan-ready": validate_plan,
-        "ppt-ready": validate_ppt,
         "audit-ready": validate_audit,
         "insight-ready": validate_insight,
         "alignment-check": validate_alignment,

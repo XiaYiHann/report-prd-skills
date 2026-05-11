@@ -34,7 +34,6 @@ def parse_args() -> argparse.Namespace:
             "paper-ready",
             "spec-ready",
             "plan-ready",
-            "ppt-ready",
             "audit-ready",
             "insight-ready",
             "alignment-check",

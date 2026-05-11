@@ -56,4 +56,4 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --mode prd-ready
 ```
 
-If a required section is missing, fix the PRD before generating Paper, Spec, Plan, PPT, or Audit.
+If a required section is missing, fix the PRD before generating Paper, Spec, Plan, Insight, or Audit.

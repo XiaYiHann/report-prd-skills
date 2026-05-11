@@ -11,13 +11,16 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
 
-            expected_dirs = ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]
+            expected_dirs = ["prd", "paper", "spec", "plans", "audits", "insights"]
             for dirname in expected_dirs:
                 self.assertTrue((research_dir / dirname).exists(), dirname)
             self.assertTrue((research_dir / "insights" / "anomaly_reports").exists())
             self.assertTrue((research_dir / "insights" / "pivot_proposals").exists())
             self.assertTrue((research_dir / "insights" / "negative_results").exists())
             self.assertTrue((research_dir / "insights" / "insight_log.md").exists())
+            insight_log = (research_dir / "insights" / "insight_log.md").read_text(encoding="utf-8")
+            self.assertIn("Legacy compatibility note", insight_log)
+            self.assertIn("research-insight", insight_log)
             prd = (research_dir / "prd" / "research_prd.md").read_text(encoding="utf-8")
             self.assertIn("# Research PRD", prd)
             self.assertIn("## 4. 基准与复现计划（Benchmark and Reproduction Plan）", prd)

@@ -88,20 +88,6 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             self.assertNotEqual(check.returncode, 0)
             self.assertIn("stale spec hash", check.stdout)
 
-    def test_ppt_ready_rejects_missing_slide_prompt(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
-            make_execution_ready_spec(research_dir)
-            make_valid_paper(research_dir)
-            result = run_cmd(["python3", str(PPT_SCRIPT), "--research-dir", str(research_dir), "--mode", "standard"])
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            (research_dir / "ppt" / "main_deck" / "slide_prompts" / "03_rq.md").unlink()
-
-            check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "ppt-ready"])
-
-            self.assertNotEqual(check.returncode, 0)
-            self.assertIn("missing slide prompt", check.stdout)
-
     def test_insight_ready_validates_insight_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
@@ -121,7 +107,6 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             research_dir = init_workspace(Path(tmp))
             make_execution_ready_spec(research_dir)
             make_valid_paper(research_dir)
-            run_cmd(["python3", str(PPT_SCRIPT), "--research-dir", str(research_dir), "--mode", "standard"])
             result = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--date", "2026-05-09"])
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

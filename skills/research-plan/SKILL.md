@@ -37,7 +37,7 @@ Supported selectors:
 - `blocker_log.md`
 - `decision_log.md`
 - `run_log.md`
-- `insight_log.md`
+- `insight_log.md` (legacy compatibility)
 - `final_summary.md`
 
 ## Command
@@ -116,7 +116,7 @@ Git protocol:
 - 若 Paper 与 Spec 冲突，以 Spec 为准；
 - 执行最早尚未完成的 gate；
 - 运行声明的 harness 并保存 stdout/stderr；
-- 更新 current state、blocker、decision、run、final summary 和 **insight logs**；
+- 更新 current state、blocker、decision、run、final summary，并在 epoch workspace 中交给 `research-insight` 更新 `Vn/wiki/*`；
 - 禁止将 mock / planning 值当作已验证结果写入证据或论文结论；
 - required information 缺失时停止并记录 blocker；
 - 包含 `## Subagent Dispatch`，在需要专业 worker 时委派 Claude Code project-level subagent：
@@ -127,13 +127,14 @@ Git protocol:
   - full experiment execution → `research-experiment`
   - result analysis / anomaly / pivot → `research-analysis`
   - paper writing/update → `research-paper`
-  - PPT PNG deck generation → `research-ppt`
   - cross-file consistency check → `research-audit`
 - 说明 `/research` controller 仍负责 state、gate 和 promotion，subagent 不得修改 PRD core claims 或绕过 Spec/Plan；
-- **每轮执行后必须回答洞察问题并写入 insight_log.md**：
+- **每轮执行后必须回答洞察问题；新项目写入当前 `Vn/wiki/*`，legacy dated plan 才写入 `insight_log.md`**：
   - 我们理解到了什么？
   - 有没有异常？
   - 有没有与 PRD 假设冲突的现象？
   - 有没有比原始 idea 更简单的解释？
   - 有没有新的研究问题出现？
   - 有没有值得微调 15 度的方向？
+
+`research-plan` 不再是主要 insight 生成入口。它负责把这些问题放进执行 prompt；正式解释、分类和 wiki promotion 由 `research-insight` 完成。

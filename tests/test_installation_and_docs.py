@@ -84,11 +84,22 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("modify `RESEARCH_DIRECTION.md`", skill_text)
         self.assertIn("Do not fabricate citations", skill_text)
 
+    def test_research_insight_skill_exists_and_retires_legacy_path(self) -> None:
+        skill_path = REPO_ROOT / "skills" / "research-insight" / "SKILL.md"
+        self.assertTrue(skill_path.exists())
+        skill_text = skill_path.read_text(encoding="utf-8")
+
+        self.assertIn("Interpretation Contract", skill_text)
+        self.assertIn("Epoch wiki is the current source for durable insight", skill_text)
+        self.assertIn("Legacy `docs/research/insights/insight_log.md` is compatibility storage only", skill_text)
+        self.assertIn("Do not promote legacy insight to current claim evidence", skill_text)
+
     def test_readme_documents_git_explore_and_audit_modernization(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("Git Memory Layer", readme)
         self.assertIn("Research Explore Skill", readme)
+        self.assertIn("Research Insight Skill", readme)
         self.assertIn("Audit Modernization", readme)
         self.assertIn("Explore 负责想", readme)
 
@@ -213,7 +224,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 self.assertTrue(text.startswith("---\n"), agent_path)
                 metadata = yaml.safe_load(text[4 : text.find("\n---\n", 4)])
                 self.assertEqual(metadata.get("name"), agent_name)
-            for dirname in ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]:
+            for dirname in ["prd", "paper", "spec", "plans", "audits", "insights"]:
                 self.assertTrue((project / "docs" / "research" / dirname).exists(), dirname)
             self.assertEqual((project / "docs" / "research" / "CURRENT").read_text(encoding="utf-8").strip(), "V0")
             self.assertTrue((project / "docs" / "research" / "RESEARCH_DIRECTION.md").exists())

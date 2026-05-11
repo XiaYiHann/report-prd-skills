@@ -1,6 +1,6 @@
 ---
 name: research
-description: "Use when a research workspace under docs/research needs the default autonomous controller across PRD, Spec, Plan, execution, audit, insight feedback, paper, or PPT stages."
+description: "Use when a research workspace under docs/research needs the default autonomous controller across PRD, Spec, Plan, execution, audit, insight feedback, or paper stages."
 ---
 
 # research
@@ -9,7 +9,7 @@ description: "Use when a research workspace under docs/research needs the defaul
 
 `research` is the unified autonomous research workflow controller.
 
-It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and advances one bounded research loop through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, wiki, closeout, and paper binding.
+It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and advances one bounded research loop through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, and paper binding.
 
 新版系统是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -44,6 +44,7 @@ RESEARCH_DIRECTION.md
   -> Vn/NEXT_ACTION.md
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
+  -> research-insight
   -> Vn/wiki
   -> Vn/closeout.md
   -> Vn+1/PRD.md 或 paper binding
@@ -62,6 +63,29 @@ Every `/research` run must first read:
 
 旧版本只读 `closeout.md` 和轻量 wiki。禁止让旧版本 PRD 覆盖当前版本 PRD。
 
+### Ralph-loop readiness check
+
+读完上述 8 个文件后，检查是否满足自动循环执行条件。若以下条件**全部满足**，且当前**不在** ralph-loop 中（`.claude/.ralph-loop.local.md` 不存在），则**仅输出启动建议，不执行任何任务**：
+
+- `STATUS.yaml.status` 为 `prd_locked`、`spec_ready`、`plan_ready` 或 `running`
+- `TASK_QUEUE.yaml` 中有 `status: active` 或 `status: pending` 的任务
+- `NEXT_ACTION.md` 中有具体的、非占位符的 Active Task
+
+满足条件时输出：
+
+```
+[research] 检测到可执行任务，建议启动自动循环：
+
+  /ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+
+启动后每个迭代会自动执行 NEXT_ACTION.md 中的一个原子任务。
+受阻时循环自动停止。用 /cancel-ralph 可随时取消。
+```
+
+用户执行上述命令后，系统进入全自动 Gate-by-Gate 执行。
+
+若当前**已在** ralph-loop 中（`.claude/.ralph-loop.local.md` 存在），则跳过此提示，正常进入执行流程。
+
 ## Execution policy
 
 - Always execute the earliest incomplete gate, or write the precise next execution prompt when the controller cannot safely run harnesses itself.
@@ -70,6 +94,7 @@ Every `/research` run must first read:
 - Stay inside the Research Corridor.
 - Do not create `Vn+1` before current `Vn/closeout.md` is complete and status is `closed_*`.
 - If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.
+- If the user invokes `/research insight`, switch to `research-insight`; interpret existing evidence only and update the current epoch wiki.
 - If the user invokes `/research audit`, honor audit modes: format, migration, epoch, git, evidence, paper-binding, full.
 - Before executing `NEXT_ACTION`, record `git status --short` when Git is available.
 - After task completion, record `git diff --stat`, write a task run report, and commit only when task policy allows.
@@ -80,11 +105,78 @@ Every `/research` run must first read:
 - If spec is incomplete but PRD is clear, repair spec and regenerate the plan.
 - If PRD is ambiguous or a research hypothesis is challenged, stop and request human review.
 
+## Ralph Loop Integration
+
+`/research` is designed to run as a stateless-per-iteration worker inside Claude Code's ralph-loop plugin. Each iteration reads persisted state from files, executes one atomic task, updates state, and exits. The next iteration picks up where the previous left off.
+
+### Starting the loop
+
+After the PRD is filled and approved:
+
+```
+/ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+```
+
+This feeds `/research` to Claude Code repeatedly. Each iteration:
+
+1. Read `RESEARCH_DIRECTION.md` and `CURRENT`
+2. Read `Vn/STATUS.yaml` — if `status` is `closed_*` or `paper_binding_ready`, **stop and output completion signal**
+3. Read `Vn/NEXT_ACTION.md` — this is the only task for this iteration
+4. Read `Vn/TASK_QUEUE.yaml` for task details (success criteria, test commands, evidence requirements)
+5. Execute the atomic task described in NEXT_ACTION.md
+6. Record Git state before and after
+7. Write `Vn/runs/TASK_XXX_report.md` with commands, evidence, diff summary, and commit hash
+8. Update state files:
+   - `LOOP_LOG.md` — append loop entry
+   - `TASK_QUEUE.yaml` — mark current task done, activate next
+   - `NEXT_ACTION.md` — write the next atomic task
+   - `STATUS.yaml` — update status if gate completed or blocked
+   - `GIT_STATE.yaml` — record commit hash
+9. If the completed task crosses a gate boundary, call `research-insight` to update `Vn/wiki/*`
+
+### Completion signal
+
+When `STATUS.yaml.status` is any of `closed_success`, `closed_negative`, `closed_blocked`, `closed_falsified`, `closed_pivot_required`, `closed_stable`, or `paper_binding_ready`, output:
+
+```
+<promise>RESEARCH_COMPLETE</promise>
+```
+
+This tells ralph-loop to stop. The state file `.claude/.ralph-loop.local.md` is automatically cleaned up.
+
+### Block signal
+
+When `STATUS.yaml.status` is `gate_blocked` and a blocker is documented in `Vn/runs/TASK_XXX_blocker.md`, output:
+
+```
+<promise>RESEARCH_BLOCKED</promise>
+```
+
+The user can inspect the blocker, resolve it, and restart with `/ralph-loop "/research" --max-iterations N`.
+
+### Cancelling
+
+```
+/cancel-ralph
+```
+
+Stops the loop immediately. State files are preserved — restarting the loop resumes from the last persisted state.
+
+### Loop safety rules
+
+- Never rely on previous chat memory as evidence — only persisted files are authoritative.
+- If `NEXT_ACTION.md` is ambiguous, write a concrete blocker instead of guessing.
+- If the same task fails twice with the same cause, escalate to `gate_blocked`.
+- If `NEXT_ACTION.md` references a subagent (e.g., `research-coding`), delegate to that subagent via the Agent tool.
+- Do not expand scope beyond `NEXT_ACTION.md` in a single iteration.
+
 ## Insight policy
 
 The goal is not to mechanically prove the initial idea.
 
 The PRD is treated as the current best research hypothesis. The agent must record failures, anomalies, negative results, and surprising observations. It may propose diagnostic experiments or 15-degree pivots. It must not modify core PRD claims without human approval.
+
+`research-insight` is the explicit interpretation layer. In epoch workspaces, durable insight belongs in `docs/research/{CURRENT}/wiki/*`. Legacy `docs/research/insights/insight_log.md` remains readable for compatibility and migration, but it is not the default current-epoch insight truth when `CURRENT` exists.
 
 ## Version transition policy
 
@@ -114,11 +206,14 @@ Paper Binding is allowed only when current status is `closed_stable` or `paper_b
 - `docs/research/plans/plan_queue.yaml`
 - dated plans under `docs/research/plans/YYYY-MM-DD-purpose/`
 - audit reports under `docs/research/audits/YYYY-MM-DD-audit/`
-- insight logs under `docs/research/insights/`
+- legacy insight logs under `docs/research/insights/`
 - spec feedback under `docs/research/spec/feedback/`
 - human review requests under `docs/research/audits/YYYY-MM-DD-prd-review/`
+- ralph-loop state file `.claude/.ralph-loop.local.md` (managed by ralph-loop plugin)
 
 ## Command
+
+### Controller (one-shot state machine advance)
 
 ```bash
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo /absolute/path/to/repo --once
@@ -130,6 +225,19 @@ python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/rese
 ```
 
 The current implementation is a deterministic file-based controller. It creates and updates state, queues, plans, blocker files, feedback, audits, and next-step prompts. It does not fabricate harness outputs or claim that experiments ran when no harness was executed.
+
+### Autonomous loop (ralph-loop)
+
+```bash
+# Start autonomous execution (50 iterations max)
+/ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+
+# Resume after blocker resolution
+/ralph-loop "/research" --max-iterations 30
+
+# Cancel running loop
+/cancel-ralph
+```
 
 ## Execution Backend
 
@@ -150,6 +258,8 @@ Forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git cle
 
 `/research explore` is pure discussion and optional saved EXP sessions. It can propose wiki, task, baseline, literature, next-version, or paper-shape updates, but cannot execute them.
 
+`/research insight` promotes existing evidence, blockers, negative results, failed paths, or saved EXP sessions into the current `Vn/wiki/*`. It must separate fact, artifact, interpretation, and speculation.
+
 `/research audit` is the gatekeeper for format, migration, git, evidence, and paper binding. It can detect legacy workspace layout and generate a migration plan; it must not silently rewrite research claims.
 
 ## Claude Code Subagents
@@ -163,7 +273,6 @@ When project-level subagents are installed under `.claude/agents/`, `/research` 
 - `research-experiment` for declared experiment execution.
 - `research-analysis` for anomalies, negative results, and pivot proposals.
 - `research-paper` for placeholder-safe manuscript updates.
-- `research-ppt` for slide-image deck planning.
 - `research-audit` for cross-file drift and evidence checks.
 
 Do not use a custom registry as the primary subagent format. Claude Code project agents are Markdown files with YAML frontmatter in `.claude/agents/`.

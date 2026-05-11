@@ -7,6 +7,5 @@ The regression tests build temporary fixtures for:
 - invalid fake paper results
 - spec missing harness
 - stale plan spec hash
-- missing slide prompt
 
 They are generated in temporary directories so each test can mutate the workspace without sharing state.

@@ -37,13 +37,15 @@ from research_workspace import (  # noqa: E402
     init_research_workspace,
     init_spec_scaffold,
     load_yaml,
+    read_task_run_report,
     slugify,
     validate_research,
+    write_next_action_from_task_queue,
 )
 
 
 SCHEMA_VERSION = 1
-REQUIRED_RESEARCH_DIRS = ["prd", "paper", "spec", "plans", "ppt", "audits", "insights"]
+REQUIRED_RESEARCH_DIRS = ["prd", "paper", "spec", "plans", "audits", "insights"]
 APPROVAL_MARKER = "PRD_STATUS: HUMAN_APPROVED"
 STAGE_INIT = "S0_INIT"
 STAGE_PRD_MISSING = "S1_PRD_MISSING"
@@ -59,7 +61,7 @@ STAGE_PLAN_BLOCKED = "S4_PLAN_BLOCKED"
 STAGE_PLAN_COMPLETE = "S4_PLAN_COMPLETE"
 STAGE_AUDIT_REQUIRED = "S5_AUDIT_REQUIRED"
 STAGE_INSIGHT_REVIEW = "S6_INSIGHT_REVIEW_REQUIRED"
-STAGE_PAPER_OR_PPT = "S7_PAPER_OR_PPT_UPDATE_READY"
+STAGE_PAPER_UPDATE = "S7_PAPER_UPDATE_READY"
 STAGE_COMPLETE = "S8_RESEARCH_COMPLETE"
 
 
@@ -230,6 +232,8 @@ class ResearchLoop:
         for label in ["benchmark", "experiment", "dataset", "baseline", "metric", "harness"]:
             if label not in lower:
                 issues.append(f"missing {label} plan")
+        gate_issues = self.detect_prd_gates(text)
+        issues.extend(gate_issues)
         ambiguity = self.detect_prd_ambiguity(text)
         status = "ready" if not issues else "not_ready"
         return PrdStatus(status=status, human_approved=human_approved, issues=issues, ambiguity_issues=ambiguity)
@@ -247,6 +251,32 @@ class ResearchLoop:
                 issues.append(f"PRD ambiguity: {label} is not concretely selected or governed by explicit criteria")
         if "rq" in lowered and "experiment design" in lowered and "contradict" in lowered:
             issues.append("PRD ambiguity: RQ and experiment design appear contradictory")
+        return issues
+
+    def detect_prd_gates(self, text: str) -> list[str]:
+        issues: list[str] = []
+        has_gate_table = bool(re.search(r"(Gate 调度表|Gate Schedule)", text))
+        if not has_gate_table:
+            issues.append("missing Gate Schedule table in PRD chapter 11")
+            return issues
+        gate_lines = [
+            line for line in text.splitlines()
+            if re.match(r"^\|\s*G\d+\s*\|", line) and "待填写" not in line
+        ]
+        if not gate_lines:
+            issues.append("no concrete Gate definition found in Gate Schedule table (all gates still 【待填写】)")
+            return issues
+        for line in gate_lines:
+            cols = [c.strip() for c in line.split("|")]
+            if len(cols) < 5:
+                continue
+            gate_id = cols[0] if len(cols) > 0 else ""
+            tasks_cell = cols[2] if len(cols) > 2 else ""
+            pass_cond = cols[3] if len(cols) > 3 else ""
+            if not re.search(r"T\d+", tasks_cell):
+                issues.append(f"Gate {gate_id}: no task_id (T_XX) referenced in tasks column")
+            if not pass_cond or len(pass_cond) < 8 or "待填写" in pass_cond:
+                issues.append(f"Gate {gate_id}: pass_condition is missing or too vague")
         return issues
 
     def detect_spec(self) -> SpecStatus:
@@ -426,7 +456,7 @@ class ResearchLoop:
             if derived:
                 return Detection(stage=STAGE_PLAN_MISSING, prd=prd, spec=spec, insights=insights)
             if not (self.research_dir / "paper" / "planned_paper.md").exists():
-                return Detection(stage=STAGE_PAPER_OR_PPT, prd=prd, spec=spec, insights=insights)
+                return Detection(stage=STAGE_PAPER_UPDATE, prd=prd, spec=spec, insights=insights)
             return Detection(stage=STAGE_COMPLETE, prd=prd, spec=spec, insights=insights)
         return Detection(stage=STAGE_PLAN_MISSING, prd=prd, spec=spec, insights=insights)
 
@@ -576,11 +606,6 @@ class ResearchLoop:
                 "path": "docs/research/paper/planned_paper.md",
                 "status": "present" if (self.research_dir / "paper" / "planned_paper.md").exists() else "missing",
                 "hash": hash_path(self.research_dir / "paper"),
-            },
-            "ppt": {
-                "path": "docs/research/ppt/main_deck/",
-                "status": "present" if (self.research_dir / "ppt" / "main_deck").exists() else "missing",
-                "hash": hash_path(self.research_dir / "ppt"),
             },
             "plans": {
                 "active": detection.plan.active_plan,
@@ -761,6 +786,23 @@ class ResearchLoop:
         )
         if note not in existing:
             self.write_text(current_state, existing.rstrip() + "\n" + note)
+        self.regenerate_epoch_next_action()
+
+    def regenerate_epoch_next_action(self) -> None:
+        current_epoch_file = self.research_dir / "CURRENT"
+        if not current_epoch_file.exists():
+            return
+        version = read_text(current_epoch_file).strip()
+        epoch_dir = self.research_dir / version
+        task_queue_path = epoch_dir / "TASK_QUEUE.yaml"
+        if not task_queue_path.exists():
+            return
+        if not self.args.dry_run:
+            write_next_action_from_task_queue(epoch_dir, version)
+        else:
+            self.dry_run_writes.append(
+                str(epoch_dir / "NEXT_ACTION.md") + " (regenerated from TASK_QUEUE.yaml)"
+            )
 
     def advance_once(self, detection: Detection) -> bool:
         """Advance one deterministic step. Return True when execution should stop."""
@@ -851,6 +893,7 @@ class ResearchLoop:
                 plan_id = f"{self.date}-{slugify(purpose)}"
                 self.dry_run_writes.append(self.rel(self.research_dir / "plans" / plan_id))
             self.update_queue_item(purpose, "active", plan_id)
+            self.regenerate_epoch_next_action()
             refreshed = self.detect()
             self.write_state(refreshed)
             self.actions.append({"action": "generated_next_plan", "plan_id": plan_id, "track": track})
@@ -898,7 +941,7 @@ class ResearchLoop:
             self.actions.append({"action": "wrote_blocking_audit", "findings": detection.plan.stale_findings})
             return True
 
-        if detection.stage == STAGE_PAPER_OR_PPT:
+        if detection.stage == STAGE_PAPER_UPDATE:
             if not self.args.dry_run:
                 generate_paper(self.research_dir, force=False)
             refreshed = self.detect()

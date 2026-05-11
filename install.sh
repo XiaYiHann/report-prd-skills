@@ -19,13 +19,13 @@ DRY_RUN=false
 SKILLS=(
   research
   research-explore
+  research-insight
   research-init
   research-prd
   research-paper
   research-spec
   research-plan
   research-audit
-  research-ppt
 )
 
 CLAUDE_SUBAGENTS=(
@@ -36,7 +36,6 @@ CLAUDE_SUBAGENTS=(
   research-experiment
   research-analysis
   research-paper
-  research-ppt
   research-audit
 )
 
@@ -265,8 +264,9 @@ fi
 cat <<'EOF'
 
 Next steps:
-1. Open Claude Code in your project.
-2. Run `/research-init` or `/research`.
-3. Complete and approve `docs/research/prd/research_prd.md`.
-4. Run `/research` to continue the autonomous loop.
+1. 打开 Claude Code。
+2. 若 workspace 不存在，AI 会自动运行 research-init 初始化（阶段 0）。
+3. 与 AI 讨论你的研究方向，AI 会逐章填写 PRD（阶段 1）。
+4. 审阅并批准 PRD，AI 将自动执行所有 Gate（阶段 2）。
+5. 也可以手动启动：/research
 EOF

@@ -18,7 +18,6 @@ Use the new skills:
 - `research-spec`
 - `research-plan`
 - `research-audit`
-- `research-ppt`
 
 Legacy mapping:
 

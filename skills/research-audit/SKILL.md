@@ -1,6 +1,6 @@
 ---
 name: research-audit
-description: "Use when landed research artifacts may be stale, inconsistent, or drifted across PRD, Paper, Spec, Plans, PPT, and artifacts."
+description: "Use when landed research artifacts may be stale, inconsistent, or drifted across PRD, Paper, Spec, Plans, artifacts, and insights."
 ---
 
 # Research Audit
@@ -16,7 +16,6 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 - Paper
 - Spec
 - Plans
-- PPT
 - artifacts if present
 
 It is also the format gatekeeper, migration guide, Git checkpoint auditor, and Paper Binding guard for epoch_v1.
@@ -55,8 +54,8 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Paper has an experiment not in spec?
 - Plan has a task or harness not in spec?
 - Spec has an experiment not in PRD?
-- PPT has claim or result not grounded in PRD, paper, or spec?
-- Are there insights in `docs/research/insights/` not reflected in the latest spec?
+- Are there current-epoch insights in `Vn/wiki/*` not reflected in Spec, Plan, closeout, or Paper Binding decisions?
+- Are there legacy insights in `docs/research/insights/` that should be migrated, archived, or explicitly ignored?
 - Are there open pivot proposals without human decision?
 - Are negative results hidden (not logged)?
 - Does the PRD still claim something contradicted by a recorded insight?
@@ -80,10 +79,10 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 
 `repair_plan.md` now splits repairs into:
 - **must-fix-before-execution** (execution failures)
-- **insight-opportunity** (research failures / anomalies / diagnostic experiments)
+- **insight-opportunity** (research failures / anomalies / diagnostic experiments; hand off to `research-insight`)
 - **can-fix-later**
 - **recommended next research-plan target**
-- **recommended next insight-feedback target**
+- **recommended next research-insight target**
 
 ## Command
 
@@ -104,10 +103,12 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - Audit current `Vn` first; legacy folders are context unless `CURRENT` is absent.
 - Old versions may contribute hypothesis seeds and history, not current claim evidence.
 - Wiki and closeout completeness are gates for `closeout-ready`.
-- Paper/PPT claims must not exceed `PAPER_BINDING_DECISION.md`.
+- Paper claims must not exceed `PAPER_BINDING_DECISION.md`.
 
 ## Migration Audit Rules
 
 Audit may detect, classify, generate `MIGRATION_AUDIT.md`, generate `MIGRATION_PLAN.md`, and point out blockers. It must not default to moving old artifacts, rewriting PRD research claims, treating old insight as paper evidence, or marking a legacy project epoch-ready.
 
 Legacy migration should become an explicit task such as `TASK_MIGRATE_LEGACY_TO_V0`.
+
+Legacy `docs/research/insights/` is compatibility storage. Audit should prefer current `Vn/wiki/*` for epoch_v1 and flag unpromoted legacy insight as migration material, not current evidence.
