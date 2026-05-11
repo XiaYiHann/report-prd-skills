@@ -82,12 +82,15 @@ Loop rules:
 - Do not start a new version unless current version is closed.
 - Stay inside `RESEARCH_DIRECTION.md`.
 - Plan complete does not equal Paper Binding.
+- Record Git state before and after task execution when Git is available.
+- Write `runs/TASK_XXX_report.md` with diff summary, commands, evidence, and commit hash.
 
 Codex goal rules:
 
 - Codex goal must name one concrete deliverable.
 - Codex must run tests when code changes.
 - Codex must cite terminal/test evidence in run report.
+- Codex must cite Git diff/commit evidence when a task commit is created.
 - Codex should not perform broad literature search unless task `phase=literature` and network is available.
 
 Claude ralph-loop rules:
@@ -97,6 +100,12 @@ Claude ralph-loop rules:
 - Use subagents for large search or audit work.
 - Write compact persistent state after each loop.
 - Never rely on previous chat memory.
+
+Git protocol:
+
+- Before work: `git status --short`, current commit hash.
+- After work: tests if code changed, `git diff --stat`, update `LOOP_LOG.md`, optionally commit current task according to `TASK_QUEUE.yaml.git`, record hash in `GIT_STATE.yaml`.
+- Never push, reset, clean, rebase, force push, rewrite history, or delete out-of-scope files unless the user explicitly authorizes it.
 
 `ai_loop_prompt.md` must say:
 

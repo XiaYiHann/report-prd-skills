@@ -138,3 +138,35 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "audit-ready"])
 
             self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+    def test_research_audit_documents_format_migration_and_git_modes(self) -> None:
+        skill_text = (REPO_ROOT / "skills" / "research-audit" / "SKILL.md").read_text(encoding="utf-8")
+
+        for mode in ["format", "migration", "epoch", "git", "evidence", "paper-binding", "full"]:
+            self.assertIn(mode, skill_text)
+        self.assertIn("MIGRATION_AUDIT.md", skill_text)
+
+    def test_migration_ready_identifies_legacy_flat_workspace_and_audit_writes_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = Path(tmp) / "docs" / "research"
+            (research_dir / "prd").mkdir(parents=True)
+            (research_dir / "spec").mkdir()
+            (research_dir / "plans").mkdir()
+            (research_dir / "insights").mkdir()
+            (research_dir / "audits").mkdir()
+            (research_dir / "prd" / "research_prd.md").write_text("# Legacy PRD\n", encoding="utf-8")
+            write_yaml(research_dir / "spec" / "global_spec.yaml", {"schema_version": 1})
+            write_yaml(research_dir / "plans" / "plan_queue.yaml", {"queue": []})
+            (research_dir / "insights" / "insight_log.md").write_text("# Insight Log\n", encoding="utf-8")
+
+            check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "migration-ready"])
+            self.assertNotEqual(check.returncode, 0)
+            self.assertIn("workspace_type: legacy_flat", check.stdout)
+
+            audit = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--mode", "migration"])
+            self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+            self.assertTrue((research_dir / "audits" / "MIGRATION_AUDIT.md").exists())
+            self.assertTrue((research_dir / "MIGRATION_PLAN.md").exists())
+            audit_text = (research_dir / "audits" / "MIGRATION_AUDIT.md").read_text(encoding="utf-8")
+            self.assertIn("legacy_flat", audit_text)
+            self.assertIn("carry_forward_candidates", audit_text)

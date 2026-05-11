@@ -11,7 +11,18 @@ Research Audit = PRD / Paper / Spec / Plan / PPT / artifacts 的漂移审计
 Research PPT   = 面向 Codex + ImageGen 的 PNG/PDF 幻灯片图像工作流
 ```
 
-核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；当前 `Vn/PRD.md` 是当前 epoch 的研究真源；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml`、`Vn/NEXT_ACTION.md` 只从 Spec 派生；Paper / PPT 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml`、`Vn/NEXT_ACTION.md` 只从 Spec 派生；Git 记录真实工程变化；Paper / PPT 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+
+升级后的系统名是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
+
+```text
+Explore 负责想
+Vn 负责做
+Git 负责记
+Wiki 负责沉淀
+Audit 负责守门
+Closeout 负责进入下一轮或论文绑定
+```
 
 ## Charter-bounded Epoch Research Loop
 
@@ -149,6 +160,103 @@ Paper Binding 只能在当前版本 `status=closed_stable` 或 `paper_binding_re
 
 `docs/research/agent/LITERATURE_POLICY.md` 要求在 project start、version start、baseline lock、unexpected strong/negative result、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 literature blocker，不编造文献。
 
+## Git Memory Layer
+
+Git 是 research-loop 的 checkpoint system。每个版本包含：
+
+```text
+Vn/GIT_STATE.yaml
+Vn/git_log.md
+Vn/runs/TASK_XXX_report.md
+```
+
+Task、gate、closeout、Paper Binding 都应记录 branch、pre/post commit、diff stat、commit hash、dirty-tree 状态和 tag。推荐 tag：
+
+```text
+research/V0/closed_success
+research/V0/closed_blocked
+research/V1/closed_stable
+research/paper_binding/V2
+```
+
+Git 安全边界：
+
+- AI 可以：`git status`、`git diff`、`git log`、`git add` allowed files、`git commit` 当前 task、`git tag` closeout / paper binding。
+- AI 不可以：`git push`、`git reset --hard`、`git clean -fd`、`git rebase`、覆盖用户修改的 checkout、rewrite history、force push、删除 task 范围外文件。
+
+除非用户明确授权，否则所有破坏性 Git 操作都禁止。
+
+## Research Explore Skill
+
+`research-explore` 是纯聊天式研究探索入口：
+
+```text
+/research explore
+/research explore --save
+/research explore --mode idea
+/research explore --mode literature
+/research explore --mode baseline
+/research explore --mode next-version
+/research explore --mode paper-shape
+/research explore --mode failure-analysis
+```
+
+它可以结合当前 research context、使用 web search、保存 explore session、提出 next action / next version / baseline / literature 建议。它不能直接修改 PRD、不能修改 `RESEARCH_DIRECTION.md`、不能创建 `Vn+1`、不能进入 Paper Binding、不能把探索结论写成稳定 claim。
+
+Explore 保存到：
+
+```text
+docs/research/explore/sessions/
+docs/research/explore/syntheses/
+docs/research/explore/proposals/
+```
+
+## Audit Modernization
+
+`research-audit` 同时是格式守门员、迁移指导器、证据审计器。概念模式：
+
+```text
+/research audit --mode format
+/research audit --mode migration
+/research audit --mode epoch
+/research audit --mode git
+/research audit --mode evidence
+/research audit --mode paper-binding
+/research audit --mode full
+```
+
+新增 validator：
+
+- `format-ready`：检查 epoch_v1 必备文件、模板版本、agent docs、`AGENTS.md` / `CLAUDE.md`。
+- `migration-ready`：识别 `epoch_v1`、`legacy_flat`、`mixed`、`unknown`。
+- `git-ready`：检查 `GIT_STATE.yaml`、task git policy、done task commit hash、closeout/paper-binding git 记录、dirty tree。
+
+Migration audit 可以生成 `docs/research/audits/MIGRATION_AUDIT.md` 和 `docs/research/MIGRATION_PLAN.md`，但不能默认改写研究主张，也不能把旧 insight 直接变成 paper evidence。
+
+## Updated Full Loop
+
+```text
+Explore
+  -> Research Direction
+  -> CURRENT/Vn
+  -> PRD
+  -> SPEC
+  -> PLAN
+  -> TASK_QUEUE
+  -> NEXT_ACTION
+  -> Claude/Codex execution
+  -> Git checkpoint
+  -> Gate
+  -> Wiki
+  -> Audit
+  -> Closeout
+  -> Vn+1 or Paper Binding
+```
+
+总结句：
+
+> Explore 负责想，Vn 负责做，Git 负责记，Wiki 负责沉淀，Audit 负责守门，Closeout 负责进入下一轮或论文绑定。
+
 ## Validator Modes
 
 新增 validator mode：
@@ -158,6 +266,9 @@ Paper Binding 只能在当前版本 `status=closed_stable` 或 `paper_binding_re
 - `loop-ready`
 - `closeout-ready`
 - `paper-binding-ready`
+- `format-ready`
+- `migration-ready`
+- `git-ready`
 
 保留 legacy readiness mode：`prd-ready`、`paper-ready`、`spec-ready`、`plan-ready`、`ppt-ready`、`audit-ready`、`insight-ready`、`alignment-check`。
 
@@ -203,6 +314,7 @@ curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/instal
 
 ```text
 ~/.claude/skills/research
+~/.claude/skills/research-explore
 ~/.claude/skills/research-init
 ~/.claude/skills/research-prd
 ~/.claude/skills/research-paper
@@ -275,6 +387,7 @@ agents/claude-code/*.md
 
 ```text
 research/            # unified autonomous controller
+research-explore/    # pure exploration, literature/baseline/next-version discussion
 research-init/
 research-prd/
 research-paper/
@@ -291,6 +404,7 @@ research-ppt/
 | Skill | 用途 |
 |---|---|
 | [`research`](skills/research/SKILL.md) | 默认统一入口：检查 `docs/research/`，维护 state/queue，推进 PRD、Spec、Plan、执行提示、Audit、Insight、Paper/PPT 边界。 |
+| [`research-explore`](skills/research-explore/SKILL.md) | 纯探索入口：讨论 idea、文献、baseline、novelty、failure analysis、paper shape、next-version framing；可保存 EXP session，但不执行。 |
 | [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建中文 LaTeX 真源 Research PRD、paper、spec、plans、audits、ppt scaffold。 |
 | [`research-prd`](skills/research-prd/SKILL.md) | 维护专业 Research PRD，面向能够执行项目但未必熟悉完整背景的硕士生，默认图文并茂。 |
 | [`research-paper`](skills/research-paper/SKILL.md) | 从 PRD 生成和打磨 planned NeurIPS / ICLR / AAAI 风格论文，并强制实验结果 placeholder 绑定。 |
@@ -671,6 +785,9 @@ python3 skills/research-spec/scripts/validate_research.py --repo . --mode ppt-re
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode audit-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode insight-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignment-check
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode format-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode migration-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode git-ready
 ```
 
 readiness mode 必须硬失败。scaffold 可以存在 blocker，但不能被当成 execution-ready。

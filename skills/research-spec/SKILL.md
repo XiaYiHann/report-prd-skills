@@ -136,6 +136,9 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode loop-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode closeout-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode paper-binding-ready
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode format-ready
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode migration-ready
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode git-ready
 ```
 
 ## Language Contract
@@ -148,3 +151,5 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 - Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.
 - `prompt_only_scaffold` can document scaffold work, but cannot support paper result evidence.
 - `can_modify_research_direction` must be false.
+- Git Memory Layer records engineering state, but Git history does not interpret research results.
+- Explore sessions can seed PRD/wiki/task proposals, but cannot become Spec truth without explicit promotion.

@@ -25,6 +25,7 @@ INSTALL_SCRIPT = REPO_ROOT / "install.sh"
 CLAUDE_AGENT_TEMPLATES_DIR = REPO_ROOT / "agents" / "claude-code"
 SKILL_NAMES = [
     "research",
+    "research-explore",
     "research-init",
     "research-prd",
     "research-paper",

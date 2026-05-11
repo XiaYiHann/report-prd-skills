@@ -11,7 +11,7 @@ description: "Use when a research workspace under docs/research needs the defaul
 
 It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and advances one bounded research loop through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, wiki, closeout, and paper binding.
 
-新版系统是 **Charter-bounded Epoch Research Loop**：
+新版系统是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
 > 自动科研不是自动写论文，而是一个按研究版本推进的闭环：每个版本都在顶层研究方向约束下，完整提出问题、签订实验合同、执行或被门禁阻断、把证据与洞察沉淀进 wiki，然后生成下一版更清晰的研究问题，直到某个版本 closed_stable 后进入 Paper Binding。
 
@@ -26,6 +26,8 @@ It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and adv
 `Vn/PLAN.md` schedules execution.  
 `Vn/TASK_QUEUE.yaml` defines available work.  
 `Vn/NEXT_ACTION.md` defines the only task for the current loop.  
+`Vn/GIT_STATE.yaml` records Git checkpoints.  
+`docs/research/explore/` records pure exploration sessions.  
 Runs and artifacts provide evidence.  
 Wiki records durable insight.  
 Closeout controls next version or Paper Binding.
@@ -67,6 +69,10 @@ Every `/research` run must first read:
 - Execute only `Vn/NEXT_ACTION.md`; do not skip `TASK_QUEUE.yaml`.
 - Stay inside the Research Corridor.
 - Do not create `Vn+1` before current `Vn/closeout.md` is complete and status is `closed_*`.
+- If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.
+- If the user invokes `/research audit`, honor audit modes: format, migration, epoch, git, evidence, paper-binding, full.
+- Before executing `NEXT_ACTION`, record `git status --short` when Git is available.
+- After task completion, record `git diff --stat`, write a task run report, and commit only when task policy allows.
 - Never infer experiments from paper.
 - Never fabricate data, metrics, baselines, or results.
 - Never use mock/toy/smoke outputs as claim evidence.
@@ -98,6 +104,9 @@ Paper Binding is allowed only when current status is `closed_stable` or `paper_b
 - `docs/research/Vn/TASK_QUEUE.yaml`
 - `docs/research/Vn/NEXT_ACTION.md`
 - `docs/research/Vn/LOOP_LOG.md`
+- `docs/research/Vn/GIT_STATE.yaml`
+- `docs/research/Vn/git_log.md`
+- `docs/research/Vn/runs/TASK_XXX_report.md`
 - `docs/research/Vn/wiki/*`
 - `docs/research/Vn/closeout.md`
 - `docs/research/Vn/PAPER_BINDING_DECISION.md`
@@ -130,6 +139,18 @@ The current implementation is a deterministic file-based controller. It creates 
 - `local-shell`, `codex`, and `hermes` are reserved backend slots.
 
 Until a backend is implemented and tested, `/research` must not claim that it ran harnesses or generated experimental evidence.
+
+## Git Safety
+
+Allowed Git operations: `git status`, `git diff`, `git log`, `git add` allowed files, `git commit` current task, and `git tag` closeout / paper binding.
+
+Forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git clean -fd`, `git rebase`, checkout that overwrites user changes, rewrite history, force push, and deleting files outside task scope.
+
+## Explore and Audit
+
+`/research explore` is pure discussion and optional saved EXP sessions. It can propose wiki, task, baseline, literature, next-version, or paper-shape updates, but cannot execute them.
+
+`/research audit` is the gatekeeper for format, migration, git, evidence, and paper binding. It can detect legacy workspace layout and generate a migration plan; it must not silently rewrite research claims.
 
 ## Claude Code Subagents
 

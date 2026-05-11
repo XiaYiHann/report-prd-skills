@@ -11,7 +11,7 @@ SKILLS_DIR = SCRIPT_DIR.parents[1]
 SHARED_SCRIPT_DIR = SKILLS_DIR / "research-init" / "_shared" / "scripts"
 sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
-from research_workspace import generate_audit, resolve_research_dir, today_string  # noqa: E402
+from research_workspace import generate_audit, generate_migration_audit, resolve_research_dir, today_string  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,6 +19,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", default=".", help="Repository root.")
     parser.add_argument("--research-dir", default="", help="Research workspace directory.")
     parser.add_argument("--date", default=today_string(), help="Audit date, YYYY-MM-DD.")
+    parser.add_argument(
+        "--mode",
+        default="full",
+        choices=["format", "migration", "epoch", "git", "evidence", "paper-binding", "full"],
+        help="Audit mode. migration writes MIGRATION_AUDIT.md and MIGRATION_PLAN.md.",
+    )
     parser.add_argument("--force", action="store_true", help="Overwrite existing audit files.")
     return parser.parse_args()
 
@@ -26,6 +32,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     research_dir = resolve_research_dir(args)
+    if args.mode == "migration":
+        audit_path, plan_path = generate_migration_audit(research_dir, args.force)
+        print(f"[OK] wrote migration audit: {audit_path}")
+        print(f"[OK] wrote migration plan: {plan_path}")
+        return 0
     audit_dir = generate_audit(research_dir, args.date, args.force)
     print(f"[OK] wrote research audit: {audit_dir}")
     return 0

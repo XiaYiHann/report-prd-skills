@@ -17,3 +17,5 @@ Codex 每次工作先读：
 - Do not change research direction.
 - Do not create paper results from unverified artifacts.
 - Do not create Vn+1 before closeout.
+- Git allowed: status, diff, log, add allowed files, commit current task, tag closeout / paper binding.
+- Git forbidden unless explicitly authorized: git push, git reset --hard, git clean -fd, git rebase, checkout overwriting user changes, rewrite history, force push, deleting files outside task scope.

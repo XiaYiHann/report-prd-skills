@@ -21,6 +21,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "CODEX_GOAL_TEMPLATE.md",
                 "SUBAGENT_POLICY.md",
                 "LITERATURE_POLICY.md",
+                "GIT_POLICY.md",
             ]:
                 self.assertTrue((research_dir / "agent" / name).exists(), name)
             for name in [
@@ -31,6 +32,8 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "TASK_QUEUE.yaml",
                 "NEXT_ACTION.md",
                 "LOOP_LOG.md",
+                "GIT_STATE.yaml",
+                "git_log.md",
                 "closeout.md",
                 "PAPER_BINDING_DECISION.md",
             ]:
@@ -49,6 +52,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 self.assertTrue((research_dir / "V0" / "wiki" / name).exists(), name)
             self.assertTrue((repo / "AGENTS.md").exists())
             self.assertTrue((repo / "CLAUDE.md").exists())
+            self.assertTrue((research_dir / "explore" / "sessions" / "EXP_0001.md").exists())
+            self.assertTrue((research_dir / "explore" / "syntheses" / "EXP_SYNTHESIS.md").exists())
+            self.assertTrue((research_dir / "explore" / "proposals" / "LITERATURE_BLOCKER.md").exists())
 
     def test_epoch_current_and_status_version_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -116,6 +122,33 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("must define test_commands", result.stdout)
+
+    def test_git_memory_templates_are_initialized(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            task = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")["tasks"][0]
+            next_action = (research_dir / "V0" / "NEXT_ACTION.md").read_text(encoding="utf-8")
+            closeout = (research_dir / "V0" / "closeout.md").read_text(encoding="utf-8")
+            binding = (research_dir / "V0" / "PAPER_BINDING_DECISION.md").read_text(encoding="utf-8")
+            git_state = read_yaml(research_dir / "V0" / "GIT_STATE.yaml")
+
+            self.assertIn("git", task)
+            self.assertEqual(task["git"]["commit_message"], "research(V0): complete TASK_001")
+            self.assertIn("## Git Protocol", next_action)
+            self.assertIn("## 12. Git Closeout", closeout)
+            self.assertIn("## Git Binding", binding)
+            self.assertFalse(git_state["commit_policy"]["allow_push"])
+            self.assertIn("git push", (research_dir / "agent" / "GIT_POLICY.md").read_text(encoding="utf-8"))
+
+    def test_explore_templates_are_initialized_without_bare_todo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            for path in (research_dir / "explore").rglob("*.md"):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("TODO", text, path)
+            session = (research_dir / "explore" / "sessions" / "EXP_0001.md").read_text(encoding="utf-8")
+            self.assertIn("type: explore_session", session)
+            self.assertIn("## Web / Literature Findings", session)
 
     def test_epoch_ready_blocks_v1_before_v0_closeout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -211,6 +244,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         self.assertIn("NEXT_ACTION.md", root_agents)
         self.assertIn("docs/research/CURRENT", root_claude)
         self.assertIn("NEXT_ACTION.md", root_claude)
+        for forbidden in ["git push", "git reset --hard", "git clean -fd", "git rebase", "force push"]:
+            self.assertIn(forbidden, root_agents)
+            self.assertIn(forbidden, root_claude)
 
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -242,6 +278,37 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
     def test_new_validator_modes_are_runnable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
-            for mode in ["direction-ready", "epoch-ready", "loop-ready", "closeout-ready", "paper-binding-ready"]:
+            for mode in [
+                "direction-ready",
+                "epoch-ready",
+                "loop-ready",
+                "closeout-ready",
+                "paper-binding-ready",
+                "format-ready",
+                "migration-ready",
+                "git-ready",
+            ]:
                 result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", mode])
                 self.assertIn(mode, result.stdout + result.stderr)
+
+    def test_format_ready_detects_missing_epoch_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            (research_dir / "CURRENT").unlink()
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "format-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CURRENT", result.stdout)
+
+    def test_git_ready_detects_missing_git_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            run_cmd(["git", "init"], cwd=repo)
+            research_dir = init_workspace(repo)
+            (research_dir / "V0" / "GIT_STATE.yaml").unlink()
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "git-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("GIT_STATE.yaml", result.stdout)

@@ -74,6 +74,24 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         ]:
             self.assertNotIn(forbidden, skill_text)
 
+    def test_research_explore_skill_exists_and_defines_boundaries(self) -> None:
+        skill_path = REPO_ROOT / "skills" / "research-explore" / "SKILL.md"
+        self.assertTrue(skill_path.exists())
+        skill_text = skill_path.read_text(encoding="utf-8")
+
+        self.assertIn("/research explore --mode literature", skill_text)
+        self.assertIn("It must not", skill_text)
+        self.assertIn("modify `RESEARCH_DIRECTION.md`", skill_text)
+        self.assertIn("Do not fabricate citations", skill_text)
+
+    def test_readme_documents_git_explore_and_audit_modernization(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("Git Memory Layer", readme)
+        self.assertIn("Research Explore Skill", readme)
+        self.assertIn("Audit Modernization", readme)
+        self.assertIn("Explore 负责想", readme)
+
     def test_installer_installs_skills_and_project_agents_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "claude" / "skills"

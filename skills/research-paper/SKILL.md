@@ -25,6 +25,8 @@ Paper Binding can happen only when all conditions hold:
 - prompt-only scaffold is not used as experiment result;
 - no unresolved negative result undermines the claim;
 - artifact, run record, metric, baseline, seed protocol, and audit status support the claim.
+- `PAPER_BINDING_DECISION.md` records source commit, paper binding commit, and paper binding tag when Git is enabled.
+- working tree is clean unless an explicit dirty-tree blocker/justification is recorded.
 
 If the gate is not satisfied, write a placeholder-complete manuscript or a gap report. Do not inject result numbers.
 

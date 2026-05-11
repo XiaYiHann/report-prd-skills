@@ -18,6 +18,8 @@ Generate `docs/research/ppt/main_deck/` as a slide-image deck specification. Thi
 
 PPT follows the same Paper Binding rule as Paper: result slides may use only claims from a current version with `status=closed_stable` or `paper_binding_ready` and `paper_binding_ready: true`. Otherwise, keep result cells as placeholders or write a deck gap report.
 
+When Git Memory Layer is enabled, result slides should reference the same source commit or paper binding tag recorded in `Vn/PAPER_BINDING_DECISION.md`.
+
 ## Outputs
 
 - `deck_spec.yaml`

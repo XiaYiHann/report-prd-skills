@@ -17,6 +17,8 @@ import yaml
 
 
 SCHEMA_VERSION = 1
+TEMPLATE_FAMILY = "research_loop"
+TEMPLATE_VERSION = "epoch_v1"
 DEFAULT_RESEARCH_DIR = Path("docs") / "research"
 FORBIDDEN_RESULT_PHRASES = [
     "experiments show",
@@ -88,6 +90,8 @@ EPOCH_REQUIRED_FILES = [
     "STATUS.yaml",
     "TASK_QUEUE.yaml",
     "NEXT_ACTION.md",
+    "GIT_STATE.yaml",
+    "git_log.md",
 ]
 
 EPOCH_WIKI_FILES = [
@@ -112,6 +116,15 @@ CLOSED_VERSION_STATUSES = {
 }
 
 PAPER_BINDING_STATUSES = {"closed_stable", "paper_binding_ready"}
+
+AGENT_REQUIRED_FILES = [
+    "RUNBOOK.md",
+    "CLAUDE_LOOP_PROMPT.md",
+    "CODEX_GOAL_TEMPLATE.md",
+    "SUBAGENT_POLICY.md",
+    "LITERATURE_POLICY.md",
+    "GIT_POLICY.md",
+]
 
 
 AUDIT_MATRIX_KEYS = [
@@ -157,6 +170,30 @@ STANDARD_SLIDES = [
 
 def today_string() -> str:
     return dt.date.today().isoformat()
+
+
+def template_metadata() -> dict[str, Any]:
+    return {
+        "template_family": TEMPLATE_FAMILY,
+        "template_version": TEMPLATE_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "generated_by": "research-init",
+    }
+
+
+def markdown_template(content: str) -> str:
+    frontmatter = "\n".join(
+        [
+            "---",
+            f"template_family: {TEMPLATE_FAMILY}",
+            f"template_version: {TEMPLATE_VERSION}",
+            f"schema_version: {SCHEMA_VERSION}",
+            "generated_by: research-init",
+            "---",
+            "",
+        ]
+    )
+    return frontmatter + content
 
 
 def read_text(path: Path) -> str:
@@ -1458,6 +1495,14 @@ Auto research is not automatic paper writing. It is a charter-bounded, epoch-bas
 
 Frame -> Contract -> Plan -> Execute -> Gate -> Interpret -> Wiki -> Closeout -> Next Version or Paper Binding
 
+## Explore / Git / Audit Closure
+
+Explore 负责想，Vn 负责做，Git 负责记，Wiki 负责沉淀，Audit 负责守门，Closeout 负责进入下一轮或论文绑定。
+
+- `/research explore` 是纯探索入口：可以讨论 idea、文献、baseline、novelty、next-version framing；可以保存 explore session；不能直接改 PRD、Spec、Plan、Paper Binding。
+- Git Memory Layer 记录每个 task、gate、closeout、paper binding 的 branch、commit、diff、tag 和 dirty-tree 状态；禁止 push、reset、clean、rebase、force push，除非用户明确授权。
+- Audit Modernization 覆盖 format、migration、epoch、git、evidence、paper-binding、full modes；audit 可以检测、分类、生成 migration plan，但不能默认改写研究主张或把旧 insight 变成 paper evidence。
+
 ## Status Handling
 
 - `initialized`：完善并人工批准 Direction 与 PRD。
@@ -1636,6 +1681,17 @@ def literature_policy_template() -> str:
 4. Unexpected strong/negative result：实验结果和预期冲突时，确认是否已有解释或类似现象。
 5. Before paper binding：补齐 related work、novelty risk、concurrent work。
 
+必须 web search：
+
+- 新方向 / 新 idea
+- 文献综述
+- baseline lock
+- novelty claim
+- related work
+- paper binding 前
+- 用户明确问是否已有类似工作
+- 用户提到不确定的新术语、论文、repo、作者、模型、方法
+
 ## No-search Situations
 
 - 修代码 bug
@@ -1644,6 +1700,10 @@ def literature_policy_template() -> str:
 - 更新 wiki
 - 执行已锁定 Plan
 - 小的工程重构
+- 写 task queue
+- 更新 next action
+- 格式迁移 audit
+- 纯整理当前 wiki
 
 ## Output Contract
 
@@ -1665,6 +1725,60 @@ def literature_policy_template() -> str:
 如果没有 web access，不要编造，写：
 
 - `docs/research/Vn/runs/LITERATURE_REQUIRED_BLOCKER.md`
+- `docs/research/explore/proposals/LITERATURE_BLOCKER.md`
+"""
+
+
+def git_policy_template() -> str:
+    return """# Git Policy
+
+Git 是 research-loop 的 checkpoint system，用于记录 task、gate、closeout 和 Paper Binding 对应的真实工程状态。
+
+## AI 可以
+
+- `git status`
+- `git diff`
+- `git log`
+- `git add` allowed files
+- `git commit` 当前 task
+- `git tag` closeout / paper binding
+
+## AI 不可以
+
+- `git push`
+- `git reset --hard`
+- `git clean -fd`
+- `git rebase`
+- `git checkout` 覆盖用户修改
+- rewrite history
+- force push
+- 删除 task 范围外文件
+
+除非用户明确授权，否则所有破坏性 Git 操作都禁止。
+
+## Task Protocol
+
+Before work:
+
+- Run `git status --short` if git is available.
+- Record current commit hash.
+
+After completion:
+
+- Run tests if code changed.
+- Run `git diff --stat`.
+- Write diff summary to `LOOP_LOG.md`.
+- Commit if task is done and commit policy allows.
+- Record commit hash in `GIT_STATE.yaml` and task report.
+- Do not push unless explicitly instructed.
+
+## Closeout Protocol
+
+Closeout requires a clean git tree or explicit dirty-tree justification. If `tag_policy.tag_on_closeout=true`, create a tag such as `research/V0/closed_success` only after closeout is complete.
+
+## Paper Binding Protocol
+
+Paper Binding requires a clean git tree and a stable source commit. If `tag_policy.tag_on_paper_binding=true`, create `research/paper_binding/Vn` only when `PAPER_BINDING_DECISION.md` allows binding.
 """
 
 
@@ -1722,6 +1836,7 @@ def epoch_prd_template(version: str, title: str, purpose: str) -> str:
 
 def epoch_spec_payload(version: str) -> dict[str, Any]:
     return {
+        **template_metadata(),
         "version": version,
         "direction_ref": "../RESEARCH_DIRECTION.md",
         "prd_ref": "PRD.md",
@@ -1882,6 +1997,7 @@ Frame -> Contract -> Plan -> Execute -> Gate -> Interpret -> Wiki -> Closeout ->
 
 def epoch_status_payload(version: str) -> dict[str, Any]:
     return {
+        **template_metadata(),
         "version": version,
         "status": "initialized",
         "allowed_status": [
@@ -1917,6 +2033,7 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
 
 def epoch_task_queue_payload(version: str) -> dict[str, Any]:
     return {
+        **template_metadata(),
         "version": version,
         "queue_status": "active",
         "tasks": [
@@ -1939,6 +2056,13 @@ def epoch_task_queue_payload(version: str) -> dict[str, Any]:
                 "success_criteria": ["Research Direction 的核心方向已由用户批准或明确要求继续保持 draft。", "V0/PRD.md 已回答核心问题、假设、最小实验和停止条件。"],
                 "test_commands": [],
                 "evidence_required": ["human_approval_or_blocker", "updated_file_path"],
+                "git": {
+                    "require_clean_before_start": False,
+                    "commit_after_done": True,
+                    "commit_message": f"research({version}): complete TASK_001",
+                    "include_diff_summary": True,
+                    "record_commit_hash": True,
+                },
                 "after_completion": {
                     "update": ["LOOP_LOG.md", "TASK_QUEUE.yaml", "NEXT_ACTION.md", "wiki/epoch_summary.md"]
                 },
@@ -1996,6 +2120,22 @@ def epoch_next_action_template(version: str, task_id: str = "TASK_001") -> str:
 ## Test / Validation
 
 当前任务是研究框架填写，不需要运行代码测试；如后续改代码，必须运行 `python3 -m pytest tests -q` 或记录不能测试的原因。
+
+## Git Protocol
+
+Before work:
+
+- Run `git status --short` if git is available.
+- Record current commit hash.
+
+After completion:
+
+- Run tests if code changed.
+- Run `git diff --stat`.
+- Write diff summary to `LOOP_LOG.md`.
+- Commit if task is done and commit policy allows.
+- Record commit hash in `GIT_STATE.yaml` and `runs/{task_id}_report.md`.
+- Do not push unless explicitly instructed.
 
 ## If Blocked
 
@@ -2113,6 +2253,16 @@ def epoch_closeout_template(version: str) -> str:
 - reason: `【待填写：为何可以或不可以绑定论文】`
 - allowed_claims: []
 - blocked_claims: []
+
+## 12. Git Closeout
+
+- base_commit: `【待填写：epoch 起点 commit】`
+- closeout_commit: `【待填写：closeout commit】`
+- task_commits:
+  - TASK_001: `【待填写：commit hash 或 blocker】`
+- final_diff_summary: `【待填写：git diff --stat 摘要】`
+- closeout_tag: `【待填写：research/V0/closed_status 或 none】`
+- dirty_tree: `【待填写：false 或 dirty-tree justification】`
 """
 
 
@@ -2145,6 +2295,14 @@ def paper_binding_decision_template(version: str) -> str:
 - baseline
 - seed_protocol
 - audit_status
+
+## Git Binding
+
+- source_version: {version}
+- source_commit: `【待填写：支撑 Paper Binding 的 source commit】`
+- paper_binding_commit: `【待填写：Paper Binding commit】`
+- paper_binding_tag: `【待填写：research/paper_binding/{version} 或 none】`
+- dirty_tree_allowed: false
 
 ## Forbidden
 
@@ -2268,6 +2426,206 @@ def wiki_templates(version: str) -> dict[str, str]:
     }
 
 
+def git_state_payload(version: str) -> dict[str, Any]:
+    return {
+        **template_metadata(),
+        "version": version,
+        "git_enabled": True,
+        "epoch_branch": f"research/{version}",
+        "base_commit": None,
+        "current_commit": None,
+        "last_task_commit": None,
+        "last_gate_commit": None,
+        "closeout_commit": None,
+        "paper_binding_commit": None,
+        "commit_policy": {
+            "commit_after_task_done": True,
+            "commit_after_gate_passed": True,
+            "commit_after_closeout": True,
+            "commit_after_paper_binding": True,
+            "allow_commit_on_blocker": True,
+            "allow_push": False,
+        },
+        "tag_policy": {
+            "tag_on_closeout": True,
+            "tag_on_paper_binding": True,
+            "closeout_tag_format": f"research/{version}/closed_{{status}}",
+            "paper_tag_format": f"research/paper_binding/{version}",
+        },
+        "dirty_tree_policy": {
+            "before_next_action": "warn",
+            "before_closeout": "block",
+            "before_paper_binding": "block",
+        },
+    }
+
+
+def git_log_template(version: str) -> str:
+    return f"""# {version} Git Log
+
+## Entry Template
+
+- task_id: `TASK_001`
+- branch: `【待填写：git branch】`
+- pre_commit: `【待填写：执行前 commit】`
+- post_commit: `【待填写：执行后 commit】`
+- diff_stat: `【待填写：git diff --stat 摘要】`
+- commit_created: `【待填写：true / false】`
+- commit_hash: `【待填写：commit hash 或 none】`
+- dirty_tree_after_task: `【待填写：true / false】`
+"""
+
+
+def task_run_report_template(version: str, task_id: str = "TASK_001") -> str:
+    return f"""# {task_id} Run Report
+
+## Task
+
+- version: {version}
+- task_id: {task_id}
+- status: `【待填写：done / blocked / failed / skipped】`
+
+## Git State
+
+- branch: `【待填写】`
+- pre_commit: `【待填写】`
+- post_commit: `【待填写】`
+- commit_created: `【待填写：true / false】`
+- commit_hash: `【待填写】`
+- dirty_tree_after_task: `【待填写：true / false】`
+
+## Files Changed
+
+`【待填写：粘贴 git diff --stat 摘要】`
+
+## Commands Run
+
+`【待填写：真实命令和结果；没有运行则说明原因】`
+
+## Evidence
+
+- tests: `【待填写】`
+- artifacts: `【待填写】`
+- blockers: `【待填写】`
+
+## Interpretation
+
+这一步完成了什么？它是否产生 insight？是否需要更新 wiki？
+
+## Next Action
+
+`【待填写：下一步建议】`
+"""
+
+
+def explore_session_template(version: str = "V0") -> str:
+    return f"""---
+id: EXP_0001
+type: explore_session
+version: {version}
+mode: baseline
+created_at: {today_string()}
+web_search_used: false
+status: saved
+template_family: {TEMPLATE_FAMILY}
+template_version: {TEMPLATE_VERSION}
+schema_version: {SCHEMA_VERSION}
+generated_by: research-init
+---
+
+# EXP_0001
+
+## User Question
+
+`【待填写：用户问了什么】`
+
+## Current Context
+
+`【待填写：当前版本、当前 PRD、当前 open questions】`
+
+## Research Direction Boundary
+
+`【待填写：本次探索必须停留在哪些 Research Corridor 内】`
+
+## Discussion Summary
+
+`【待填写：简要总结讨论，不写隐藏推理链】`
+
+## Web / Literature Findings
+
+- query: `【待填写：检索 query；如未使用 web search 写 none】`
+- source: `【待填写：source 或 LITERATURE_BLOCKER】`
+- relevance: `【待填写】`
+- claim_supported: `【待填写】`
+- uncertainty: `【待填写】`
+
+如果无 web access，写 `LITERATURE_BLOCKER`，不要编造。
+
+## Implications for Current Version
+
+- no_change
+- update_wiki
+- add_task_candidate
+- closeout_consideration
+- next_version_seed_candidate
+- out_of_scope_escalation
+
+## Proposed Actions
+
+只提出建议，不执行。
+
+## Save Targets
+
+- `Vn/wiki/literature_notes.md`
+- `Vn/wiki/baseline_landscape.md`
+- `Vn/wiki/open_questions.md`
+- `Vn/wiki/next_version_seed.md`
+"""
+
+
+def explore_synthesis_template() -> str:
+    return """# Explore Synthesis
+
+## Scope
+
+`【待填写：汇总哪些 EXP session】`
+
+## Stable Takeaways
+
+- `【待填写：可沉淀到 wiki 的稳定认识；如无，写明确无】`
+
+## Proposed Updates
+
+- `【待填写：建议更新的 wiki / task / next_version_seed；只建议，不执行】`
+"""
+
+
+def explore_proposal_template(title: str) -> str:
+    return f"""# {title}
+
+## Proposal Status
+
+- status: draft
+- human_review_required: true
+
+## Rationale
+
+`【待填写：建议原因】`
+
+## Proposed Change
+
+`【待填写：建议内容；不得直接当作已执行修改】`
+
+## Evidence / Sources
+
+- `【待填写：EXP session、文献、run、artifact 或 blocker】`
+
+## Boundary
+
+Explore 只能建议，不能直接修改 PRD、RESEARCH_DIRECTION、Spec、Plan、Paper Binding。
+"""
+
+
 def claude_root_template() -> str:
     return """# CLAUDE.md
 
@@ -2279,6 +2637,8 @@ def claude_root_template() -> str:
 - Never create Vn+1 before Vn closeout.
 - Never modify `RESEARCH_DIRECTION.md` without explicit user instruction.
 - After each loop, update `LOOP_LOG.md`, `TASK_QUEUE.yaml`, and `NEXT_ACTION.md`.
+- Git allowed: `git status`, `git diff`, `git log`, `git add` allowed files, `git commit` current task, `git tag` closeout/paper binding.
+- Git forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git clean -fd`, `git rebase`, checkout that overwrites user changes, history rewrite, force push, deleting files outside task scope.
 """
 
 
@@ -2302,36 +2662,52 @@ Codex 每次工作先读：
 - Do not change research direction.
 - Do not create paper results from unverified artifacts.
 - Do not create Vn+1 before closeout.
+- Git allowed: status, diff, log, add allowed files, commit current task, tag closeout / paper binding.
+- Git forbidden unless explicitly authorized: git push, git reset --hard, git clean -fd, git rebase, checkout overwriting user changes, rewrite history, force push, deleting files outside task scope.
 """
 
 
 def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str, force: bool = False) -> None:
     version = "V0"
-    write_text(research_dir / "RESEARCH_DIRECTION.md", research_direction_template(title, purpose), force)
+    write_text(research_dir / "RESEARCH_DIRECTION.md", markdown_template(research_direction_template(title, purpose)), force)
     write_text(research_dir / "CURRENT", version + "\n", force)
-    write_text(research_dir / "INDEX.md", research_index_template(), force)
+    write_text(research_dir / "INDEX.md", markdown_template(research_index_template()), force)
+
+    explore_dir = research_dir / "explore"
+    for dirname in ["sessions", "syntheses", "proposals"]:
+        (explore_dir / dirname).mkdir(parents=True, exist_ok=True)
+    write_text(explore_dir / "sessions" / "EXP_0001.md", explore_session_template(version), force)
+    write_text(explore_dir / "syntheses" / "EXP_SYNTHESIS.md", markdown_template(explore_synthesis_template()), force)
+    write_text(explore_dir / "proposals" / "DIRECTION_UPDATE_PROPOSAL.md", markdown_template(explore_proposal_template("Direction Update Proposal")), force)
+    write_text(explore_dir / "proposals" / "NEXT_VERSION_PROPOSAL.md", markdown_template(explore_proposal_template("Next Version Proposal")), force)
+    write_text(explore_dir / "proposals" / "BASELINE_UPDATE_PROPOSAL.md", markdown_template(explore_proposal_template("Baseline Update Proposal")), force)
+    write_text(explore_dir / "proposals" / "LITERATURE_BLOCKER.md", markdown_template(explore_proposal_template("Literature Blocker")), force)
 
     agent_dir = research_dir / "agent"
-    write_text(agent_dir / "RUNBOOK.md", agent_runbook_template(), force)
-    write_text(agent_dir / "CLAUDE_LOOP_PROMPT.md", claude_loop_prompt_template(), force)
-    write_text(agent_dir / "CODEX_GOAL_TEMPLATE.md", codex_goal_template(), force)
-    write_text(agent_dir / "SUBAGENT_POLICY.md", subagent_policy_template(), force)
-    write_text(agent_dir / "LITERATURE_POLICY.md", literature_policy_template(), force)
+    write_text(agent_dir / "RUNBOOK.md", markdown_template(agent_runbook_template()), force)
+    write_text(agent_dir / "CLAUDE_LOOP_PROMPT.md", markdown_template(claude_loop_prompt_template()), force)
+    write_text(agent_dir / "CODEX_GOAL_TEMPLATE.md", markdown_template(codex_goal_template()), force)
+    write_text(agent_dir / "SUBAGENT_POLICY.md", markdown_template(subagent_policy_template()), force)
+    write_text(agent_dir / "LITERATURE_POLICY.md", markdown_template(literature_policy_template()), force)
+    write_text(agent_dir / "GIT_POLICY.md", markdown_template(git_policy_template()), force)
 
     epoch_dir = research_dir / version
     for dirname in ["plans", "runs", "artifacts", "audits", "wiki"]:
         (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
-    write_text(epoch_dir / "PRD.md", epoch_prd_template(version, title, purpose), force)
+    write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
-    write_text(epoch_dir / "PLAN.md", epoch_plan_template(version), force)
+    write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
-    write_text(epoch_dir / "NEXT_ACTION.md", epoch_next_action_template(version), force)
-    write_text(epoch_dir / "LOOP_LOG.md", epoch_loop_log_template(version), force)
-    write_text(epoch_dir / "closeout.md", epoch_closeout_template(version), force)
-    write_text(epoch_dir / "PAPER_BINDING_DECISION.md", paper_binding_decision_template(version), force)
+    write_text(epoch_dir / "NEXT_ACTION.md", markdown_template(epoch_next_action_template(version)), force)
+    write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
+    write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
+    write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
+    write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
+    write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
+    write_text(epoch_dir / "runs" / "TASK_001_report.md", markdown_template(task_run_report_template(version)), force)
     for filename, content in wiki_templates(version).items():
-        write_text(epoch_dir / "wiki" / filename, content, force)
+        write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
     for path in [
         epoch_dir / "plans" / ".gitkeep",
         epoch_dir / "runs" / ".gitkeep",
@@ -4244,6 +4620,258 @@ def validate_paper_binding_ready(research_dir: Path) -> Validation:
     return validation
 
 
+def template_version_ok(path: Path) -> bool:
+    if not path.exists():
+        return False
+    if path.suffix in {".yaml", ".yml"}:
+        return load_yaml(path).get("template_version") == TEMPLATE_VERSION
+    return f"template_version: {TEMPLATE_VERSION}" in read_text(path)
+
+
+def validate_format_ready(research_dir: Path) -> Validation:
+    validation = Validation()
+    validation.require_file(research_dir / "RESEARCH_DIRECTION.md", "RESEARCH_DIRECTION.md")
+    validation.require_file(research_dir / "CURRENT", "CURRENT")
+    version = current_epoch_name(research_dir)
+    if not version:
+        validation.error("CURRENT missing or empty")
+        return validation
+    epoch_dir = research_dir / version
+    if not epoch_dir.exists():
+        validation.error(f"missing current epoch directory: {epoch_dir.as_posix()}")
+        return validation
+    for name in EPOCH_REQUIRED_FILES + ["closeout.md", "PAPER_BINDING_DECISION.md"]:
+        validation.require_file(epoch_dir / name, f"{version}/{name}")
+    for name in EPOCH_WIKI_FILES:
+        validation.require_file(epoch_dir / "wiki" / name, f"{version}/wiki/{name}")
+    for name in AGENT_REQUIRED_FILES:
+        validation.require_file(research_dir / "agent" / name, f"agent/{name}")
+    repo_root = research_dir.parents[1] if research_dir.name == "research" and research_dir.parent.name == "docs" else research_dir.parent
+    validation.require_file(repo_root / "CLAUDE.md", "CLAUDE.md")
+    validation.require_file(repo_root / "AGENTS.md", "AGENTS.md")
+    key_template_files = [
+        research_dir / "RESEARCH_DIRECTION.md",
+        research_dir / "INDEX.md",
+        epoch_dir / "PRD.md",
+        epoch_dir / "SPEC.yaml",
+        epoch_dir / "PLAN.md",
+        epoch_dir / "STATUS.yaml",
+        epoch_dir / "TASK_QUEUE.yaml",
+        epoch_dir / "NEXT_ACTION.md",
+        epoch_dir / "GIT_STATE.yaml",
+        epoch_dir / "closeout.md",
+        epoch_dir / "PAPER_BINDING_DECISION.md",
+        research_dir / "agent" / "RUNBOOK.md",
+        research_dir / "agent" / "GIT_POLICY.md",
+    ]
+    for path in key_template_files:
+        if path.exists() and not template_version_ok(path):
+            validation.error(f"{path.relative_to(research_dir).as_posix()} missing template_version {TEMPLATE_VERSION}")
+    return validation
+
+
+def detect_workspace_type(research_dir: Path) -> str:
+    has_epoch = (research_dir / "RESEARCH_DIRECTION.md").exists() and (research_dir / "CURRENT").exists() and bool(epoch_versions(research_dir))
+    legacy_markers = [
+        research_dir / "prd",
+        research_dir / "spec",
+        research_dir / "plans",
+        research_dir / "insights",
+        research_dir / "audits",
+    ]
+    has_legacy = any(path.exists() for path in legacy_markers)
+    if has_epoch and has_legacy:
+        return "mixed"
+    if has_epoch:
+        return "epoch_v1"
+    if has_legacy:
+        return "legacy_flat"
+    return "unknown"
+
+
+def legacy_files(research_dir: Path) -> list[str]:
+    candidates = [
+        "prd/research_prd.md",
+        "prd/research_prd.tex",
+        "spec/global_spec.yaml",
+        "plans/plan_queue.yaml",
+        "insights/insight_log.md",
+        "audits",
+    ]
+    return [f"docs/research/{name}" for name in candidates if (research_dir / name).exists()]
+
+
+def missing_epoch_files(research_dir: Path) -> list[str]:
+    missing = []
+    if not (research_dir / "RESEARCH_DIRECTION.md").exists():
+        missing.append("docs/research/RESEARCH_DIRECTION.md")
+    if not (research_dir / "CURRENT").exists():
+        missing.append("docs/research/CURRENT")
+    version = current_epoch_name(research_dir) or "V0"
+    epoch_dir = research_dir / version
+    for name in EPOCH_REQUIRED_FILES + ["closeout.md", "PAPER_BINDING_DECISION.md"]:
+        if not (epoch_dir / name).exists():
+            missing.append(f"docs/research/{version}/{name}")
+    for name in EPOCH_WIKI_FILES:
+        if not (epoch_dir / "wiki" / name).exists():
+            missing.append(f"docs/research/{version}/wiki/{name}")
+    return missing
+
+
+def migration_audit_text(research_dir: Path) -> str:
+    workspace_type = detect_workspace_type(research_dir)
+    found = legacy_files(research_dir)
+    missing = missing_epoch_files(research_dir)
+    return "\n".join(
+        [
+            "# Migration Audit",
+            "",
+            "## Detected Layout",
+            "",
+            workspace_type,
+            "",
+            "## Found Legacy Files",
+            "",
+            *(f"- {item}" for item in found),
+            *(["- none"] if not found else []),
+            "",
+            "## Missing Epoch Files",
+            "",
+            *(f"- {item}" for item in missing),
+            *(["- none"] if not missing else []),
+            "",
+            "## Recommended Migration",
+            "",
+            "1. Create `docs/research/RESEARCH_DIRECTION.md` from legacy PRD summary.",
+            "2. Set `CURRENT` to `V0`.",
+            "3. Copy legacy PRD to `docs/research/V0/PRD.md`.",
+            "4. Copy legacy `global_spec.yaml` to `docs/research/V0/SPEC.yaml`.",
+            "5. Convert legacy `plan_queue.yaml` to `docs/research/V0/TASK_QUEUE.yaml`.",
+            "6. Convert `insight_log.md` into `V0/wiki/epoch_summary.md` and `open_questions.md`.",
+            "7. Mark migrated artifacts as carry_forward_candidates, not paper evidence.",
+            "8. Run format audit again.",
+            "",
+            "## Human Review Required",
+            "",
+            "Yes.",
+            "",
+            "## Blockers",
+            "",
+            "- Legacy evidence may not satisfy current paper-binding rules.",
+            "- Audit must not rewrite research claims or promote old insight to paper evidence by default.",
+            "",
+        ]
+    )
+
+
+def migration_plan_text(research_dir: Path) -> str:
+    return "\n".join(
+        [
+            "# Migration Plan",
+            "",
+            "## Goal",
+            "",
+            "把 legacy flat research workspace 迁移到 epoch_v1，但不默认改写研究主张。",
+            "",
+            "## Task Candidate",
+            "",
+            "- id: TASK_MIGRATE_LEGACY_TO_V0",
+            "- requires_human_review: true",
+            "- rule: migrated artifacts are carry_forward_candidates, not paper evidence",
+            "",
+            "## Steps",
+            "",
+            "1. 创建 Direction draft。",
+            "2. 创建 `CURRENT=V0`。",
+            "3. 将 legacy PRD/SPEC/plan queue 转为 V0 文件。",
+            "4. 将 insights 转为 wiki 候选材料。",
+            "5. 运行 `format-ready`、`epoch-ready`、`git-ready`。",
+            "",
+        ]
+    )
+
+
+def generate_migration_audit(research_dir: Path, force: bool = False) -> tuple[Path, Path]:
+    audit_path = research_dir / "audits" / "MIGRATION_AUDIT.md"
+    plan_path = research_dir / "MIGRATION_PLAN.md"
+    write_text(audit_path, markdown_template(migration_audit_text(research_dir)), force)
+    write_text(plan_path, markdown_template(migration_plan_text(research_dir)), force)
+    return audit_path, plan_path
+
+
+def validate_migration_ready(research_dir: Path) -> Validation:
+    validation = Validation()
+    workspace_type = detect_workspace_type(research_dir)
+    if workspace_type in {"legacy_flat", "mixed"}:
+        validation.error(f"workspace_type: {workspace_type}; migration plan required before epoch-ready")
+    elif workspace_type == "unknown":
+        validation.error("workspace_type: unknown; run research-init or migration audit")
+    return validation
+
+
+def git_head(repo_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=repo_root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def git_status_short(repo_root: Path) -> list[str]:
+    result = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return result.stdout.splitlines() if result.returncode == 0 else []
+
+
+def validate_git_ready(research_dir: Path) -> Validation:
+    validation = validate_epoch_ready(research_dir)
+    if not validation.ok:
+        return validation
+    repo_root = research_dir.parents[1] if research_dir.name == "research" and research_dir.parent.name == "docs" else research_dir.parent
+    if not (repo_root / ".git").exists():
+        validation.error("not a git repository")
+    epoch_dir = current_epoch_dir(research_dir)
+    git_state_path = epoch_dir / "GIT_STATE.yaml"
+    if not validation.require_file(git_state_path, "GIT_STATE.yaml"):
+        return validation
+    git_state = load_yaml(git_state_path)
+    if git_state.get("git_enabled") is not True:
+        validation.error("GIT_STATE.yaml git_enabled must be true")
+    commit_policy = git_state.get("commit_policy", {}) if isinstance(git_state.get("commit_policy"), dict) else {}
+    if commit_policy.get("allow_push") is not False:
+        validation.error("GIT_STATE.yaml commit_policy.allow_push must be false by default")
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    for task in [item for item in as_list(queue.get("tasks")) if isinstance(item, dict)]:
+        task_id = str(task.get("id", "<missing>"))
+        git_block = task.get("git") if isinstance(task.get("git"), dict) else {}
+        if not git_block:
+            validation.error(f"task {task_id} missing git policy")
+        if task.get("status") == "done" and git_block.get("record_commit_hash") and not git_block.get("commit_hash"):
+            validation.error(f"done task {task_id} has no commit hash")
+    closeout_text = read_text(epoch_dir / "closeout.md") if (epoch_dir / "closeout.md").exists() else ""
+    status = str(load_yaml(epoch_dir / "STATUS.yaml").get("status", ""))
+    if status in CLOSED_VERSION_STATUSES and "closeout_commit:" not in closeout_text:
+        validation.error("closed epoch closeout.md must record closeout_commit")
+    paper_text = read_text(epoch_dir / "PAPER_BINDING_DECISION.md") if (epoch_dir / "PAPER_BINDING_DECISION.md").exists() else ""
+    if status in PAPER_BINDING_STATUSES and "paper_binding_commit:" not in paper_text:
+        validation.error("paper binding must record paper_binding_commit")
+    if status in CLOSED_VERSION_STATUSES | PAPER_BINDING_STATUSES:
+        dirty = git_status_short(repo_root)
+        if dirty:
+            validation.error("closeout or paper binding requires clean git tree or explicit dirty-tree justification")
+    return validation
+
+
 def validate_prd(research_dir: Path) -> Validation:
     validation = Validation()
     prd = research_dir / "prd" / "research_prd.md"
@@ -4624,6 +5252,9 @@ def validate_research(research_dir: Path, mode: str) -> Validation:
         "loop-ready": validate_loop_ready,
         "closeout-ready": validate_closeout_ready,
         "paper-binding-ready": validate_paper_binding_ready,
+        "format-ready": validate_format_ready,
+        "migration-ready": validate_migration_ready,
+        "git-ready": validate_git_ready,
         "prd-ready": validate_prd,
         "paper-ready": validate_paper,
         "spec-ready": validate_spec,

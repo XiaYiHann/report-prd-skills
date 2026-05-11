@@ -7,7 +7,7 @@ description: "Use when a repo needs a new docs/research workspace or when an old
 
 ## Overview
 
-Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates the **Charter-bounded Epoch Research Loop** workspace plus legacy-compatible PRD/Paper/Spec/Plan/Audit/PPT directories without inventing datasets, baselines, metrics, commands, or results.
+Initialize `docs/research/` as the durable workspace for the research execution skill family. This is setup only: it creates the **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop** workspace plus legacy-compatible PRD/Paper/Spec/Plan/Audit/PPT directories without inventing datasets, baselines, metrics, commands, or results.
 
 Definition:
 
@@ -51,6 +51,10 @@ The command creates the new default structure:
 - `docs/research/agent/CODEX_GOAL_TEMPLATE.md`
 - `docs/research/agent/SUBAGENT_POLICY.md`
 - `docs/research/agent/LITERATURE_POLICY.md`
+- `docs/research/agent/GIT_POLICY.md`
+- `docs/research/explore/sessions/EXP_0001.md`
+- `docs/research/explore/syntheses/EXP_SYNTHESIS.md`
+- `docs/research/explore/proposals/*`
 - `docs/research/V0/PRD.md`
 - `docs/research/V0/SPEC.yaml`
 - `docs/research/V0/PLAN.md`
@@ -58,6 +62,9 @@ The command creates the new default structure:
 - `docs/research/V0/TASK_QUEUE.yaml`
 - `docs/research/V0/NEXT_ACTION.md`
 - `docs/research/V0/LOOP_LOG.md`
+- `docs/research/V0/GIT_STATE.yaml`
+- `docs/research/V0/git_log.md`
+- `docs/research/V0/runs/TASK_001_report.md`
 - `docs/research/V0/wiki/*`
 - `docs/research/V0/closeout.md`
 - `docs/research/V0/PAPER_BINDING_DECISION.md`
@@ -104,4 +111,6 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - `CURRENT` defaults to `V0`.
 - `V0/STATUS.yaml` defaults to `status=initialized`.
 - `V0/NEXT_ACTION.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
+- `V0/TASK_QUEUE.yaml` tasks include a Git policy block.
+- `V0/GIT_STATE.yaml` disables push by default and records commit/tag policies.
 - Do not delete legacy `prd/spec/plans/audits`; mark them as legacy-compatible context.

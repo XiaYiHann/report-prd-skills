@@ -18,6 +18,7 @@ DRY_RUN=false
 
 SKILLS=(
   research
+  research-explore
   research-init
   research-prd
   research-paper

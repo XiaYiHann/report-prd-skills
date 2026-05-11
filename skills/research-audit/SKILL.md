@@ -19,6 +19,28 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 - PPT
 - artifacts if present
 
+It is also the format gatekeeper, migration guide, Git checkpoint auditor, and Paper Binding guard for epoch_v1.
+
+## Audit Modes
+
+Conceptual `/research audit` modes:
+
+- `format` — checks epoch_v1 files, template metadata, agent docs, `AGENTS.md`, `CLAUDE.md`.
+- `migration` — detects legacy flat layout and writes migration guidance.
+- `epoch` — checks current `Vn` authority chain, task queue, next action, wiki, closeout.
+- `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits.
+- `evidence` — checks artifact/evidence eligibility and anti-mock rules.
+- `paper-binding` — checks Paper Binding gates.
+- `full` — runs all relevant audit families.
+
+CLI scaffold:
+
+```bash
+python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
+  --repo /absolute/path/to/repo \
+  --mode migration
+```
+
 ## Required Questions
 
 - Does current `Vn/PRD.md`, `Vn/PLAN.md`, or `Vn/NEXT_ACTION.md` exceed the Research Corridor?
@@ -42,6 +64,10 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 - Is an old-version artifact used for a current claim without explicit `carry_forward` in current PRD or SPEC?
 - Is paper binding attempted before `closed_stable` or `paper_binding_ready`?
 - Is exploratory-only or prompt-only evidence used as a main result?
+- Does `GIT_STATE.yaml` exist?
+- Are done tasks missing commit hashes?
+- Is closeout or paper binding attempted with a dirty tree?
+- Does the workspace look `epoch_v1`, `legacy_flat`, `mixed`, or `unknown`?
 
 ## Outputs
 
@@ -79,3 +105,9 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - Old versions may contribute hypothesis seeds and history, not current claim evidence.
 - Wiki and closeout completeness are gates for `closeout-ready`.
 - Paper/PPT claims must not exceed `PAPER_BINDING_DECISION.md`.
+
+## Migration Audit Rules
+
+Audit may detect, classify, generate `MIGRATION_AUDIT.md`, generate `MIGRATION_PLAN.md`, and point out blockers. It must not default to moving old artifacts, rewriting PRD research claims, treating old insight as paper evidence, or marking a legacy project epoch-ready.
+
+Legacy migration should become an explicit task such as `TASK_MIGRATE_LEGACY_TO_V0`.
