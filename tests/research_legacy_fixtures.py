@@ -39,8 +39,14 @@ def make_execution_ready_spec(research_dir: Path) -> None:
                 {
                     "dataset_id": "D01",
                     "name": "Dataset One",
+                    "data_source_type": "real_dataset",
+                    "provenance": "public benchmark manifest for Dataset One",
+                    "license": "research-use license",
                     "split_file": "data/splits/D01_frozen_split_v1.json",
                     "preprocessing_config": "configs/preprocess/D01_v1.yaml",
+                    "is_mock": False,
+                    "is_synthetic": False,
+                    "claim_support_allowed": True,
                 }
             ],
         },
@@ -51,7 +57,33 @@ def make_execution_ready_spec(research_dir: Path) -> None:
     )
     write_yaml(
         research_dir / "spec" / "shared" / "model_manifest.yaml",
-        {"schema_version": 1, "models": [{"model_id": "M_OURS", "name": "Our method"}]},
+        {
+            "schema_version": 1,
+            "models": [
+                {
+                    "model_id": "M_OURS",
+                    "name": "Our method",
+                    "model_source_type": "real_code",
+                    "implementation_ref": "project.methods.ours",
+                    "checkpoint_or_model_version": "repo commit under test",
+                    "config_path": "configs/experiments/E01/ours.yaml",
+                    "is_mock": False,
+                    "is_stub": False,
+                    "claim_support_allowed": True,
+                },
+                {
+                    "model_id": "B01",
+                    "name": "Baseline One",
+                    "model_source_type": "official_code",
+                    "implementation_ref": "https://example.invalid/code",
+                    "checkpoint_or_model_version": "abc123",
+                    "config_path": "configs/reproduction/B01/full.yaml",
+                    "is_mock": False,
+                    "is_stub": False,
+                    "claim_support_allowed": True,
+                },
+            ],
+        },
     )
     write_yaml(
         research_dir / "spec" / "shared" / "seed_protocol.yaml",
@@ -91,6 +123,23 @@ def make_execution_ready_spec(research_dir: Path) -> None:
                 "paper_figure",
                 "go_no_go_decision",
             ],
+            "real_data_model_gate": {
+                "required_for": ["full_experiment", "full_reproduction", "paper_binding"],
+                "full_experiment_required_checks": [
+                    "real_dataset_provenance_verified",
+                    "real_model_provenance_verified",
+                    "no_synthetic_or_mock_inputs",
+                    "full_run_not_smoke",
+                ],
+                "full_reproduction_required_checks": [
+                    "real_dataset_provenance_verified",
+                    "real_model_provenance_verified",
+                    "official_or_declared_code_commit_verified",
+                    "no_synthetic_or_mock_inputs",
+                    "full_run_not_smoke",
+                ],
+                "block_on": ["mock", "toy", "synthetic", "stub", "cached", "proxy", "smoke_only"],
+            },
         },
     )
     write_yaml(
@@ -139,6 +188,14 @@ def make_execution_ready_spec(research_dir: Path) -> None:
                     "models": ["M_OURS"],
                     "proposed_method_config": "configs/experiments/E01/ours.yaml",
                     "baselines": ["B01"],
+                    "data_model_truth": {
+                        "full_experiment_requires_real_data": True,
+                        "full_experiment_requires_real_model": True,
+                        "dataset_manifest_must_set_is_mock_false": True,
+                        "model_manifest_must_set_is_mock_false": True,
+                        "forbid_mock_toy_synthetic_stub_cached_proxy": True,
+                        "mock_allowed_only_for": ["unit_test", "smoke_test", "harness_plumbing"],
+                    },
                     "seeds": [1, 2, 3],
                     "metrics": ["M01"],
                     "statistical_protocol": "paired bootstrap over frozen splits",
@@ -194,7 +251,11 @@ def make_execution_ready_spec(research_dir: Path) -> None:
                     "pass_criteria": [
                         "all_declared_seeds_completed",
                         "all_declared_baselines_completed",
+                        "real_dataset_provenance_verified",
+                        "real_model_provenance_verified",
                         "no_mock_data_used",
+                        "no_synthetic_or_mock_inputs",
+                        "full_run_not_smoke",
                         "no_missing_metric",
                         "no_test_tuning",
                         "artifact_hashes_recorded",
@@ -227,9 +288,26 @@ def make_execution_ready_spec(research_dir: Path) -> None:
                     },
                     "dataset": {"dataset_id": "D01"},
                     "metrics": [{"metric_id": "M01"}],
-                    "commands": {"smoke": ["bash scripts/reproduction/B01/run_smoke.sh"]},
+                    "real_data_policy": {
+                        "requires_real_dataset": True,
+                        "dataset_id": "D01",
+                        "forbid_mock_toy_synthetic": True,
+                        "allowed_mock_scope": ["smoke_test"],
+                    },
+                    "real_model_policy": {
+                        "requires_real_model_or_code": True,
+                        "baseline_model_id": "B01",
+                        "requires_official_or_declared_code_commit": True,
+                        "forbid_stub_or_proxy_model": True,
+                    },
+                    "full_reproduction_required": True,
+                    "commands": {
+                        "smoke": ["bash scripts/reproduction/B01/run_smoke.sh"],
+                        "run": ["bash scripts/reproduction/B01/run_full.sh --seed {seed}"],
+                        "aggregate": ["python -m project.reproduction.aggregate --baseline B01"],
+                    },
                     "required_artifacts": ["artifacts/reproduction/B01/aggregate/summary.json"],
-                    "harnesses": ["H_R_B01_SMOKE"],
+                    "harnesses": ["H_R_B01_SMOKE", "H_R_B01_FULL"],
                     "acceptance_criteria": ["official_code_commit_recorded"],
                     "can_support_main_experiment": True,
                 }
@@ -240,8 +318,14 @@ def make_execution_ready_spec(research_dir: Path) -> None:
         research_dir / "spec" / "reproduction" / "reproduction_task_graph.yaml",
         {
             "schema_version": 1,
-            "tasks": [{"task_id": "T_R_B01", "harnesses": ["H_R_B01_SMOKE"], "acceptance_criteria": ["smoke passes"]}],
-            "gates": [{"gate_id": "G_R_B01", "tasks": ["T_R_B01"], "harnesses": ["H_R_B01_SMOKE"]}],
+            "tasks": [
+                {
+                    "task_id": "T_R_B01",
+                    "harnesses": ["H_R_B01_SMOKE", "H_R_B01_FULL"],
+                    "acceptance_criteria": ["smoke passes", "full reproduction uses real data and model"],
+                }
+            ],
+            "gates": [{"gate_id": "G_R_B01", "tasks": ["T_R_B01"], "harnesses": ["H_R_B01_SMOKE", "H_R_B01_FULL"]}],
         },
     )
     write_yaml(
@@ -262,6 +346,26 @@ def make_execution_ready_spec(research_dir: Path) -> None:
                     "evidence_capture": ["stdout", "stderr"],
                     "may_support_research_claim": False,
                     "independent_rerun_required": False,
+                },
+                {
+                    "harness_id": "H_R_B01_FULL",
+                    "type": "full_reproduction",
+                    "linked_reproduction": "R_B01",
+                    "cwd": ".",
+                    "command": "bash scripts/reproduction/B01/run_full.sh --seed {seed}",
+                    "timeout": 7200,
+                    "required_inputs": ["data/splits/D01_frozen_split_v1.json", "configs/reproduction/B01/full.yaml"],
+                    "required_outputs": [{"path": "artifacts/reproduction/B01/aggregate/summary.json"}],
+                    "pass_criteria": [
+                        "real_dataset_provenance_verified",
+                        "real_model_provenance_verified",
+                        "official_or_declared_code_commit_verified",
+                        "no_synthetic_or_mock_inputs",
+                        "full_run_not_smoke",
+                    ],
+                    "evidence_capture": ["stdout", "stderr", "artifact_hashes"],
+                    "may_support_research_claim": True,
+                    "independent_rerun_required": True,
                 }
             ],
         },
@@ -321,8 +425,10 @@ def mark_prd_human_approved(research_dir: Path, ambiguity: bool = False) -> None
             "Metric plan: M01 is the primary metric and its direction is higher-is-better.",
             "Harness expectation: H_E01_FULL must verify all seeds, all baselines, no mock evidence, and artifact hashes.",
             "Experiment design: E01 runs M_OURS and B01 on D01 with seeds 1, 2, and 3.",
+            "Gate Schedule:",
+            "| gate_id | tasks | pass_condition | on_fail | status |",
+            "| G01 | T01 | H_E01_FULL passes all declared seeds and artifact checks | retry or escalate with blocker | pending |",
             "",
         ]
     )
     prd_path.write_text(prd_path.read_text(encoding="utf-8") + appendix, encoding="utf-8")
-

@@ -43,6 +43,10 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 ## Required Questions
 
 - Does current `Vn/PRD.md`, `Vn/PLAN.md`, or `Vn/NEXT_ACTION.md` exceed the Research Corridor?
+- Is `RESEARCH_DIRECTION.md` structurally complete: Direction Status, Research Seed, Research Corridor, Out-of-Scope Directions, Prior Work Basis, Desired Paper Shape, Autonomy Boundary, and Global Stop Conditions?
+- Does Direction Status include `direction_id`, `status`, `created_at`, `updated_at`, `current_version`, `final_target`, and `owner_decision_required`?
+- Is Direction status `human_approved` or `frozen` before execution/paper-binding claims proceed?
+- Are Research Corridor, Out-of-Scope Directions, Autonomy Boundary, and Global Stop Conditions non-empty and non-placeholder?
 - Has any agent modified `RESEARCH_DIRECTION.md` without explicit user instruction?
 - Does `CURRENT` match `Vn/STATUS.yaml.version`?
 - Is the active task in `TASK_QUEUE.yaml` the same as `NEXT_ACTION.md`?
@@ -54,6 +58,8 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Paper has an experiment not in spec?
 - Plan has a task or harness not in spec?
 - Spec has an experiment not in PRD?
+- Do full experiments declare and verify real dataset provenance, real model/code provenance, frozen split, and non-smoke execution?
+- Does any claim-supporting reproduction rely only on smoke, mock, toy, synthetic, stub, cached, or proxy output?
 - Are there current-epoch insights in `Vn/wiki/*` not reflected in Spec, Plan, closeout, or Paper Binding decisions?
 - Are there legacy insights in `docs/research/insights/` that should be migrated, archived, or explicitly ignored?
 - Are there open pivot proposals without human decision?
@@ -76,6 +82,8 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - `alignment_matrix.yaml`
 - `drift_findings.yaml`
 - `repair_plan.md`
+
+`alignment_matrix.yaml` must include `direction_completeness`; direction blockers should also appear in `audit_report.md`, `drift_findings.yaml`, and the must-fix section of `repair_plan.md`.
 
 `repair_plan.md` now splits repairs into:
 - **must-fix-before-execution** (execution failures)

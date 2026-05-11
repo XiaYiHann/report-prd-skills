@@ -55,6 +55,8 @@ Write:
 5. Convert outputs into the project artifact schema.
 6. Record mismatches instead of hiding them.
 7. Write reusable lessons into `docs/research/spec/feedback/`.
+8. For claim-supporting reproduction, run the declared full harness with real dataset, real baseline model/code, official or declared code commit, and non-smoke artifacts.
+9. Keep smoke/mock runs explicitly marked as plumbing checks only.
 
 ## Must Not Do
 
@@ -62,9 +64,11 @@ Write:
 - Do not skip baselines silently.
 - Do not tune hyperparameters just to match official results without documenting it.
 - Do not use smoke results as full reproduction evidence.
+- Do not use mock data, toy data, stub models, cached proxy outputs, or synthetic stand-ins as reproduction evidence.
+- Do not claim official reproduction unless the source repo, commit, license, environment, dataset, and metric are recorded.
 - Do not change PRD core claims.
 - Do not modify paper conclusions.
 
 ## Failure Policy
 
-If the reproduction cannot proceed because the spec is missing information, write a blocker. If the paper lacks essential details, write a reproduction gap note. If the result does not match the official paper, document the mismatch and likely causes.
+If the reproduction cannot proceed because the spec is missing real data, real model/code, source commit, license, full command, or artifact schema information, write a blocker. If the paper lacks essential details, write a reproduction gap note. If the result does not match the official paper, document the mismatch and likely causes.

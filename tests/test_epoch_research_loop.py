@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import re
+
 from research_workflow_helpers import *  # noqa: F403
 
 
@@ -195,6 +197,25 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("prompt_only_scaffold", result.stdout)
+
+    def test_paper_binding_requires_real_data_model_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            make_paper_binding_decision(research_dir)
+            decision = research_dir / "V0" / "PAPER_BINDING_DECISION.md"
+            text = decision.read_text(encoding="utf-8")
+            text = re.sub(r"\n\s+real_data_check:.*", "", text)
+            text = re.sub(r"\n\s+real_model_check:.*", "", text)
+            text = re.sub(r"\n\s+non_smoke_full_run:.*", "", text)
+            decision.write_text(text, encoding="utf-8")
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("real_data_check", result.stdout)
+            self.assertIn("real_model_check", result.stdout)
+            self.assertIn("non_smoke_full_run", result.stdout)
 
     def test_old_version_artifact_requires_current_carry_forward(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -127,7 +127,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
   --mode spec-ready
 ```
 
-Readiness must fail on missing datasets, splits, baselines, metrics, seeds, commands, artifacts, harnesses, reproduction modes, or anti-mock evidence rules.
+Readiness must fail on missing datasets, splits, baselines, metrics, seeds, commands, artifacts, harnesses, reproduction modes, real-data / real-model provenance, or anti-mock evidence rules.
 
 New validator modes:
 
@@ -149,6 +149,9 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 - `spec/README.md` must explain that Spec is compiled from PRD and that Paper cannot define experiments.
 - `reproduction_gap_report.md` and related gap files must be Chinese and must use explicit blocker wording.
 - Mock/toy/synthetic/stub/cached/proxy output may only support unit or smoke tests, never research claims, benchmarks, ablations, paper tables/figures, or Go / No-Go decisions.
+- Full experiments and claim-supporting reproductions must use real datasets and real models/code. The Spec must declare `data_source_type`, provenance, license/usage rights, frozen split or benchmark manifest, `is_mock: false`, and model/checkpoint/API/code provenance with `is_mock: false` and `is_stub: false`.
+- A full experiment harness must include `real_dataset_provenance_verified`, `real_model_provenance_verified`, `no_synthetic_or_mock_inputs`, and `full_run_not_smoke`.
+- A reproduction may support main experiments only when it has a full run command and a `full_reproduction` harness checking real dataset provenance, real model/code provenance, official or declared code commit, and non-smoke execution.
 - Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.
 - `prompt_only_scaffold` can document scaffold work, but cannot support paper result evidence.
 - `can_modify_research_direction` must be false.

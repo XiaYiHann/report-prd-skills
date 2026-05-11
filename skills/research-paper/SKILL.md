@@ -24,7 +24,8 @@ Paper Binding can happen only when all conditions hold:
 - exploratory insight is used only for motivation / discussion, not main result;
 - prompt-only scaffold is not used as experiment result;
 - no unresolved negative result undermines the claim;
-- artifact, run record, metric, baseline, seed protocol, and audit status support the claim.
+- artifact, run record, metric, baseline, seed protocol, audit status, real data check, real model/code check, and non-smoke full-run check support the claim.
+- `PAPER_BINDING_DECISION.md` records `real_data_check`, `real_model_check`, and `non_smoke_full_run` for every allowed claim.
 - `PAPER_BINDING_DECISION.md` records source commit, paper binding commit, and paper binding tag when Git is enabled.
 - working tree is clean unless an explicit dirty-tree blocker/justification is recorded.
 

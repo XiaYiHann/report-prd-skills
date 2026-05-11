@@ -7,6 +7,15 @@ from research_workflow_helpers import *  # noqa: F403
 
 
 class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
+    def test_spec_ready_accepts_real_data_model_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_execution_ready_spec(research_dir)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "spec-ready"])
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_valid_paper_placeholders_pass_paper_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
@@ -57,6 +66,76 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("H_E01_FULL", result.stdout)
+
+    def test_spec_ready_rejects_mock_dataset_for_full_experiment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_execution_ready_spec(research_dir)
+            dataset_path = research_dir / "spec" / "shared" / "dataset_manifest.yaml"
+            payload = read_yaml(dataset_path)
+            payload["datasets"][0]["is_mock"] = True
+            payload["datasets"][0]["data_source_type"] = "mock"
+            write_yaml(dataset_path, payload)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "spec-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must explicitly set is_mock: false", result.stdout)
+            self.assertIn("data_source_type cannot be mock", result.stdout)
+
+    def test_spec_ready_rejects_mock_model_for_full_experiment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_execution_ready_spec(research_dir)
+            model_path = research_dir / "spec" / "shared" / "model_manifest.yaml"
+            payload = read_yaml(model_path)
+            payload["models"][0]["is_mock"] = True
+            payload["models"][0]["model_source_type"] = "stub"
+            write_yaml(model_path, payload)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "spec-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must explicitly set is_mock: false", result.stdout)
+            self.assertIn("model_source_type cannot be mock", result.stdout)
+
+    def test_spec_ready_rejects_full_experiment_without_real_data_model_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_execution_ready_spec(research_dir)
+            harness_path = research_dir / "spec" / "experiments" / "experiment_harness.yaml"
+            payload = read_yaml(harness_path)
+            payload["harnesses"][0]["pass_criteria"] = [
+                "all_declared_seeds_completed",
+                "all_declared_baselines_completed",
+                "no_mock_data_used",
+                "no_missing_metric",
+                "no_test_tuning",
+                "artifact_hashes_recorded",
+            ]
+            write_yaml(harness_path, payload)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "spec-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("real_dataset_provenance_verified", result.stdout)
+            self.assertIn("real_model_provenance_verified", result.stdout)
+
+    def test_spec_ready_rejects_claim_supporting_reproduction_without_full_real_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_execution_ready_spec(research_dir)
+            reproduction_path = research_dir / "spec" / "reproduction" / "reproduction_manifest.yaml"
+            reproduction = read_yaml(reproduction_path)
+            reproduction["reproduction_targets"][0]["harnesses"] = ["H_R_B01_SMOKE"]
+            reproduction["reproduction_targets"][0]["commands"].pop("run")
+            write_yaml(reproduction_path, reproduction)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "spec-ready"])
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must define full run command", result.stdout)
+            self.assertIn("full_reproduction harness", result.stdout)
 
     def test_plan_ready_rejects_stale_spec_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,14 +194,41 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
                 self.assertTrue((audit_dir / name).exists(), name)
 
             matrix = read_yaml(audit_dir / "alignment_matrix.yaml")
+            self.assertIn("direction_completeness", matrix.get("dimensions", {}))
+            self.assertEqual(matrix["dimensions"]["direction_completeness"]["status"], "blocker")
             self.assertIn("prd_to_insight", matrix.get("dimensions", {}))
             self.assertIn("insight_to_spec", matrix.get("dimensions", {}))
+            drift = read_yaml(audit_dir / "drift_findings.yaml")
+            self.assertIn("direction_completeness", "\n".join(str(item) for item in drift.get("findings", [])))
+            report = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+            self.assertIn("Research Direction Completeness", report)
+            self.assertIn("human_approved or frozen", report)
             repair = (audit_dir / "repair_plan.md").read_text(encoding="utf-8")
+            self.assertIn("Research Direction completeness", repair)
             self.assertIn("Insight opportunity", repair)
 
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "audit-ready"])
 
             self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+    def test_audit_reports_missing_direction_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            approve_research_direction(research_dir)
+            direction = research_dir / "RESEARCH_DIRECTION.md"
+            text = direction.read_text(encoding="utf-8")
+            text = text.split("## 6. Autonomy Boundary", 1)[0] + "## 7. Global Stop Conditions\n\n- paper binding 已完成\n"
+            direction.write_text(text, encoding="utf-8")
+
+            result = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--date", "2026-05-09", "--force"])
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+            audit_dir = research_dir / "audits" / "2026-05-09-audit"
+            matrix = read_yaml(audit_dir / "alignment_matrix.yaml")
+            self.assertEqual(matrix["dimensions"]["direction_completeness"]["status"], "blocker")
+            findings_text = "\n".join(matrix["dimensions"]["direction_completeness"]["findings"])
+            self.assertIn("Autonomy Boundary", findings_text)
+            self.assertIn("AI can and cannot", findings_text)
 
     def test_research_audit_documents_format_migration_and_git_modes(self) -> None:
         skill_text = (REPO_ROOT / "skills" / "research-audit" / "SKILL.md").read_text(encoding="utf-8")

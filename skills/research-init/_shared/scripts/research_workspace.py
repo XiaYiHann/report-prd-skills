@@ -128,6 +128,7 @@ AGENT_REQUIRED_FILES = [
 
 
 AUDIT_MATRIX_KEYS = [
+    "direction_completeness",
     "prd_to_paper",
     "prd_to_spec",
     "spec_to_plan",
@@ -137,6 +138,23 @@ AUDIT_MATRIX_KEYS = [
     "insight_to_spec",
     "insight_to_plan",
 ]
+
+MOCK_SOURCE_TYPES = {"mock", "toy", "synthetic", "stub", "cached", "proxy", "smoke_only"}
+
+FULL_EXPERIMENT_REAL_CRITERIA = {
+    "real_dataset_provenance_verified",
+    "real_model_provenance_verified",
+    "no_synthetic_or_mock_inputs",
+    "full_run_not_smoke",
+}
+
+FULL_REPRODUCTION_REAL_CRITERIA = {
+    "real_dataset_provenance_verified",
+    "real_model_provenance_verified",
+    "official_or_declared_code_commit_verified",
+    "no_synthetic_or_mock_inputs",
+    "full_run_not_smoke",
+}
 
 
 def today_string() -> str:
@@ -594,10 +612,11 @@ def prd_markdown(title: str, purpose: str) -> str:
 
 ### 12.3 Anti-Mock 政策（Anti-Mock Policy）
 
-- mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke harness。
-- reproduction 和 experiment harness 必须使用真实数据、真实 baseline、真实 metric。
+- mock / toy / synthetic / stub / cached / proxy output 只能用于 unit、smoke 或 harness plumbing。
+- reproduction 和 experiment harness 必须使用真实数据、真实模型或真实代码、真实 baseline、真实 metric。
+- claim-supporting harness 必须检查 `real_dataset_provenance_verified`、`real_model_provenance_verified`、`no_synthetic_or_mock_inputs` 和 `full_run_not_smoke`。
 - 任何使用 mock 数据的 harness，其 `may_support_claim` 必须为 false。
-- Engineering gate `G_NO_FAKE_ARTIFACTS` 在所有 gate 执行前自动检查。
+- Engineering gate `G_NO_FAKE_ARTIFACTS` 和 `G_REAL_DATA_MODEL` 在 claim-supporting gate 执行前自动检查。
 
 **常见错误**：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim；harness 不绑定 gate_id。
 
@@ -997,14 +1016,17 @@ T01 & 【待填写】 & G01 & 【待填写】 & 【待填写】 & 【待填写�
 \begin{{table}}[H]
 \centering
 \caption{{Gate Schedule Table}}
-\begin{{tabularx}}{{\textwidth}}{{L{{0.08\textwidth}}L{{0.06\textwidth}}L{{0.16\textwidth}}Y Y L{{0.14\textwidth}}}}
+{{\footnotesize
+\setlength{{\tabcolsep}}{{3pt}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.09\textwidth}}L{{0.07\textwidth}}L{{0.16\textwidth}}Y Y L{{0.12\textwidth}}}}
 \toprule
-gate\_id & order & tasks & pass\_condition & on\_fail & status \\
+\makecell[l]{{gate\\id}} & order & tasks & \makecell[l]{{pass\\condition}} & \makecell[l]{{on\\fail}} & status \\
 \midrule
-G01 & 1 & 【待填写：例如 T01, T02】 & 【待填写：可验证的通过条件】 & 【待填写：retry/escalate/block】 & planned \\
+G01 & 1 & 【待填写：例如 T01, T02】 & 【待填写：可验证的通过条件】 & 【待填写：retry / escalate / block】 & planned \\
 G02 & 2 & 【待填写】 & 【待填写】 & 【待填写】 & planned \\
 \bottomrule
 \end{{tabularx}}
+}}
 \end{{table}}
 
 图 \ref{{fig:spec-plan-audit-loop}} 说明 Spec、Plan 与 Audit 的执行闭环。读者应注意：Plan 是 dated run，不得替代全局 Spec。
@@ -1026,7 +1048,7 @@ G02 & 2 & 【待填写】 & 【待填写】 & 【待填写】 & planned \\
 \label{{fig:spec-plan-audit-loop}}
 \end{{figure}}
 
-\textbf{{常见错误}}：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate；pass\_condition 不可验证；Gate 之间的依赖未声明。
+\textbf{{常见错误}}：任务只写动作没有产物；任务之间没有依赖；学生不知道先做哪一个 gate；pass condition 不可验证；Gate 之间的依赖未声明。
 \textbf{{证据边界}}：任务完成只能由对应 harness、artifact 和日志证明。Gate 通过需要该 Gate 下所有 task 完成 + harness 通过或产生 documented blocker。
 \textbf{{验收标准}}：学生能按 Gate 顺序执行任务，并在阻塞时写 blocker 而不是编造结果。每个 Gate 的 pass\_condition 在 PRD 审查时可被独立验证。
 
@@ -1036,18 +1058,23 @@ G02 & 2 & 【待填写】 & 【待填写】 & 【待填写】 & planned \\
 \begin{{table}}[H]
 \centering
 \caption{{Harness Acceptance Table}}
-\begin{{tabularx}}{{\textwidth}}{{L{{0.08\textwidth}}L{{0.12\textwidth}}L{{0.08\textwidth}}L{{0.08\textwidth}}Y Y L{{0.08\textwidth}}}}
+{{\footnotesize
+\setlength{{\tabcolsep}}{{3pt}}
+\begin{{tabularx}}{{\textwidth}}{{L{{0.10\textwidth}}L{{0.11\textwidth}}L{{0.08\textwidth}}L{{0.08\textwidth}}Y Y L{{0.08\textwidth}}}}
 \toprule
-harness\_id & type & gate\_id & task\_id & 命令/阻塞 & 输出 & 支撑claim \\
+\makecell[l]{{harness\\id}} & type & \makecell[l]{{gate\\id}} & \makecell[l]{{task\\id}} & 命令 / 阻塞 & 输出 & 支撑 claim \\
 \midrule
 H01 & 【待填写】 & G01 & T01 & 【待填写】 & 【待填写】 & false \\
 \bottomrule
 \end{{tabularx}}
+}}
 \end{{table}}
 
-\textbf{{Harness 类型要求}}：unit/integration 不要求多 seed 或 independent rerun。reproduction/experiment 必须使用所有声明的 seed、真实 baseline 和 metric，要求 independent rerun，并记录 artifact hash。
+\textbf{{Harness 类型要求}}：unit / integration 不要求多 seed 或 independent rerun。reproduction / experiment 必须使用所有声明的 seed、真实 baseline 和 metric，要求 independent rerun，并记录 artifact hash。
 
-\textbf{{Anti-Mock 政策}}：mock/toy/synthetic/cached/proxy output 只能用于 unit 或 smoke harness。reproduction 和 experiment harness 必须使用真实数据。Engineering gate G\_NO\_FAKE\_ARTIFACTS 在所有 gate 执行前自动检查。
+\begin{{flushleft}}
+\textbf{{Anti-Mock 政策}}：mock / toy / synthetic / stub / cached / proxy output 只能用于 unit、smoke 或 harness plumbing。reproduction 和 experiment harness 必须使用真实数据、真实模型或真实代码，并检查 real dataset / real model provenance、no synthetic or mock inputs 和 full run not smoke。工程门禁 G\_NO\_FAKE\_ARTIFACTS 与 G\_REAL\_DATA\_MODEL 在 claim-supporting gate 执行前检查。
+\end{{flushleft}}
 
 \textbf{{常见错误}}：harness 没有命令也没有 explicit blocker；full experiment 不要求 independent rerun；mock 被用于 claim。
 \textbf{{证据边界}}：mock / toy / synthetic / cached / proxy output 只能用于 unit 或 smoke，不能用于论文表格或 Go / No-Go。
@@ -1943,6 +1970,18 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             "allow_mock_for_unit_or_smoke": True,
             "allow_mock_results_as_claim_evidence": False,
             "allow_fake_execution": False,
+            "mock_allowed_only_for": ["unit_test", "smoke_test", "harness_plumbing"],
+            "real_data_and_model_required_for": [
+                "full_experiment",
+                "full_reproduction",
+                "benchmark_result",
+                "baseline_comparison",
+                "ablation_result",
+                "paper_binding",
+                "go_no_go_decision",
+            ],
+            "full_experiment_required_checks": sorted(FULL_EXPERIMENT_REAL_CRITERIA),
+            "full_reproduction_required_checks": sorted(FULL_REPRODUCTION_REAL_CRITERIA),
         },
         "runtime_backend_truth": {
             "executor": "prompt-only",
@@ -1953,6 +1992,8 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             "execution_truth": [
                 "Spec defines executable research tasks.",
                 "Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.",
+                "Full experiments and full reproductions must use real datasets, real models or declared code commits, and recorded provenance.",
+                "Mock, toy, synthetic, stub, cached, or proxy outputs may only support unit/smoke/plumbing checks.",
             ],
             "prompt_only_policy": {
                 "allow_scaffold": True,
@@ -2522,6 +2563,9 @@ def paper_binding_decision_template(version: str) -> str:
 - baseline
 - seed_protocol
 - audit_status
+- real_data_check
+- real_model_check
+- non_smoke_full_run
 
 ## Git Binding
 
@@ -3269,6 +3313,8 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "execution_truth": [
                     "Spec defines executable research tasks.",
                     "Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.",
+                    "Full experiments and claim-supporting reproductions must use real datasets and real models or declared code commits.",
+                    "Mock, toy, synthetic, stub, cached, or proxy outputs may only support unit/smoke/plumbing checks.",
                 ],
                 "prompt_only_policy": {
                     "allow_scaffold": True,
@@ -3327,6 +3373,7 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
             "engineering_gates": [
                 {"id": "G_TESTS_PASS", "command": "python3 -m pytest tests -q", "required_for": "code_change"},
                 {"id": "G_NO_FAKE_ARTIFACTS", "required_for": "all"},
+                {"id": "G_REAL_DATA_MODEL", "required_for": ["full_experiment", "full_reproduction", "paper_binding"]},
                 {"id": "G_WIKI_UPDATED", "required_for": "version_closeout"},
                 {"id": "G_CLOSEOUT_COMPLETE", "required_for": "next_version_creation"},
                 {"id": "G_PAPER_BINDING_ALLOWED", "required_for": "paper_binding"},
@@ -3340,6 +3387,19 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
             "schema_version": SCHEMA_VERSION,
             "description": "数据集清单：只登记 PRD 已定义的数据集、冻结划分和预处理配置。",
             "datasets": [],
+            "dataset_template": {
+                "dataset_id": "D01",
+                "name": "【待填写：真实数据集名称】",
+                "data_source_type": "real_dataset",
+                "provenance": "【待填写：公开来源 / 内部采集记录 / 官方 benchmark manifest】",
+                "license": "【待填写：数据许可证或使用授权】",
+                "split_file": "data/splits/D01_frozen_split_v1.json",
+                "preprocessing_config": "configs/preprocess/D01_v1.yaml",
+                "is_mock": False,
+                "is_synthetic": False,
+                "mock_allowed_only_for": ["unit_test", "smoke_test"],
+                "claim_support_allowed": True,
+            },
             "blockers": ["【阻塞】PRD 尚未声明可执行数据集。"],
         },
         "metric_manifest.yaml": {
@@ -3352,6 +3412,17 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
             "schema_version": SCHEMA_VERSION,
             "description": "模型清单：登记 proposed method、baseline 和复现目标的稳定 ID。",
             "models": [],
+            "model_template": {
+                "model_id": "M_OURS",
+                "name": "【待填写：真实模型或方法名称】",
+                "model_source_type": "real_model_or_code",
+                "implementation_ref": "【待填写：代码模块、官方仓库、API model id 或 checkpoint 路径】",
+                "checkpoint_or_model_version": "【待填写：checkpoint / model version / code commit】",
+                "config_path": "configs/experiments/E01/ours.yaml",
+                "is_mock": False,
+                "is_stub": False,
+                "claim_support_allowed": True,
+            },
         },
         "environment_spec.yaml": {
             "schema_version": SCHEMA_VERSION,
@@ -3390,12 +3461,26 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "go_no_go_decision",
             ],
             "forbidden_for_description": {
-                "research_claim": "科研主张必须来自真实执行、完整 seed、声明数据集、声明指标和可复跑 artifact。",
-                "benchmark_result": "基准结果不得来自 mock、toy、synthetic、cached、stub 或 proxy 输出。",
-                "ablation_result": "消融结果必须来自真实实验，不得使用 smoke 结果替代。",
+                "research_claim": "科研主张必须来自真实执行、完整 seed、声明数据集、真实模型或真实代码、声明指标和可复跑 artifact。",
+                "benchmark_result": "基准结果不得来自 mock、toy、synthetic、cached、stub 或 proxy 输出，必须绑定真实数据集、真实模型或官方代码 commit。",
+                "ablation_result": "消融结果必须来自真实实验、真实数据和真实模型，不得使用 smoke 结果替代。",
                 "paper_table_as_validated": "论文表格中呈现为已验证发现的数值，必须来自真实实验；未验证结果必须保留 typed placeholder。",
                 "paper_figure_as_validated": "论文图不得展示伪造或未登记证据；未验证图表只能展示结构和 placeholder，不得展示 plausible mock numeric values。",
-                "go_no_go_decision": "Go / No-Go 只能基于真实 harness 和 evidence contract。",
+                "go_no_go_decision": "Go / No-Go 只能基于真实 harness、真实数据/模型检查和 evidence contract。",
+            },
+            "real_data_model_gate": {
+                "required_for": [
+                    "full_experiment",
+                    "full_reproduction",
+                    "benchmark_result",
+                    "baseline_comparison",
+                    "ablation_result",
+                    "paper_binding",
+                    "go_no_go_decision",
+                ],
+                "full_experiment_required_checks": sorted(FULL_EXPERIMENT_REAL_CRITERIA),
+                "full_reproduction_required_checks": sorted(FULL_REPRODUCTION_REAL_CRITERIA),
+                "block_on": ["mock", "toy", "synthetic", "stub", "cached", "proxy", "smoke_only"],
             },
         },
         "evidence_contract.yaml": {
@@ -3407,9 +3492,12 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                     "mock_result",
                     "toy_result",
                     "smoke_test_only",
+                    "synthetic_data_without_human_approved_exception",
+                    "stub_model_result",
+                    "proxy_model_result",
                     "cached_metric_without_raw_runs",
                 ],
-                "notes": ["【规则】只有通过 declared harness 且记录 artifact hash 的 evidence 才能支持论文主张。"],
+                "notes": ["【规则】只有通过 declared harness、真实数据/模型检查且记录 artifact hash 的 evidence 才能支持论文主张。"],
             },
         },
         "insight_policy.yaml": {
@@ -3484,6 +3572,19 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                     "official_result_reference": "【待填写：表格或章节】",
                 },
                 "reason_for_selection": ["【待填写：closest_problem_setting / expected_by_reviewers / compatible_metric】"],
+                "real_data_policy": {
+                    "requires_real_dataset": True,
+                    "dataset_id": "D01",
+                    "forbid_mock_toy_synthetic": True,
+                    "allowed_mock_scope": ["smoke_test"],
+                },
+                "real_model_policy": {
+                    "requires_real_model_or_code": True,
+                    "baseline_model_id": "B01",
+                    "requires_official_or_declared_code_commit": True,
+                    "forbid_stub_or_proxy_model": True,
+                },
+                "full_reproduction_required": True,
                 "commands": {
                     "setup": ["bash scripts/reproduction/B01/setup_official.sh"],
                     "smoke": ["bash scripts/reproduction/B01/run_smoke.sh"],
@@ -3498,7 +3599,9 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 ],
                 "acceptance_criteria": [
                     "记录官方代码 URL、commit 和 license",
-                    "使用声明的数据集和指标",
+                    "使用声明的真实数据集和指标",
+                    "使用真实 baseline 模型、checkpoint 或官方代码 commit",
+                    "full reproduction 不得使用 mock / toy / synthetic / stub / cached / proxy 输出",
                     "输出符合项目 artifact schema",
                     "若未达到官方结果，需要解释 mismatch",
                 ],
@@ -3559,6 +3662,14 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "models": ["M_OURS"],
                 "proposed_method_config": "configs/experiments/E01/ours.yaml",
                 "baselines": ["B01"],
+                "data_model_truth": {
+                    "full_experiment_requires_real_data": True,
+                    "full_experiment_requires_real_model": True,
+                    "dataset_manifest_must_set_is_mock_false": True,
+                    "model_manifest_must_set_is_mock_false": True,
+                    "forbid_mock_toy_synthetic_stub_cached_proxy": True,
+                    "mock_allowed_only_for": ["unit_test", "smoke_test", "harness_plumbing"],
+                },
                 "seeds": [1, 2, 3],
                 "metrics": ["M01"],
                 "statistical_protocol": "【待填写：paired bootstrap / t-test / confidence interval 等】",
@@ -3573,7 +3684,7 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "harnesses": ["H_E01_FULL"],
                 "support_condition": "【待填写：什么结果支持 claim】",
                 "falsification_condition": "【待填写：什么结果推翻或降级 claim】",
-                "mock_policy": "mock 输出只能用于 unit/smoke，不能支持科研主张",
+                "mock_policy": "mock 输出只能用于 unit/smoke/plumbing；full experiment 必须使用真实数据和真实模型，不能支持科研主张",
                 "description": "模板字段，不代表真实实验；真实实验必须从 PRD 编译。",
             },
             "experiments": [],
@@ -3723,7 +3834,7 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
         spec / "experiments" / "experiment_harness.yaml",
         {
             "schema_version": SCHEMA_VERSION,
-            "description": "实验 harness：full_experiment 必须要求完整 seed、完整 baseline、无 mock、artifact hash 和 independent rerun。",
+            "description": "实验 harness：full_experiment 必须要求完整 seed、完整 baseline、真实数据/模型、无 mock、artifact hash 和 independent rerun。",
             "harness_template": {
                 "harness_id": "H_E01_FULL",
                 "type": "full_experiment",
@@ -3739,7 +3850,11 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "pass_criteria": [
                     "all_declared_seeds_completed",
                     "all_declared_baselines_completed",
+                    "real_dataset_provenance_verified",
+                    "real_model_provenance_verified",
                     "no_mock_data_used",
+                    "no_synthetic_or_mock_inputs",
+                    "full_run_not_smoke",
                     "no_missing_metric",
                     "no_test_tuning",
                     "artifact_hashes_recorded",
@@ -3768,7 +3883,11 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                     "harness_passed",
                     "artifact_hash_recorded",
                     "independent_rerun_completed",
+                    "real_dataset_provenance_verified",
+                    "real_model_provenance_verified",
                     "no_mock_data_used",
+                    "no_synthetic_or_mock_inputs",
+                    "full_run_not_smoke",
                 ],
                 "paper_location": "Table 1 / Main Results",
                 "description": "模板字段，不代表真实结果绑定；真实 binding 必须来自 observed evidence。",
@@ -4095,6 +4214,8 @@ low / medium / high
 def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
     audit_dir = research_dir / "audits" / f"{date}-audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
+    direction_validation = validate_direction_ready(research_dir)
+    direction_findings = direction_validation.issues or ["RESEARCH_DIRECTION.md completeness gate passed."]
     matrix = {
         "schema_version": SCHEMA_VERSION,
         "dimensions": {
@@ -4102,16 +4223,45 @@ def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
             for key in AUDIT_MATRIX_KEYS
         },
     }
+    matrix["dimensions"]["direction_completeness"] = {
+        "status": "pass" if direction_validation.ok else "blocker",
+        "findings": direction_findings,
+    }
     write_yaml(audit_dir / "alignment_matrix.yaml", matrix, force)
-    write_yaml(audit_dir / "drift_findings.yaml", {"schema_version": SCHEMA_VERSION, "findings": []}, force)
-    write_text(
-        audit_dir / "audit_report.md",
-        "# Research Audit Report\n\nThis audit checks PRD, Paper, Spec, Plans, artifacts, and insight records for alignment drift.\n",
+    write_yaml(
+        audit_dir / "drift_findings.yaml",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "findings": [
+                {"category": "direction_completeness", "severity": "blocker", "message": issue}
+                for issue in direction_validation.issues
+            ],
+        },
         force,
     )
+    direction_report_lines = ["## Research Direction Completeness", "", f"- status: {matrix['dimensions']['direction_completeness']['status']}"]
+    direction_report_lines.extend(f"- {issue}" for issue in direction_findings)
+    write_text(
+        audit_dir / "audit_report.md",
+        "# Research Audit Report\n\n"
+        "This audit checks Research Direction, PRD, Paper, Spec, Plans, artifacts, and insight records for alignment drift.\n\n"
+        + "\n".join(direction_report_lines)
+        + "\n",
+        force,
+    )
+    direction_repair = "\n".join(f"- [ ] {issue}" for issue in direction_validation.issues) or "- No Research Direction completeness blocker."
     write_text(
         audit_dir / "repair_plan.md",
-        "# Repair Plan\n\n## Must fix before execution（执行失败）\n\n- Review alignment findings.\n\n## Insight opportunity（研究失败 / 异常 / 诊断实验）\n\n- 优先检查当前 Vn/wiki/* 中未纳入 spec/plan 的 positive signal、negative result、failed path 或 next_version_seed。\n- legacy docs/research/insights/ 只作为迁移候选，不直接当作当前 evidence。\n\n## Can fix later\n\n- TBD.\n\n## Recommended next research-plan target\n\n- TBD.\n\n## Recommended next research-insight target\n\n- TBD.\n",
+        "# Repair Plan\n\n"
+        "## Must fix before execution（执行失败）\n\n"
+        "### Research Direction completeness\n\n"
+        f"{direction_repair}\n\n"
+        "## Insight opportunity（研究失败 / 异常 / 诊断实验）\n\n"
+        "- 优先检查当前 Vn/wiki/* 中未纳入 spec/plan 的 positive signal、negative result、failed path 或 next_version_seed。\n"
+        "- legacy docs/research/insights/ 只作为迁移候选，不直接当作当前 evidence。\n\n"
+        "## Can fix later\n\n- TBD.\n\n"
+        "## Recommended next research-plan target\n\n- TBD.\n\n"
+        "## Recommended next research-insight target\n\n- TBD.\n",
         force,
     )
     return audit_dir
@@ -4511,8 +4661,14 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                 {
                     "dataset_id": "D01",
                     "name": "RepoRepair candidate placeholder split",
+                    "data_source_type": "real_dataset",
+                    "provenance": "公开 repository repair benchmark manifest；demo scaffold 需在真实项目中替换为冻结清单。",
+                    "license": "【待填写：真实 benchmark license】",
                     "split_file": "data/splits/reporepair_120_frozen_v0.json",
                     "preprocessing_config": "configs/preprocess/reporepair_v0.yaml",
+                    "is_mock": False,
+                    "is_synthetic": False,
+                    "claim_support_allowed": True,
                     "description": "候选 repository repair split；最终实验必须替换为真实冻结 benchmark manifest。",
                 }
             ],
@@ -4537,10 +4693,47 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
         {
             "schema_version": SCHEMA_VERSION,
             "models": [
-                {"model_id": "M_OURS", "name": "ContractGraph Agent"},
-                {"model_id": "B01", "name": "Direct Agent"},
-                {"model_id": "B02", "name": "Plan-then-Code Agent"},
-                {"model_id": "B03", "name": "Reflection Agent"},
+                {
+                    "model_id": "M_OURS",
+                    "name": "ContractGraph Agent",
+                    "model_source_type": "real_code",
+                    "implementation_ref": "project/contractgraph",
+                    "checkpoint_or_model_version": "repo commit recorded by Git Memory Layer",
+                    "config_path": "configs/experiments/contractgraph.yaml",
+                    "is_mock": False,
+                    "is_stub": False,
+                    "claim_support_allowed": True,
+                },
+                {
+                    "model_id": "B01",
+                    "name": "Direct Agent",
+                    "model_source_type": "real_code",
+                    "implementation_ref": "configs/baselines/direct_agent.yaml",
+                    "checkpoint_or_model_version": "repo commit recorded by Git Memory Layer",
+                    "is_mock": False,
+                    "is_stub": False,
+                    "claim_support_allowed": True,
+                },
+                {
+                    "model_id": "B02",
+                    "name": "Plan-then-Code Agent",
+                    "model_source_type": "real_code",
+                    "implementation_ref": "configs/baselines/plan_then_code.yaml",
+                    "checkpoint_or_model_version": "repo commit recorded by Git Memory Layer",
+                    "is_mock": False,
+                    "is_stub": False,
+                    "claim_support_allowed": True,
+                },
+                {
+                    "model_id": "B03",
+                    "name": "Reflection Agent",
+                    "model_source_type": "real_code",
+                    "implementation_ref": "configs/baselines/reflection_agent.yaml",
+                    "checkpoint_or_model_version": "repo commit recorded by Git Memory Layer",
+                    "is_mock": False,
+                    "is_stub": False,
+                    "claim_support_allowed": True,
+                },
             ],
         },
         force,
@@ -4567,7 +4760,15 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
             ],
             "evidence_rules": {
                 "placeholder_result_policy": "未验证结果必须保持 typed placeholder，不能用 plausible mock numeric values 预填论文表格或结果段落。",
-                "forbidden_as_claim_evidence": ["mock_result", "toy_result", "smoke_test_only", "cached_proxy_result"],
+                "forbidden_as_claim_evidence": [
+                    "mock_result",
+                    "toy_result",
+                    "smoke_test_only",
+                    "synthetic_data_without_human_approved_exception",
+                    "stub_model_result",
+                    "proxy_model_result",
+                    "cached_proxy_result",
+                ],
             },
         },
         force,
@@ -4592,6 +4793,14 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                     "models": ["M_OURS"],
                     "proposed_method_config": f"configs/experiments/{exp}/contractgraph.yaml",
                     "baselines": ["B01", "B02", "B03"],
+                    "data_model_truth": {
+                        "full_experiment_requires_real_data": True,
+                        "full_experiment_requires_real_model": True,
+                        "dataset_manifest_must_set_is_mock_false": True,
+                        "model_manifest_must_set_is_mock_false": True,
+                        "forbid_mock_toy_synthetic_stub_cached_proxy": True,
+                        "mock_allowed_only_for": ["unit_test", "smoke_test", "harness_plumbing"],
+                    },
                     "seeds": [11, 23, 37],
                     "metrics": [metric],
                     "statistical_protocol": "三 seed 聚合；最终 claim 需要 bootstrap confidence interval 与 independent rerun。",
@@ -4606,7 +4815,7 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                     "harnesses": [f"H_{exp}_FULL"],
                     "support_condition": f"{metric} 满足预注册 support rule，且 independent rerun 不改变结论方向。",
                     "falsification_condition": f"{metric} 未达到预注册阈值，或 mock / missing artifact 被检测到。",
-                    "mock_policy": "full harness 必须拒绝 mock claim evidence；论文未验证结果必须保留 typed placeholder。",
+                    "mock_policy": "full harness 必须拒绝 mock claim evidence；full experiment 必须使用真实数据和真实模型；论文未验证结果必须保留 typed placeholder。",
                 }
                 for exp, rq, hyp, claim, metric, purpose in experiments
             ],
@@ -4653,7 +4862,11 @@ def write_demo_spec(research_dir: Path, force: bool = False) -> None:
                     "pass_criteria": [
                         "all_declared_seeds_completed",
                         "all_declared_baselines_completed",
+                        "real_dataset_provenance_verified",
+                        "real_model_provenance_verified",
                         "no_mock_data_used",
+                        "no_synthetic_or_mock_inputs",
+                        "full_run_not_smoke",
                         "no_missing_metric",
                         "no_test_tuning",
                         "artifact_hashes_recorded",
@@ -4800,12 +5013,40 @@ def markdown_has_real_value(text: str, label: str) -> bool:
     return bool(value and "【待填写" not in value and value.lower() not in {"none", "null", "false"})
 
 
+RESEARCH_DIRECTION_REQUIRED_SECTIONS = [
+    "Direction Status",
+    "Research Seed",
+    "Research Corridor",
+    "Out-of-Scope Directions",
+    "Prior Work Basis",
+    "Desired Paper Shape",
+    "Autonomy Boundary",
+    "Global Stop Conditions",
+]
+
+RESEARCH_DIRECTION_STATUS_FIELDS = [
+    "direction_id",
+    "status",
+    "created_at",
+    "updated_at",
+    "current_version",
+    "final_target",
+    "owner_decision_required",
+]
+
+
 def validate_direction_ready(research_dir: Path) -> Validation:
     validation = Validation()
     path = research_dir / "RESEARCH_DIRECTION.md"
     if not validation.require_file(path, "RESEARCH_DIRECTION.md"):
         return validation
     text = read_text(path)
+    for section in RESEARCH_DIRECTION_REQUIRED_SECTIONS:
+        if not markdown_section(text, section):
+            validation.error(f"RESEARCH_DIRECTION.md missing section: {section}")
+    for field in RESEARCH_DIRECTION_STATUS_FIELDS:
+        if not markdown_status_value(text, field):
+            validation.error(f"RESEARCH_DIRECTION.md Direction Status missing field: {field}")
     status = markdown_status_value(text, "status")
     if status not in {"human_approved", "frozen"}:
         validation.error("RESEARCH_DIRECTION.md status must be human_approved or frozen")
@@ -4976,7 +5217,18 @@ def validate_paper_binding_ready(research_dir: Path) -> Validation:
     for block in blocks:
         claim_match = re.search(r"claim_id\s*:\s*`?([^`\n]+)`?", block)
         claim_id = claim_match.group(1).strip() if claim_match else "<missing>"
-        for field in ["experiment_id", "run_id", "artifact_path", "metric", "baseline", "seed_protocol", "audit_status"]:
+        for field in [
+            "experiment_id",
+            "run_id",
+            "artifact_path",
+            "metric",
+            "baseline",
+            "seed_protocol",
+            "audit_status",
+            "real_data_check",
+            "real_model_check",
+            "non_smoke_full_run",
+        ]:
             if not re.search(rf"{field}\s*:\s*`?([^`\n]+)`?", block):
                 validation.error(f"allowed claim {claim_id} missing evidence field {field}")
         if re.search(r"prompt_only_scaffold", block, flags=re.IGNORECASE):
@@ -5342,6 +5594,77 @@ def has_command_or_blocker(harness: dict[str, Any]) -> bool:
     return False
 
 
+def manifest_index(items: list[Any], id_field: str) -> dict[str, dict[str, Any]]:
+    return {
+        str(item[id_field]): item
+        for item in items
+        if isinstance(item, dict) and item.get(id_field)
+    }
+
+
+def source_type_is_mockish(value: Any) -> bool:
+    return str(value or "").strip().lower() in MOCK_SOURCE_TYPES
+
+
+def has_real_reference(payload: dict[str, Any], fields: list[str]) -> bool:
+    for field in fields:
+        value = payload.get(field)
+        if isinstance(value, str) and value.strip() and "【待填写" not in value:
+            return True
+        if isinstance(value, (int, float)) or value is True:
+            return True
+    return False
+
+
+def validate_real_dataset(dataset_id: str, datasets: dict[str, dict[str, Any]], validation: Validation, context: str) -> None:
+    dataset = datasets.get(dataset_id)
+    if not dataset:
+        validation.error(f"{context} references dataset {dataset_id} missing from dataset_manifest.yaml")
+        return
+    if dataset.get("is_mock") is not False:
+        validation.error(f"{context} dataset {dataset_id} must explicitly set is_mock: false")
+    if dataset.get("is_synthetic") is True:
+        validation.error(f"{context} dataset {dataset_id} is synthetic and cannot support full experiment/reproduction evidence")
+    if not str(dataset.get("data_source_type", "")).strip():
+        validation.error(f"{context} dataset {dataset_id} must declare data_source_type")
+    if source_type_is_mockish(dataset.get("data_source_type")):
+        validation.error(f"{context} dataset {dataset_id} data_source_type cannot be mock/toy/synthetic/stub/cached/proxy")
+    if not has_real_reference(dataset, ["provenance", "source", "manifest_path"]):
+        validation.error(f"{context} dataset {dataset_id} must declare real data provenance")
+    if not has_real_reference(dataset, ["license", "usage_rights"]):
+        validation.error(f"{context} dataset {dataset_id} must declare license or usage_rights")
+    if not has_real_reference(dataset, ["split_file", "frozen_split", "benchmark_manifest"]):
+        validation.error(f"{context} dataset {dataset_id} must declare frozen split or benchmark manifest")
+
+
+def validate_real_model(model_id: str, models: dict[str, dict[str, Any]], validation: Validation, context: str) -> None:
+    model = models.get(model_id)
+    if not model:
+        validation.error(f"{context} references model/baseline {model_id} missing from model_manifest.yaml")
+        return
+    if model.get("is_mock") is not False:
+        validation.error(f"{context} model/baseline {model_id} must explicitly set is_mock: false")
+    if model.get("is_stub") is True:
+        validation.error(f"{context} model/baseline {model_id} is a stub and cannot support full experiment/reproduction evidence")
+    if not str(model.get("model_source_type", "")).strip():
+        validation.error(f"{context} model/baseline {model_id} must declare model_source_type")
+    if source_type_is_mockish(model.get("model_source_type")):
+        validation.error(f"{context} model/baseline {model_id} model_source_type cannot be mock/toy/synthetic/stub/cached/proxy")
+    if not has_real_reference(
+        model,
+        [
+            "implementation_ref",
+            "checkpoint_or_model_version",
+            "checkpoint",
+            "model_version",
+            "api_model_id",
+            "code_commit",
+            "official_code_commit",
+        ],
+    ):
+        validation.error(f"{context} model/baseline {model_id} must declare checkpoint, model version, API model id, implementation ref, or code commit")
+
+
 def validate_task_graph(
     research_dir: Path,
     graph_path: Path,
@@ -5386,12 +5709,19 @@ def validate_task_graph(
                 "no_missing_metric",
                 "no_test_tuning",
                 "artifact_hashes_recorded",
-            }
+            } | FULL_EXPERIMENT_REAL_CRITERIA
             missing = sorted(required_criteria - pass_criteria)
             if missing:
                 validation.error(f"full experiment harness {harness_id} missing pass criteria: {', '.join(missing)}")
-            if harness.get("may_support_research_claim") and "no_mock_data_used" not in pass_criteria:
-                validation.error(f"full experiment harness {harness_id} allows mock evidence for research claim")
+            if harness.get("may_support_research_claim") and not FULL_EXPERIMENT_REAL_CRITERIA.issubset(pass_criteria):
+                validation.error(f"full experiment harness {harness_id} lacks real data/model checks for research claim")
+        if harness.get("type") in {"full_reproduction", "reproduction_full"}:
+            if harness.get("independent_rerun_required") is not True:
+                validation.error(f"full reproduction harness {harness_id} must require independent rerun")
+            pass_criteria = {str(item) for item in as_list(harness.get("pass_criteria"))}
+            missing = sorted(FULL_REPRODUCTION_REAL_CRITERIA - pass_criteria)
+            if missing:
+                validation.error(f"full reproduction harness {harness_id} missing pass criteria: {', '.join(missing)}")
 
 
 def validate_spec(research_dir: Path) -> Validation:
@@ -5406,6 +5736,10 @@ def validate_spec(research_dir: Path) -> Validation:
     experiments = [item for item in as_list(exp_manifest.get("experiments")) if isinstance(item, dict)]
     if not experiments:
         validation.error("experiment_manifest.yaml has no experiments")
+    dataset_manifest = load_yaml(research_dir / "spec" / "shared" / "dataset_manifest.yaml")
+    model_manifest = load_yaml(research_dir / "spec" / "shared" / "model_manifest.yaml")
+    datasets = manifest_index(as_list(dataset_manifest.get("datasets")), "dataset_id")
+    models = manifest_index(as_list(model_manifest.get("models")), "model_id")
     required_exp_fields = [
         "experiment_id",
         "title",
@@ -5420,6 +5754,7 @@ def validate_spec(research_dir: Path) -> Validation:
         "models",
         "proposed_method_config",
         "baselines",
+        "data_model_truth",
         "seeds",
         "metrics",
         "statistical_protocol",
@@ -5440,6 +5775,16 @@ def validate_spec(research_dir: Path) -> Validation:
         for field in required_exp_fields:
             if not experiment.get(field):
                 validation.error(f"experiment {experiment_id} missing {field}")
+        data_model_truth = experiment.get("data_model_truth") if isinstance(experiment.get("data_model_truth"), dict) else {}
+        if data_model_truth.get("full_experiment_requires_real_data") is not True:
+            validation.error(f"experiment {experiment_id} must require real data for full experiments")
+        if data_model_truth.get("full_experiment_requires_real_model") is not True:
+            validation.error(f"experiment {experiment_id} must require real model/code for full experiments")
+        dataset_id = str(experiment.get("dataset", "")).strip()
+        if dataset_id:
+            validate_real_dataset(dataset_id, datasets, validation, f"experiment {experiment_id}")
+        for model_id in [str(item).strip() for item in as_list(experiment.get("models")) + as_list(experiment.get("baselines")) if str(item).strip()]:
+            validate_real_model(model_id, models, validation, f"experiment {experiment_id}")
         for harness_id in [str(item).strip() for item in as_list(experiment.get("harnesses")) if str(item).strip()]:
             if harness_id not in experiment_harnesses:
                 validation.error(f"experiment {experiment_id} references missing harness {harness_id}")
@@ -5466,6 +5811,12 @@ def validate_spec(research_dir: Path) -> Validation:
     )
 
     reproduction_manifest = load_yaml(research_dir / "spec" / "reproduction" / "reproduction_manifest.yaml")
+    reproduction_harness_doc = load_yaml(research_dir / "spec" / "reproduction" / "reproduction_harness.yaml")
+    reproduction_harnesses = {
+        str(item.get("harness_id")): item
+        for item in as_list(reproduction_harness_doc.get("harnesses"))
+        if isinstance(item, dict) and item.get("harness_id")
+    }
     for target in as_list(reproduction_manifest.get("reproduction_targets")):
         if not isinstance(target, dict):
             continue
@@ -5475,10 +5826,47 @@ def validate_spec(research_dir: Path) -> Validation:
             validation.error(f"reproduction target {reproduction_id} has invalid reproduction_mode {mode}")
         if mode == "paper_based_reimplementation" and "paper_based_reimplementation" not in target:
             validation.error(f"paper-based reproduction {reproduction_id} missing paper_based_reimplementation detail")
+        if target.get("can_support_main_experiment") is True:
+            real_data_policy = target.get("real_data_policy") if isinstance(target.get("real_data_policy"), dict) else {}
+            real_model_policy = target.get("real_model_policy") if isinstance(target.get("real_model_policy"), dict) else {}
+            if real_data_policy.get("requires_real_dataset") is not True:
+                validation.error(f"reproduction target {reproduction_id} must require real dataset before supporting main experiments")
+            if real_model_policy.get("requires_real_model_or_code") is not True:
+                validation.error(f"reproduction target {reproduction_id} must require real model/code before supporting main experiments")
+            dataset_ref = target.get("dataset") if isinstance(target.get("dataset"), dict) else {}
+            dataset_id = str(real_data_policy.get("dataset_id") or dataset_ref.get("dataset_id") or "").strip()
+            if dataset_id:
+                validate_real_dataset(dataset_id, datasets, validation, f"reproduction target {reproduction_id}")
+            else:
+                validation.error(f"reproduction target {reproduction_id} missing real dataset_id")
+            baseline_model_id = str(real_model_policy.get("baseline_model_id") or target.get("baseline_id") or "").strip()
+            if baseline_model_id:
+                validate_real_model(baseline_model_id, models, validation, f"reproduction target {reproduction_id}")
+            else:
+                validation.error(f"reproduction target {reproduction_id} missing baseline_model_id")
+            commands = target.get("commands") if isinstance(target.get("commands"), dict) else {}
+            if not as_list(commands.get("run")):
+                validation.error(f"reproduction target {reproduction_id} must define full run command, not only smoke")
+            harness_ids = [str(item).strip() for item in as_list(target.get("harnesses")) if str(item).strip()]
+            full_harnesses = [
+                reproduction_harnesses[harness_id]
+                for harness_id in harness_ids
+                if harness_id in reproduction_harnesses
+                and reproduction_harnesses[harness_id].get("type") in {"full_reproduction", "reproduction_full"}
+            ]
+            if not full_harnesses:
+                validation.error(f"reproduction target {reproduction_id} must include a full_reproduction harness before supporting main experiments")
 
     evidence_contract = load_yaml(research_dir / "spec" / "shared" / "evidence_contract.yaml")
     if not evidence_contract.get("claims") and not evidence_contract.get("evidence_rules"):
         validation.error("evidence_contract.yaml has no claim contract or evidence rules")
+    anti_mock_policy = load_yaml(research_dir / "spec" / "shared" / "anti_mock_policy.yaml")
+    real_gate = anti_mock_policy.get("real_data_model_gate") if isinstance(anti_mock_policy.get("real_data_model_gate"), dict) else {}
+    if not real_gate:
+        validation.error("anti_mock_policy.yaml missing real_data_model_gate")
+    for gate_field in ["full_experiment_required_checks", "full_reproduction_required_checks"]:
+        if not as_list(real_gate.get(gate_field)):
+            validation.error(f"anti_mock_policy.yaml real_data_model_gate missing {gate_field}")
 
     insight_policy = load_yaml(research_dir / "spec" / "shared" / "insight_policy.yaml")
     if not insight_policy.get("insight_policy"):

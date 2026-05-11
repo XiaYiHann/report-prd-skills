@@ -157,6 +157,9 @@ def make_paper_binding_decision(research_dir: Path, artifact_path: str = "docs/r
   baseline: B01
   seed_protocol: S01
   audit_status: passed
+  real_data_check: real_dataset_provenance_verified
+  real_model_check: real_model_provenance_verified
+  non_smoke_full_run: full_run_not_smoke
   evidence_level: paper_admissible
 
 ## Blocked Claims
@@ -176,4 +179,3 @@ Each allowed claim is bound above.
 """,
         encoding="utf-8",
     )
-

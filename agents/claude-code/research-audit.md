@@ -43,6 +43,7 @@ Write:
 8. Stale plan hashes.
 9. Unresolved human review requests.
 10. Mock evidence violations.
+11. Real dataset / real model provenance for full experiments and claim-supporting reproductions.
 
 ## Hard Blockers
 
@@ -52,6 +53,9 @@ Write:
 - Negative result exists but claim remains marked supported.
 - Full experiment harness allows mock evidence.
 - Spec experiment lacks dataset, metric, seed, command, or harness.
+- Full experiment lacks real dataset provenance, real model/code provenance, or non-smoke execution checks.
+- Claim-supporting reproduction has no full run command or full reproduction harness.
+- Dataset/model manifest marks claim-supporting evidence as mock, toy, synthetic, stub, cached, proxy, or smoke-only.
 
 ## Must Not Do
 

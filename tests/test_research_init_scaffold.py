@@ -104,6 +104,8 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
             gap = (research_dir / "spec" / "reproduction" / "reproduction_gap_report.md").read_text(encoding="utf-8")
             global_spec = read_yaml(research_dir / "spec" / "global_spec.yaml")
             anti_mock = read_yaml(research_dir / "spec" / "shared" / "anti_mock_policy.yaml")
+            dataset_manifest = read_yaml(research_dir / "spec" / "shared" / "dataset_manifest.yaml")
+            model_manifest = read_yaml(research_dir / "spec" / "shared" / "model_manifest.yaml")
 
             self.assertIn("全局机器可读执行契约", readme)
             self.assertIn("不要从论文反推实验", readme)
@@ -113,6 +115,9 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
             self.assertEqual(global_spec["authority"], "compile_from_prd_not_paper")
             self.assertIn("只能从 Research PRD 编译", global_spec["notes"][0])
             self.assertIn("科研主张", anti_mock["forbidden_for_description"]["research_claim"])
+            self.assertIn("real_data_model_gate", anti_mock)
+            self.assertFalse(dataset_manifest["dataset_template"]["is_mock"])
+            self.assertFalse(model_manifest["model_template"]["is_mock"])
 
     def test_research_init_generates_top_conference_paper_template(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -162,9 +167,13 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
             self.assertIn("experiment_type", experiment_manifest["experiment_template"])
             self.assertIn("support_condition", experiment_manifest["experiment_template"])
             self.assertIn("falsification_condition", experiment_manifest["experiment_template"])
+            self.assertIn("data_model_truth", experiment_manifest["experiment_template"])
             self.assertIn("harness_template", experiment_harness)
             self.assertIn("independent_rerun_required", experiment_harness["harness_template"])
+            self.assertIn("real_dataset_provenance_verified", experiment_harness["harness_template"]["pass_criteria"])
+            self.assertIn("real_model_provenance_verified", experiment_harness["harness_template"]["pass_criteria"])
             self.assertIn("reproduction_target_template", reproduction_manifest)
+            self.assertTrue(reproduction_manifest["reproduction_target_template"]["full_reproduction_required"])
             self.assertIn("official_code_reuse", reproduction_manifest["allowed_reproduction_modes"])
             self.assertIn("result_binding_template", result_binding)
             self.assertIn("所有说明性 value 使用中文", global_spec["language_policy"]["values"])
