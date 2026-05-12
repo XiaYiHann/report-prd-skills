@@ -6205,12 +6205,14 @@ def validate_audit(research_dir: Path) -> Validation:
     for result in audit_results:
         if result.status == "FAIL" and result.severity in {"P0", "P1"}:
             validation.error(f"{result.check_id}: {result.message}")
-    audit_dir = None
+    epoch_audit_dir = None
     if current_epoch_dir(research_dir).exists():
-        audit_dir = latest_child(current_epoch_dir(research_dir) / "audits")
+        epoch_audit_dir = latest_child(current_epoch_dir(research_dir) / "audits")
+    audit_dir = latest_child(research_dir / "audits")
     if audit_dir is None:
-        audit_dir = latest_child(research_dir / "audits")
-    if audit_dir is None:
+        if epoch_audit_dir is not None:
+            validation.require_file(epoch_audit_dir / "audit_results.yaml", "audit_results.yaml")
+            return validation
         validation.error("no dated research audit exists")
         return validation
     for name in ["audit_report.md", "alignment_matrix.yaml", "drift_findings.yaml", "repair_plan.md"]:
