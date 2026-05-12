@@ -21,6 +21,7 @@ PLAN_SCRIPT = REPO_ROOT / "skills" / "research-plan" / "scripts" / "generate_res
 AUDIT_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "generate_research_audit.py"
 RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop.py"
 CREATE_EPOCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "create_epoch.py"
+UPDATE_STATE_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "update_state.py"
 INSTALL_SCRIPT = REPO_ROOT / "install.sh"
 CLAUDE_AGENT_TEMPLATES_DIR = REPO_ROOT / "agents" / "claude-code"
 SKILL_NAMES = [

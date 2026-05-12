@@ -39,6 +39,7 @@ from research_workspace import (  # noqa: E402
 
 SCHEMA_VERSION = 1
 VALID_STATUSES = {"done", "blocked", "failed", "skipped"}
+VALID_EXECUTORS = {"codex", "claude-code", "manual"}
 
 
 def today_string() -> str:
@@ -136,31 +137,76 @@ def update_status_yaml(epoch_dir: Path, task_id: str, status: str) -> None:
     write_yaml(status_path, payload, force=True)
 
 
-def write_run_report_from_args(
-    epoch_dir: Path, version: str, task_id: str, status: str,
-    commit_hash: str | None, gate_id: str | None, blocker_reason: str | None,
-) -> None:
-    report = {
+def parse_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "0", "no", "n"}:
+        return False
+    raise argparse.ArgumentTypeError(f"expected boolean true/false, got: {value}")
+
+
+def parse_artifact_arg(raw: str) -> dict[str, str]:
+    marker = ":sha256="
+    if marker not in raw:
+        raise ValueError("artifact must use path:sha256=<digest>")
+    path, digest = raw.split(marker, 1)
+    if not path.strip() or not digest.strip():
+        raise ValueError("artifact must use path:sha256=<digest>")
+    return {"path": path.strip(), "sha256": digest.strip()}
+
+
+def build_run_report_from_args(epoch_dir: Path, version: str, args: Any) -> dict[str, Any]:
+    artifacts = [parse_artifact_arg(raw) for raw in getattr(args, "artifact", [])]
+    blocker_reason = args.blocker_reason.strip() or None
+    commit_hash = args.commit_hash.strip() or None
+    gate_id = args.gate_id.strip() or None
+    tests_passed = getattr(args, "tests_passed", None)
+    return {
         "report_version": 1,
         "task": {
             "version": version,
-            "task_id": task_id,
-            "status": status,
+            "task_id": args.task_id,
+            "status": args.status,
             "gate_id": gate_id,
         },
         "git": {
             "commit_created": commit_hash is not None,
             "commit_hash": commit_hash,
+            "dirty_tree_after_task": getattr(args, "dirty_tree_after_task", False),
         },
-        "execution": {"commands_run": [], "stdout_path": None, "stderr_path": None, "exit_code": None, "files_changed": []},
-        "evidence": {"tests": {"passed": False, "output_path": None}, "artifacts": [], "blockers": []},
+        "execution": {
+            "executor": getattr(args, "executor", "manual"),
+            "commands_run": list(getattr(args, "command", [])),
+            "stdout_path": getattr(args, "stdout_path", None),
+            "stderr_path": getattr(args, "stderr_path", None),
+            "exit_code": getattr(args, "exit_code", None),
+            "files_changed": list(getattr(args, "file_changed", [])),
+        },
+        "evidence": {
+            "tests": {
+                "passed": bool(tests_passed) if tests_passed is not None else False,
+                "commands": list(getattr(args, "test_command", [])),
+                "output_path": getattr(args, "test_output_path", None),
+            },
+            "artifacts": artifacts,
+            "blockers": [blocker_reason] if blocker_reason else [],
+        },
         "gate_outcome": {
-            "gate_passed": status == "done",
-            "gate_blocked": status in ("blocked", "failed"),
+            "gate_passed": args.status == "done",
+            "gate_blocked": args.status in ("blocked", "failed"),
             "blocker_reason": blocker_reason,
         },
         "next_action": {"recommendation": None, "wiki_update_needed": False},
     }
+
+
+def write_run_report_from_args(
+    epoch_dir: Path, version: str, task_id: str, status: str,
+    commit_hash: str | None, gate_id: str | None, blocker_reason: str | None,
+    args: argparse.Namespace,
+) -> None:
+    report = build_run_report_from_args(epoch_dir, version, args)
     write_task_run_report(epoch_dir, version, task_id, report)
 
 
@@ -173,8 +219,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gate-id", default="", help="Gate ID this task belongs to.")
     parser.add_argument("--blocker-reason", default="", help="Reason when status is blocked or failed.")
     parser.add_argument("--note", default="", help="Optional free-text note for LOOP_LOG.md.")
+    parser.add_argument("--executor", default="manual", choices=sorted(VALID_EXECUTORS), help="Agent executor submitting this evidence.")
+    parser.add_argument("--command", action="append", default=[], help="Command executed by the agent. Can be repeated.")
+    parser.add_argument("--stdout-path", default=None, help="Path to captured stdout.")
+    parser.add_argument("--stderr-path", default=None, help="Path to captured stderr.")
+    parser.add_argument("--exit-code", type=int, default=None, help="Process exit code for the main command.")
+    parser.add_argument("--test-command", action="append", default=[], help="Test command executed by the agent. Can be repeated.")
+    parser.add_argument("--test-output-path", default=None, help="Path to captured test output.")
+    parser.add_argument("--tests-passed", type=parse_bool, default=None, help="Whether tests passed.")
+    parser.add_argument("--artifact", action="append", default=[], help="Artifact evidence in path:sha256=<digest> format.")
+    parser.add_argument("--file-changed", action="append", default=[], help="Changed file path. Can be repeated.")
+    parser.add_argument("--dirty-tree-after-task", type=parse_bool, default=False, help="Whether the tree was dirty after task completion.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned updates without writing.")
-    return parser.parse_args()
+    args = parser.parse_args()
+    for raw in args.artifact:
+        try:
+            parse_artifact_arg(raw)
+        except ValueError as exc:
+            parser.error(str(exc))
+    return args
 
 
 def main() -> int:
@@ -222,7 +285,7 @@ def main() -> int:
     print(f"[OK] STATUS.yaml updated")
 
     # 5. Write task run report
-    write_run_report_from_args(epoch_dir, version, args.task_id, args.status, commit_hash, gate_id, blocker_reason)
+    write_run_report_from_args(epoch_dir, version, args.task_id, args.status, commit_hash, gate_id, blocker_reason, args)
     print(f"[OK] runs/{args.task_id}_report.yaml written")
 
     # 6. Regenerate NEXT_ACTION.md from TASK_QUEUE
