@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -5098,6 +5098,100 @@ class EpochSchemaIssue:
     severity: str = "FAIL"
 
 
+@dataclass
+class AuditCheckResult:
+    check_id: str
+    status: str
+    severity: str
+    message: str
+    paths: list[str]
+
+
+def audit_pass(check_id: str, message: str, paths: list[str] | None = None) -> AuditCheckResult:
+    return AuditCheckResult(check_id, "PASS", "P2", message, paths or [])
+
+
+def audit_fail(check_id: str, message: str, paths: list[str] | None = None, severity: str = "P0") -> AuditCheckResult:
+    return AuditCheckResult(check_id, "FAIL", severity, message, paths or [])
+
+
+def audit_results_payload(results: list[AuditCheckResult]) -> dict[str, Any]:
+    return {"schema_version": SCHEMA_VERSION, "checks": [asdict(result) for result in results]}
+
+
+def has_blocking_audit_failures(results: list[AuditCheckResult]) -> bool:
+    return any(result.status == "FAIL" and result.severity in {"P0", "P1"} for result in results)
+
+
+def completed_tasks(epoch_dir: Path) -> list[dict[str, Any]]:
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    return [task for task in tasks if str(task.get("status")) == "done"]
+
+
+def run_evidence_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
+    results: list[AuditCheckResult] = []
+    epoch_dir = current_epoch_dir(research_dir)
+    tasks = completed_tasks(epoch_dir)
+    if not tasks:
+        return [audit_pass("evidence.no_completed_tasks", "No completed tasks require evidence checks yet.", [epoch_dir.name])]
+    for task in tasks:
+        task_id = str(task.get("id") or "")
+        report_path = epoch_dir / "runs" / f"{task_id}_report.yaml"
+        report_label = f"{epoch_dir.name}/runs/{task_id}_report.yaml"
+        if not report_path.exists():
+            results.append(audit_fail("evidence.done_task_has_run_report", f"completed task {task_id} has no run report", [report_label]))
+            continue
+        report = load_yaml(report_path)
+        if not isinstance(report, dict) or report.get("task", {}).get("status") != "done":
+            results.append(audit_fail("evidence.done_task_has_run_report", f"completed task {task_id} has no done-status run report", [report_label]))
+            continue
+        execution = report.get("execution", {}) if isinstance(report.get("execution"), dict) else {}
+        evidence = report.get("evidence", {}) if isinstance(report.get("evidence"), dict) else {}
+        if execution.get("exit_code") is None:
+            results.append(audit_fail("evidence.done_task_has_exit_code", f"completed task {task_id} run report has no exit_code", [report_label]))
+        if not as_list(execution.get("commands_run")):
+            results.append(audit_fail("evidence.done_task_has_commands", f"completed task {task_id} run report has no commands_run", [report_label]))
+        artifacts = [artifact for artifact in as_list(evidence.get("artifacts")) if isinstance(artifact, dict)]
+        if not any(artifact.get("path") and artifact.get("sha256") for artifact in artifacts):
+            results.append(audit_fail("evidence.done_task_has_artifact_hash", f"completed task {task_id} run report has no artifact sha256", [report_label]))
+    if not results:
+        results.append(audit_pass("evidence.completed_tasks_have_structured_reports", "Completed tasks have structured run reports."))
+    return results
+
+
+def run_paper_binding_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
+    validation = validate_paper_binding_ready(research_dir)
+    if validation.ok:
+        return [audit_pass("paper_binding.ready", "Paper binding evidence checks passed.")]
+    return [
+        audit_fail("paper_binding.ready", issue, [current_epoch_dir(research_dir).name], severity="P0")
+        for issue in validation.issues
+    ]
+
+
+def run_epoch_audit_checks(research_dir: Path, mode: str = "full") -> list[AuditCheckResult]:
+    results: list[AuditCheckResult] = []
+    if mode in {"full", "epoch"}:
+        schema_issues = validate_epoch_schema(research_dir, strict=True)
+        if schema_issues:
+            results.extend(
+                audit_fail("epoch.schema_invariance", issue.message, [issue.path], severity="P0")
+                for issue in schema_issues
+            )
+        else:
+            results.append(audit_pass("epoch.schema_invariance", "All epoch directories match the epoch manifest."))
+    if mode in {"full", "evidence"}:
+        results.extend(run_evidence_audit_checks(research_dir))
+    if mode == "paper-binding":
+        results.extend(run_paper_binding_audit_checks(research_dir))
+    return results
+
+
+def write_audit_results_yaml(path: Path, results: list[AuditCheckResult]) -> None:
+    write_yaml(path, audit_results_payload(results), force=True)
+
+
 def validate_epoch_yaml_fields(epoch_dir: Path, manifest: dict[str, Any]) -> list[EpochSchemaIssue]:
     issues: list[EpochSchemaIssue] = []
     required = manifest.get("yaml_required_fields", {})
@@ -6107,7 +6201,15 @@ def validate_insight(research_dir: Path) -> Validation:
 
 def validate_audit(research_dir: Path) -> Validation:
     validation = Validation()
-    audit_dir = latest_child(research_dir / "audits")
+    audit_results = run_epoch_audit_checks(research_dir, mode="full")
+    for result in audit_results:
+        if result.status == "FAIL" and result.severity in {"P0", "P1"}:
+            validation.error(f"{result.check_id}: {result.message}")
+    audit_dir = None
+    if current_epoch_dir(research_dir).exists():
+        audit_dir = latest_child(current_epoch_dir(research_dir) / "audits")
+    if audit_dir is None:
+        audit_dir = latest_child(research_dir / "audits")
     if audit_dir is None:
         validation.error("no dated research audit exists")
         return validation
