@@ -7,9 +7,9 @@ description: "Use when a research workspace under docs/research needs the defaul
 
 ## Purpose
 
-`research` is the unified autonomous research workflow controller.
+`research` is the unified epoch contract controller for Codex / Claude Code agent executors.
 
-It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and advances one bounded research loop through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, and paper binding.
+It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and reports the bounded research contract through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute `NEXT_ACTION.md` as the agent executor and must submit structured evidence with `update_state.py`.
 
 新版系统是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -90,6 +90,7 @@ Every `/research` run must first read:
 
 - Always execute the earliest incomplete gate, or write the precise next execution prompt when the controller cannot safely run harnesses itself.
 - Default to the current `Vn`; do not advance legacy folders when `CURRENT` exists.
+- `research_loop.py` defaults to epoch contract mode when `CURRENT` and `Vn/` exist; the legacy deterministic controller requires explicit `--legacy-controller`.
 - Execute only `Vn/NEXT_ACTION.md`; do not skip `TASK_QUEUE.yaml`.
 - Stay inside the Research Corridor.
 - Do not create `Vn+1` before current `Vn/closeout.md` is complete and status is `closed_*`.
@@ -101,6 +102,7 @@ Every `/research` run must first read:
 - Never infer experiments from paper.
 - Never fabricate data, metrics, baselines, or results.
 - Never use mock/toy/smoke outputs as claim evidence.
+- Never treat prompt-only scaffold as experiment evidence or Paper Binding evidence.
 - If execution fails, retry within the current plan's allowed scope.
 - If spec is incomplete but PRD is clear, repair spec and regenerate the plan.
 - If PRD is ambiguous or a research hypothesis is challenged, stop and request human review.
@@ -213,18 +215,15 @@ Paper Binding is allowed only when current status is `closed_stable` or `paper_b
 
 ## Command
 
-### Controller (one-shot state machine advance)
+### Controller (epoch contract summary)
 
 ```bash
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo /absolute/path/to/repo --once
 python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --max-steps 1
 python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --dry-run --json
-python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --track reproduction
-python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --force-audit
-python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --executor prompt-only
 ```
 
-The current implementation is a deterministic file-based controller. It creates and updates state, queues, plans, blocker files, feedback, audits, and next-step prompts. It does not fabricate harness outputs or claim that experiments ran when no harness was executed.
+When `CURRENT` and `Vn/` exist, the default implementation reports the epoch contract for Codex / Claude Code. Legacy deterministic controller behavior requires explicit `--legacy-controller`.
 
 ### Autonomous loop (ralph-loop)
 
@@ -239,14 +238,11 @@ The current implementation is a deterministic file-based controller. It creates 
 /cancel-ralph
 ```
 
-## Execution Backend
+## Agent Executor Boundary
 
-`--executor` is intentionally explicit:
+Codex / Claude Code are the supported agent executors. They read `Vn/NEXT_ACTION.md`, perform the task in their own runtime, and call `update_state.py` with commands, stdout/stderr paths, exit code, artifact hashes, tests, git state, and blockers.
 
-- `prompt-only` is implemented now.
-- `local-shell`, `codex`, and `hermes` are reserved backend slots.
-
-Until a backend is implemented and tested, `/research` must not claim that it ran harnesses or generated experimental evidence.
+`--executor prompt-only` remains only as a legacy-controller compatibility slot. The epoch controller does not run an independent backend and must not claim that it ran harnesses or generated experimental evidence.
 
 ## Git Safety
 

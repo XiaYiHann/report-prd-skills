@@ -24,6 +24,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
                     "--executor",
                     "prompt-only",
                     "--json",
+                    "--legacy-controller",
                 ],
                 cwd=repo,
             )
@@ -47,7 +48,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             research_dir = init_workspace(repo)
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 
@@ -66,7 +67,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             shutil.rmtree(research_dir / "spec")
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 
@@ -85,7 +86,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             make_execution_ready_spec(research_dir)
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 
@@ -134,7 +135,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             )
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 
@@ -154,7 +155,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             shutil.rmtree(research_dir / "spec")
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 
@@ -176,7 +177,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             pivot.write_text("# Pivot Proposal\n\n## Human Decision Required\nApprove / reject / revise\n", encoding="utf-8")
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 
@@ -212,7 +213,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
 
             result = run_cmd(
-                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json"],
+                ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
                 cwd=repo,
             )
 

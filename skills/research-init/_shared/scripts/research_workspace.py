@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,8 @@ SCHEMA_VERSION = 1
 TEMPLATE_FAMILY = "research_loop"
 TEMPLATE_VERSION = "epoch_v1"
 DEFAULT_RESEARCH_DIR = Path("docs") / "research"
+EPOCH_SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"
+EPOCH_MANIFEST_PATH = EPOCH_SCHEMA_DIR / "epoch_v1_manifest.yaml"
 FORBIDDEN_RESULT_PHRASES = [
     "experiments show",
     "our method outperforms",
@@ -83,28 +86,37 @@ SPEC_FILES = [
     "paper/result_binding.yaml",
 ]
 
-EPOCH_REQUIRED_FILES = [
-    "PRD.md",
-    "SPEC.yaml",
-    "PLAN.md",
-    "STATUS.yaml",
-    "TASK_QUEUE.yaml",
-    "NEXT_ACTION.md",
-    "GIT_STATE.yaml",
-    "git_log.md",
-]
+def load_epoch_manifest(path: Path | None = None) -> dict[str, Any]:
+    manifest_path = path or EPOCH_MANIFEST_PATH
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"epoch manifest not found: {manifest_path}")
+    payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"epoch manifest must be a mapping: {manifest_path}")
+    if payload.get("schema_version") != TEMPLATE_VERSION:
+        raise ValueError(f"epoch manifest schema_version must be {TEMPLATE_VERSION}")
+    return payload
 
-EPOCH_WIKI_FILES = [
-    "epoch_summary.md",
-    "evidence_map.md",
-    "positive_signals.md",
-    "negative_results.md",
-    "failed_paths.md",
-    "baseline_landscape.md",
-    "literature_notes.md",
-    "open_questions.md",
-    "next_version_seed.md",
-]
+
+def epoch_manifest_list(key: str, manifest: dict[str, Any] | None = None) -> list[str]:
+    payload = manifest or load_epoch_manifest()
+    values = payload.get(key)
+    if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+        raise ValueError(f"epoch manifest key {key} must be a string list")
+    return list(values)
+
+
+def epoch_required_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_files", manifest)
+
+
+def epoch_wiki_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_wiki_files", manifest)
+
+
+EPOCH_REQUIRED_FILES = epoch_required_files()
+
+EPOCH_WIKI_FILES = epoch_wiki_files()
 
 CLOSED_VERSION_STATUSES = {
     "closed_success",
@@ -3239,6 +3251,77 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(repo / "AGENTS.md", agents_root_template(), force)
 
 
+def source_epoch_is_closed(epoch_dir: Path) -> bool:
+    status = load_yaml(epoch_dir / "STATUS.yaml")
+    if str(status.get("status")) in CLOSED_VERSION_STATUSES or str(status.get("status")) == "paper_binding_ready":
+        return True
+    closeout = epoch_dir / "closeout.md"
+    if closeout.exists() and closeout_final_status(read_text(closeout)) in CLOSED_VERSION_STATUSES:
+        return True
+    return False
+
+
+def assert_can_create_epoch(research_dir: Path, from_version: str, target_version: str) -> None:
+    if not re.fullmatch(r"V\d+", target_version):
+        raise ValueError(f"target epoch version must match V\\d+: {target_version}")
+    if not re.fullmatch(r"V\d+", from_version):
+        raise ValueError(f"source epoch version must match V\\d+: {from_version}")
+    source_dir = research_dir / from_version
+    if not source_dir.exists():
+        raise ValueError(f"source epoch {from_version} does not exist")
+    if not source_epoch_is_closed(source_dir):
+        raise ValueError(f"source epoch {from_version} is not closed")
+    target_dir = research_dir / target_version
+    if target_dir.exists():
+        raise ValueError(f"target epoch {target_version} already exists")
+    if version_sort_key(target_dir) <= version_sort_key(source_dir):
+        raise ValueError(f"target epoch {target_version} must be after source epoch {from_version}")
+
+
+def create_epoch(
+    research_dir: Path,
+    version: str,
+    from_version: str | None = None,
+    force: bool = False,
+) -> Path:
+    source_version = from_version or current_epoch_name(research_dir)
+    assert_can_create_epoch(research_dir, source_version, version)
+    epoch_dir = research_dir / version
+    if force and epoch_dir.exists():
+        shutil.rmtree(epoch_dir)
+
+    manifest = load_epoch_manifest()
+    for dirname in epoch_manifest_list("required_dirs", manifest):
+        (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
+
+    title = "Research Project"
+    purpose = f"next-epoch-from-{source_version}"
+    write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
+    write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
+    write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
+    write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
+    write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
+    write_text(epoch_dir / "NEXT_ACTION.md", markdown_template(epoch_next_action_template(version)), force)
+    if not force:
+        write_next_action_from_task_queue(epoch_dir, version)
+    write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
+    write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
+    write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
+    write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
+    write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
+    for filename, content in wiki_templates(version).items():
+        write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
+    for path in [
+        epoch_dir / "plans" / ".gitkeep",
+        epoch_dir / "runs" / ".gitkeep",
+        epoch_dir / "artifacts" / ".gitkeep",
+        epoch_dir / "audits" / ".gitkeep",
+    ]:
+        write_text(path, "", force)
+    write_text(research_dir / "CURRENT", version + "\n", force=True)
+    return epoch_dir
+
+
 def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
     spec = research_dir / "spec"
     write_text(
@@ -5008,6 +5091,170 @@ def task_changes_code(task: dict[str, Any]) -> bool:
     return bool(re.search(r"\b(src|app|apps|packages|tests|scripts)/", files))
 
 
+@dataclass
+class EpochSchemaIssue:
+    path: str
+    message: str
+    severity: str = "FAIL"
+
+
+@dataclass
+class AuditCheckResult:
+    check_id: str
+    status: str
+    severity: str
+    message: str
+    paths: list[str]
+
+
+def audit_pass(check_id: str, message: str, paths: list[str] | None = None) -> AuditCheckResult:
+    return AuditCheckResult(check_id, "PASS", "P2", message, paths or [])
+
+
+def audit_fail(check_id: str, message: str, paths: list[str] | None = None, severity: str = "P0") -> AuditCheckResult:
+    return AuditCheckResult(check_id, "FAIL", severity, message, paths or [])
+
+
+def audit_results_payload(results: list[AuditCheckResult]) -> dict[str, Any]:
+    return {"schema_version": SCHEMA_VERSION, "checks": [asdict(result) for result in results]}
+
+
+def has_blocking_audit_failures(results: list[AuditCheckResult]) -> bool:
+    return any(result.status == "FAIL" and result.severity in {"P0", "P1"} for result in results)
+
+
+def completed_tasks(epoch_dir: Path) -> list[dict[str, Any]]:
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    return [task for task in tasks if str(task.get("status")) == "done"]
+
+
+def run_evidence_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
+    results: list[AuditCheckResult] = []
+    epoch_dir = current_epoch_dir(research_dir)
+    tasks = completed_tasks(epoch_dir)
+    if not tasks:
+        return [audit_pass("evidence.no_completed_tasks", "No completed tasks require evidence checks yet.", [epoch_dir.name])]
+    for task in tasks:
+        task_id = str(task.get("id") or "")
+        report_path = epoch_dir / "runs" / f"{task_id}_report.yaml"
+        report_label = f"{epoch_dir.name}/runs/{task_id}_report.yaml"
+        if not report_path.exists():
+            results.append(audit_fail("evidence.done_task_has_run_report", f"completed task {task_id} has no run report", [report_label]))
+            continue
+        report = load_yaml(report_path)
+        if not isinstance(report, dict) or report.get("task", {}).get("status") != "done":
+            results.append(audit_fail("evidence.done_task_has_run_report", f"completed task {task_id} has no done-status run report", [report_label]))
+            continue
+        execution = report.get("execution", {}) if isinstance(report.get("execution"), dict) else {}
+        evidence = report.get("evidence", {}) if isinstance(report.get("evidence"), dict) else {}
+        if execution.get("exit_code") is None:
+            results.append(audit_fail("evidence.done_task_has_exit_code", f"completed task {task_id} run report has no exit_code", [report_label]))
+        if not as_list(execution.get("commands_run")):
+            results.append(audit_fail("evidence.done_task_has_commands", f"completed task {task_id} run report has no commands_run", [report_label]))
+        artifacts = [artifact for artifact in as_list(evidence.get("artifacts")) if isinstance(artifact, dict)]
+        if not any(artifact.get("path") and artifact.get("sha256") for artifact in artifacts):
+            results.append(audit_fail("evidence.done_task_has_artifact_hash", f"completed task {task_id} run report has no artifact sha256", [report_label]))
+    if not results:
+        results.append(audit_pass("evidence.completed_tasks_have_structured_reports", "Completed tasks have structured run reports."))
+    return results
+
+
+def run_paper_binding_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
+    validation = validate_paper_binding_ready(research_dir)
+    if validation.ok:
+        return [audit_pass("paper_binding.ready", "Paper binding evidence checks passed.")]
+    return [
+        audit_fail("paper_binding.ready", issue, [current_epoch_dir(research_dir).name], severity="P0")
+        for issue in validation.issues
+    ]
+
+
+def run_epoch_audit_checks(research_dir: Path, mode: str = "full") -> list[AuditCheckResult]:
+    results: list[AuditCheckResult] = []
+    if mode in {"full", "epoch"}:
+        schema_issues = validate_epoch_schema(research_dir, strict=True)
+        if schema_issues:
+            results.extend(
+                audit_fail("epoch.schema_invariance", issue.message, [issue.path], severity="P0")
+                for issue in schema_issues
+            )
+        else:
+            results.append(audit_pass("epoch.schema_invariance", "All epoch directories match the epoch manifest."))
+    if mode in {"full", "evidence"}:
+        results.extend(run_evidence_audit_checks(research_dir))
+    if mode == "paper-binding":
+        results.extend(run_paper_binding_audit_checks(research_dir))
+    return results
+
+
+def write_audit_results_yaml(path: Path, results: list[AuditCheckResult]) -> None:
+    write_yaml(path, audit_results_payload(results), force=True)
+
+
+def validate_epoch_yaml_fields(epoch_dir: Path, manifest: dict[str, Any]) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    required = manifest.get("yaml_required_fields", {})
+    if not isinstance(required, dict):
+        return [EpochSchemaIssue(epoch_dir.name, "epoch manifest yaml_required_fields must be a mapping")]
+    version = epoch_dir.name
+    for filename, fields in required.items():
+        path = epoch_dir / str(filename)
+        label = f"{version}/{filename}"
+        if not path.exists():
+            continue
+        payload = load_yaml(path)
+        if not isinstance(payload, dict):
+            issues.append(EpochSchemaIssue(label, f"{label} must be a YAML mapping"))
+            continue
+        if not isinstance(fields, list):
+            issues.append(EpochSchemaIssue(label, f"manifest fields for {filename} must be a list"))
+            continue
+        for field in fields:
+            if str(field) not in payload:
+                issues.append(EpochSchemaIssue(label, f"{label} missing required field: {field}"))
+        if "version" in fields and payload.get("version") != version:
+            issues.append(EpochSchemaIssue(label, f"{label} version {payload.get('version')} does not match epoch {version}"))
+    return issues
+
+
+def validate_epoch_wiki_set(epoch_dir: Path, manifest: dict[str, Any], strict: bool = True) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    version = epoch_dir.name
+    wiki_dir = epoch_dir / "wiki"
+    required = set(epoch_manifest_list("required_wiki_files", manifest))
+    for filename in sorted(required):
+        path = wiki_dir / filename
+        if not path.exists():
+            issues.append(EpochSchemaIssue(f"{version}/wiki/{filename}", f"missing {version}/wiki/{filename}: {path.as_posix()}"))
+    if strict and wiki_dir.exists():
+        for path in sorted(wiki_dir.glob("*.md")):
+            if path.name not in required:
+                rel = f"{version}/wiki/{path.name}"
+                issues.append(EpochSchemaIssue(rel, f"unexpected epoch wiki file: {rel}"))
+    return issues
+
+
+def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    manifest = load_epoch_manifest()
+    required_files = epoch_manifest_list("required_files", manifest)
+    required_dirs = epoch_manifest_list("required_dirs", manifest)
+    for epoch_dir in epoch_versions(research_dir):
+        version = epoch_dir.name
+        for filename in required_files:
+            path = epoch_dir / filename
+            if not path.exists():
+                issues.append(EpochSchemaIssue(f"{version}/{filename}", f"missing {version}/{filename}: {path.as_posix()}"))
+        for dirname in required_dirs:
+            path = epoch_dir / dirname
+            if not path.is_dir():
+                issues.append(EpochSchemaIssue(f"{version}/{dirname}", f"missing {version}/{dirname}: {path.as_posix()}"))
+        issues.extend(validate_epoch_yaml_fields(epoch_dir, manifest))
+        issues.extend(validate_epoch_wiki_set(epoch_dir, manifest, strict=strict))
+    return issues
+
+
 def markdown_has_real_value(text: str, label: str) -> bool:
     value = markdown_status_value(text, label)
     return bool(value and "【待填写" not in value and value.lower() not in {"none", "null", "false"})
@@ -5078,6 +5325,8 @@ def validate_epoch_ready(research_dir: Path) -> Validation:
     if not epoch_dir.exists():
         validation.error(f"missing current epoch directory: {epoch_dir.as_posix()}")
         return validation
+    for issue in validate_epoch_schema(research_dir, strict=True):
+        validation.error(issue.message)
     for name in EPOCH_REQUIRED_FILES:
         validation.require_file(epoch_dir / name, f"{version}/{name}")
     status = load_yaml(epoch_dir / "STATUS.yaml")
@@ -5952,8 +6201,18 @@ def validate_insight(research_dir: Path) -> Validation:
 
 def validate_audit(research_dir: Path) -> Validation:
     validation = Validation()
+    audit_results = run_epoch_audit_checks(research_dir, mode="full")
+    for result in audit_results:
+        if result.status == "FAIL" and result.severity in {"P0", "P1"}:
+            validation.error(f"{result.check_id}: {result.message}")
+    epoch_audit_dir = None
+    if current_epoch_dir(research_dir).exists():
+        epoch_audit_dir = latest_child(current_epoch_dir(research_dir) / "audits")
     audit_dir = latest_child(research_dir / "audits")
     if audit_dir is None:
+        if epoch_audit_dir is not None:
+            validation.require_file(epoch_audit_dir / "audit_results.yaml", "audit_results.yaml")
+            return validation
         validation.error("no dated research audit exists")
         return validation
     for name in ["audit_report.md", "alignment_matrix.yaml", "drift_findings.yaml", "repair_plan.md"]:

@@ -230,6 +230,12 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             status["status"] = "closed_stable"
             status["direction_ref"] = "../RESEARCH_DIRECTION.md"
             write_yaml(v1 / "STATUS.yaml", status)
+            spec = read_yaml(v1 / "SPEC.yaml")
+            spec["version"] = "V1"
+            write_yaml(v1 / "SPEC.yaml", spec)
+            queue = read_yaml(v1 / "TASK_QUEUE.yaml")
+            queue["version"] = "V1"
+            write_yaml(v1 / "TASK_QUEUE.yaml", queue)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
             self.assertNotEqual(result.returncode, 0)
