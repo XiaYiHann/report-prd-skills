@@ -1,0 +1,73 @@
+schema_version: epoch_v1
+epoch_dir_pattern: 'V\d+'
+required_files:
+  - PRD.md
+  - SPEC.yaml
+  - PLAN.md
+  - STATUS.yaml
+  - TASK_QUEUE.yaml
+  - NEXT_ACTION.md
+  - LOOP_LOG.md
+  - GIT_STATE.yaml
+  - git_log.md
+  - closeout.md
+  - PAPER_BINDING_DECISION.md
+required_dirs:
+  - plans
+  - runs
+  - artifacts
+  - audits
+  - wiki
+required_wiki_files:
+  - epoch_summary.md
+  - evidence_map.md
+  - positive_signals.md
+  - negative_results.md
+  - failed_paths.md
+  - baseline_landscape.md
+  - literature_notes.md
+  - open_questions.md
+  - next_version_seed.md
+yaml_required_fields:
+  STATUS.yaml:
+    - template_version
+    - version
+    - status
+    - allowed_status
+    - direction_ref
+    - current_prd
+    - current_spec
+    - current_plan
+    - current_task_queue
+    - current_next_action
+    - paper_binding
+  SPEC.yaml:
+    - template_version
+    - version
+    - direction_ref
+    - prd_ref
+    - experiments
+    - datasets
+    - models
+    - baselines
+    - metrics
+    - seeds
+    - harnesses
+    - artifact_schemas
+    - gates
+    - anti_mock_policy
+    - runtime_contract
+    - carry_forward
+  TASK_QUEUE.yaml:
+    - template_version
+    - version
+    - queue_status
+    - tasks
+run_report_required_fields:
+  - report_version
+  - task
+  - execution
+  - evidence
+  - gate_outcome
+allowed_extra_patterns:
+  - '.gitkeep'

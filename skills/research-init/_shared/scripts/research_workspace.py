@@ -20,6 +20,8 @@ SCHEMA_VERSION = 1
 TEMPLATE_FAMILY = "research_loop"
 TEMPLATE_VERSION = "epoch_v1"
 DEFAULT_RESEARCH_DIR = Path("docs") / "research"
+EPOCH_SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"
+EPOCH_MANIFEST_PATH = EPOCH_SCHEMA_DIR / "epoch_v1_manifest.yaml"
 FORBIDDEN_RESULT_PHRASES = [
     "experiments show",
     "our method outperforms",
@@ -83,28 +85,37 @@ SPEC_FILES = [
     "paper/result_binding.yaml",
 ]
 
-EPOCH_REQUIRED_FILES = [
-    "PRD.md",
-    "SPEC.yaml",
-    "PLAN.md",
-    "STATUS.yaml",
-    "TASK_QUEUE.yaml",
-    "NEXT_ACTION.md",
-    "GIT_STATE.yaml",
-    "git_log.md",
-]
+def load_epoch_manifest(path: Path | None = None) -> dict[str, Any]:
+    manifest_path = path or EPOCH_MANIFEST_PATH
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"epoch manifest not found: {manifest_path}")
+    payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"epoch manifest must be a mapping: {manifest_path}")
+    if payload.get("schema_version") != TEMPLATE_VERSION:
+        raise ValueError(f"epoch manifest schema_version must be {TEMPLATE_VERSION}")
+    return payload
 
-EPOCH_WIKI_FILES = [
-    "epoch_summary.md",
-    "evidence_map.md",
-    "positive_signals.md",
-    "negative_results.md",
-    "failed_paths.md",
-    "baseline_landscape.md",
-    "literature_notes.md",
-    "open_questions.md",
-    "next_version_seed.md",
-]
+
+def epoch_manifest_list(key: str, manifest: dict[str, Any] | None = None) -> list[str]:
+    payload = manifest or load_epoch_manifest()
+    values = payload.get(key)
+    if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+        raise ValueError(f"epoch manifest key {key} must be a string list")
+    return list(values)
+
+
+def epoch_required_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_files", manifest)
+
+
+def epoch_wiki_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_wiki_files", manifest)
+
+
+EPOCH_REQUIRED_FILES = epoch_required_files()
+
+EPOCH_WIKI_FILES = epoch_wiki_files()
 
 CLOSED_VERSION_STATUSES = {
     "closed_success",
