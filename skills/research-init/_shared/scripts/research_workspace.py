@@ -3251,6 +3251,77 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(repo / "AGENTS.md", agents_root_template(), force)
 
 
+def source_epoch_is_closed(epoch_dir: Path) -> bool:
+    status = load_yaml(epoch_dir / "STATUS.yaml")
+    if str(status.get("status")) in CLOSED_VERSION_STATUSES or str(status.get("status")) == "paper_binding_ready":
+        return True
+    closeout = epoch_dir / "closeout.md"
+    if closeout.exists() and closeout_final_status(read_text(closeout)) in CLOSED_VERSION_STATUSES:
+        return True
+    return False
+
+
+def assert_can_create_epoch(research_dir: Path, from_version: str, target_version: str) -> None:
+    if not re.fullmatch(r"V\d+", target_version):
+        raise ValueError(f"target epoch version must match V\\d+: {target_version}")
+    if not re.fullmatch(r"V\d+", from_version):
+        raise ValueError(f"source epoch version must match V\\d+: {from_version}")
+    source_dir = research_dir / from_version
+    if not source_dir.exists():
+        raise ValueError(f"source epoch {from_version} does not exist")
+    if not source_epoch_is_closed(source_dir):
+        raise ValueError(f"source epoch {from_version} is not closed")
+    target_dir = research_dir / target_version
+    if target_dir.exists():
+        raise ValueError(f"target epoch {target_version} already exists")
+    if version_sort_key(target_dir) <= version_sort_key(source_dir):
+        raise ValueError(f"target epoch {target_version} must be after source epoch {from_version}")
+
+
+def create_epoch(
+    research_dir: Path,
+    version: str,
+    from_version: str | None = None,
+    force: bool = False,
+) -> Path:
+    source_version = from_version or current_epoch_name(research_dir)
+    assert_can_create_epoch(research_dir, source_version, version)
+    epoch_dir = research_dir / version
+    if force and epoch_dir.exists():
+        shutil.rmtree(epoch_dir)
+
+    manifest = load_epoch_manifest()
+    for dirname in epoch_manifest_list("required_dirs", manifest):
+        (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
+
+    title = "Research Project"
+    purpose = f"next-epoch-from-{source_version}"
+    write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
+    write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
+    write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
+    write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
+    write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
+    write_text(epoch_dir / "NEXT_ACTION.md", markdown_template(epoch_next_action_template(version)), force)
+    if not force:
+        write_next_action_from_task_queue(epoch_dir, version)
+    write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
+    write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
+    write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
+    write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
+    write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
+    for filename, content in wiki_templates(version).items():
+        write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
+    for path in [
+        epoch_dir / "plans" / ".gitkeep",
+        epoch_dir / "runs" / ".gitkeep",
+        epoch_dir / "artifacts" / ".gitkeep",
+        epoch_dir / "audits" / ".gitkeep",
+    ]:
+        write_text(path, "", force)
+    write_text(research_dir / "CURRENT", version + "\n", force=True)
+    return epoch_dir
+
+
 def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
     spec = research_dir / "spec"
     write_text(
