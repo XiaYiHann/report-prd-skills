@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -5019,6 +5020,76 @@ def task_changes_code(task: dict[str, Any]) -> bool:
     return bool(re.search(r"\b(src|app|apps|packages|tests|scripts)/", files))
 
 
+@dataclass
+class EpochSchemaIssue:
+    path: str
+    message: str
+    severity: str = "FAIL"
+
+
+def validate_epoch_yaml_fields(epoch_dir: Path, manifest: dict[str, Any]) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    required = manifest.get("yaml_required_fields", {})
+    if not isinstance(required, dict):
+        return [EpochSchemaIssue(epoch_dir.name, "epoch manifest yaml_required_fields must be a mapping")]
+    version = epoch_dir.name
+    for filename, fields in required.items():
+        path = epoch_dir / str(filename)
+        label = f"{version}/{filename}"
+        if not path.exists():
+            continue
+        payload = load_yaml(path)
+        if not isinstance(payload, dict):
+            issues.append(EpochSchemaIssue(label, f"{label} must be a YAML mapping"))
+            continue
+        if not isinstance(fields, list):
+            issues.append(EpochSchemaIssue(label, f"manifest fields for {filename} must be a list"))
+            continue
+        for field in fields:
+            if str(field) not in payload:
+                issues.append(EpochSchemaIssue(label, f"{label} missing required field: {field}"))
+        if "version" in fields and payload.get("version") != version:
+            issues.append(EpochSchemaIssue(label, f"{label} version {payload.get('version')} does not match epoch {version}"))
+    return issues
+
+
+def validate_epoch_wiki_set(epoch_dir: Path, manifest: dict[str, Any], strict: bool = True) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    version = epoch_dir.name
+    wiki_dir = epoch_dir / "wiki"
+    required = set(epoch_manifest_list("required_wiki_files", manifest))
+    for filename in sorted(required):
+        path = wiki_dir / filename
+        if not path.exists():
+            issues.append(EpochSchemaIssue(f"{version}/wiki/{filename}", f"missing {version}/wiki/{filename}: {path.as_posix()}"))
+    if strict and wiki_dir.exists():
+        for path in sorted(wiki_dir.glob("*.md")):
+            if path.name not in required:
+                rel = f"{version}/wiki/{path.name}"
+                issues.append(EpochSchemaIssue(rel, f"unexpected epoch wiki file: {rel}"))
+    return issues
+
+
+def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    manifest = load_epoch_manifest()
+    required_files = epoch_manifest_list("required_files", manifest)
+    required_dirs = epoch_manifest_list("required_dirs", manifest)
+    for epoch_dir in epoch_versions(research_dir):
+        version = epoch_dir.name
+        for filename in required_files:
+            path = epoch_dir / filename
+            if not path.exists():
+                issues.append(EpochSchemaIssue(f"{version}/{filename}", f"missing {version}/{filename}: {path.as_posix()}"))
+        for dirname in required_dirs:
+            path = epoch_dir / dirname
+            if not path.is_dir():
+                issues.append(EpochSchemaIssue(f"{version}/{dirname}", f"missing {version}/{dirname}: {path.as_posix()}"))
+        issues.extend(validate_epoch_yaml_fields(epoch_dir, manifest))
+        issues.extend(validate_epoch_wiki_set(epoch_dir, manifest, strict=strict))
+    return issues
+
+
 def markdown_has_real_value(text: str, label: str) -> bool:
     value = markdown_status_value(text, label)
     return bool(value and "【待填写" not in value and value.lower() not in {"none", "null", "false"})
@@ -5089,6 +5160,8 @@ def validate_epoch_ready(research_dir: Path) -> Validation:
     if not epoch_dir.exists():
         validation.error(f"missing current epoch directory: {epoch_dir.as_posix()}")
         return validation
+    for issue in validate_epoch_schema(research_dir, strict=True):
+        validation.error(issue.message)
     for name in EPOCH_REQUIRED_FILES:
         validation.require_file(epoch_dir / name, f"{version}/{name}")
     status = load_yaml(epoch_dir / "STATUS.yaml")

@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""Strict schema validation tests for every epoch version."""
+
+from __future__ import annotations
+
+import shutil
+
+from research_workflow_helpers import *  # noqa: F403
+
+
+class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
+    def test_epoch_ready_rejects_missing_spec_required_field_in_any_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_epoch_closeout_complete(research_dir)
+            shutil.copytree(research_dir / "V0", research_dir / "V1")
+            (research_dir / "CURRENT").write_text("V1\n", encoding="utf-8")
+            spec = read_yaml(research_dir / "V1" / "SPEC.yaml")
+            spec["version"] = "V1"
+            spec.pop("anti_mock_policy", None)
+            write_yaml(research_dir / "V1" / "SPEC.yaml", spec)
+            status = read_yaml(research_dir / "V1" / "STATUS.yaml")
+            status["version"] = "V1"
+            write_yaml(research_dir / "V1" / "STATUS.yaml", status)
+            queue = read_yaml(research_dir / "V1" / "TASK_QUEUE.yaml")
+            queue["version"] = "V1"
+            write_yaml(research_dir / "V1" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V1/SPEC.yaml missing required field: anti_mock_policy", result.stdout)
+
+    def test_epoch_ready_rejects_version_field_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            make_epoch_closeout_complete(research_dir)
+            shutil.copytree(research_dir / "V0", research_dir / "V1")
+            (research_dir / "CURRENT").write_text("V1\n", encoding="utf-8")
+            status = read_yaml(research_dir / "V1" / "STATUS.yaml")
+            status["version"] = "V0"
+            write_yaml(research_dir / "V1" / "STATUS.yaml", status)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V1/STATUS.yaml version V0 does not match epoch V1", result.stdout)
+
+    def test_epoch_ready_rejects_unexpected_wiki_markdown_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            (research_dir / "V0" / "wiki" / "extra_protocol.md").write_text("# Extra\n", encoding="utf-8")
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unexpected epoch wiki file: V0/wiki/extra_protocol.md", result.stdout)
+
+    def test_epoch_ready_still_rejects_v1_before_v0_closeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            shutil.copytree(research_dir / "V0", research_dir / "V1")
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot create next version before current epoch has closed_* status", result.stdout)
