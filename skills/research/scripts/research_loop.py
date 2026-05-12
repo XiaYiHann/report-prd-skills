@@ -966,6 +966,7 @@ class ResearchLoop:
         if self.research_dir.exists() and not self.args.dry_run:
             self.write_state(final)
         return {
+            "controller_mode": "legacy_controller",
             "workspace": self.rel(self.research_dir),
             "initial_stage": initial.stage,
             "final_stage": final.stage,
@@ -982,6 +983,43 @@ class ResearchLoop:
         }
 
 
+def is_epoch_workspace(research_dir: Path) -> bool:
+    if not (research_dir / "RESEARCH_DIRECTION.md").exists():
+        return False
+    if not (research_dir / "CURRENT").exists():
+        return False
+    return any(path.is_dir() and re.fullmatch(r"V\d+", path.name) for path in research_dir.iterdir())
+
+
+def epoch_contract_summary(research_dir: Path, repo: Path) -> dict[str, Any]:
+    version = read_text(research_dir / "CURRENT").strip()
+    epoch_dir = research_dir / version
+    status = load_yaml(epoch_dir / "STATUS.yaml")
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    tasks = [task for task in queue.get("tasks", []) if isinstance(task, dict)] if isinstance(queue.get("tasks"), list) else []
+    active = [task for task in tasks if str(task.get("status")) == "active"]
+    try:
+        workspace = research_dir.resolve().relative_to(repo.resolve()).as_posix()
+    except ValueError:
+        workspace = research_dir.resolve().as_posix()
+    return {
+        "controller_mode": "epoch_contract",
+        "workspace": workspace,
+        "current_version": version,
+        "status": status.get("status"),
+        "active_task": active[0].get("id") if active else None,
+        "blocked": status.get("status") == "gate_blocked",
+        "execution_mode": "agent_executor_contract",
+        "execution_backend": {
+            "mode": "codex_or_claude_code_agent",
+            "implemented": True,
+            "note": "Codex / Claude Code execute NEXT_ACTION.md; this script validates and reports the epoch contract without running a backend.",
+        },
+        "next_action": (epoch_dir / "NEXT_ACTION.md").as_posix(),
+        "task_queue": (epoch_dir / "TASK_QUEUE.yaml").as_posix(),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Unified deterministic /research workflow controller.")
     parser.add_argument("--repo", default=".", help="Repository root.")
@@ -992,6 +1030,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--track", choices=["reproduction", "implementation", "experiment", "paper-update", "insight-feedback"], default="")
     parser.add_argument("--gate", default="", help="Optional target gate for generated plan.")
     parser.add_argument("--force-audit", action="store_true", help="Force audit generation before continuing.")
+    parser.add_argument("--legacy-controller", action="store_true", help="Run the legacy deterministic controller instead of epoch contract mode.")
     parser.add_argument(
         "--executor",
         choices=["prompt-only", "local-shell", "codex", "hermes"],
@@ -1007,16 +1046,23 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     controller = ResearchLoop(args)
-    result = controller.run()
+    if not args.legacy_controller and is_epoch_workspace(controller.research_dir):
+        result = epoch_contract_summary(controller.research_dir, controller.repo)
+    else:
+        result = controller.run()
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print(f"[research] {result['initial_stage']} -> {result['final_stage']}")
-        for action in result["actions"]:
-            print(f"[research] action: {action['action']}")
-        if result["blocked"]:
-            print(f"[research] blocked: {result['block_reason']}")
-        print("[research] execution_mode: deterministic_file_controller")
+        if result.get("controller_mode") == "epoch_contract":
+            print(f"[research] epoch contract: {result['current_version']} status={result.get('status')}")
+            print(f"[research] active_task: {result.get('active_task')}")
+        else:
+            print(f"[research] {result['initial_stage']} -> {result['final_stage']}")
+            for action in result["actions"]:
+                print(f"[research] action: {action['action']}")
+            if result["blocked"]:
+                print(f"[research] blocked: {result['block_reason']}")
+            print("[research] execution_mode: deterministic_file_controller")
         print(f"[research] execution_backend: {result['execution_backend']['mode']}")
     return 0
 

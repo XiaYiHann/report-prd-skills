@@ -1,6 +1,8 @@
 # research-execution-skills
 
-`research-execution-skills` 是一组面向 Claude Code 的研究执行技能。它的目标是**全自动科研**：用户只需与 AI 讨论研究方向并审批 AI 生成的 PRD，之后所有 Gate 按顺序自动执行。
+`research-execution-skills` 是一组面向 Codex / Claude Code 的研究执行技能。它不是独立服务端系统，也不提供独立常驻 backend；Codex / Claude Code 是实际执行 `NEXT_ACTION.md` 的 agent executor，技能族负责提供文件系统协议、状态提交入口、证据记录格式和审计门禁。
+
+目标不是让 prompt-only 文档替代实验，而是让 agent executor 在 Git-backed epoch 协议下执行任务，并通过 `update_state.py`、run report、artifact hash 和 audit hard gate 留下可验证证据。
 
 整个流程分为三个阶段：
 
@@ -414,16 +416,17 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 /cancel-ralph
 ```
 
-### 执行 Backend
+### 执行 Backend / Agent Executor
 
 ```text
---executor prompt-only   # 当前已实现
---executor local-shell   # 预留，尚未执行 harness
---executor codex         # 预留
---executor hermes        # 预留
+默认路径：Codex / Claude Code agent executor 读取 `Vn/NEXT_ACTION.md` 并提交结构化证据。
+不提供独立常驻 backend；`research_loop.py` 默认只报告 epoch contract，不伪装成 shell runner。
+
+--legacy-controller      # 显式启用 legacy deterministic controller
+--executor prompt-only   # 仅 legacy controller 的兼容槽位
 ```
 
-除 `prompt-only` 外，backend 槽位只记录意图，不代表已经能真实执行 shell、Codex goal 或 Hermes 任务。
+prompt-only scaffold 不能作为实验结果或 paper binding 证据。
 
 旧的分技能仍可手动使用：`research-prd`、`research-paper`、`research-spec`、`research-plan`、`research-audit`。但自动托管研究项目时，默认先运行 `/research`。
 
@@ -620,7 +623,7 @@ Day 3  场景 A：所有 Gate 通过 → closeout → 报告研究完成
 
 | 层级 | 内容 | AI 权限 | 人类角色 |
 |------|------|---------|---------|
-| **执行层** | 文档填写、Spec/Plan 生成、代码运行、实验执行、状态更新 | 当前 prompt-only；接入 backend 后可自动迭代 | 无需参与 |
+| **执行层** | 文档填写、Spec/Plan 生成、代码运行、实验执行、状态更新 | Codex / Claude Code 作为 agent executor；系统记录结构化证据，不提供独立常驻 backend | 无需参与 |
 | **洞察层** | Insight 记录、异常分类、Pivot 提案生成 | 自动准备材料 | 做决策（Approve/Reject/Revise） |
 | **战略层** | 核心 RQ、问题表述、主 Claim、论文故事线 | 辅助文本，需人类审批 | 完全控制，AI 不得单方面修改 |
 

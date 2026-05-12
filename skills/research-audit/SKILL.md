@@ -20,6 +20,8 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 
 It is also the format gatekeeper, migration guide, Git checkpoint auditor, and Paper Binding guard for epoch_v1.
 
+Audit is a hard gate, not only a scaffold generator. In epoch workspaces it must emit machine-readable PASS/WARN/FAIL checks, and P0/P1 failures block closeout promotion or Paper Binding. Codex / Claude Code remain the agent executors; audit verifies their submitted run reports, commands, artifact hashes, git evidence, and carry_forward declarations. It does not run an independent backend and must not treat prompt-only scaffold as result evidence.
+
 ## Audit Modes
 
 Conceptual `/research audit` modes:
@@ -84,6 +86,8 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - `repair_plan.md`
 
 `alignment_matrix.yaml` must include `direction_completeness`; direction blockers should also appear in `audit_report.md`, `drift_findings.yaml`, and the must-fix section of `repair_plan.md`.
+
+Current epoch audits also write machine-readable results to `docs/research/{CURRENT}/audits/YYYY-MM-DD-audit/audit_results.yaml`.
 
 `repair_plan.md` now splits repairs into:
 - **must-fix-before-execution** (execution failures)
