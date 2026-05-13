@@ -1,6 +1,6 @@
 ---
 name: research-audit
-description: "Use when landed research artifacts may be stale, inconsistent, or drifted across PRD, Paper, Spec, Plans, artifacts, and insights."
+description: "Use when existing research artifacts may be stale, inconsistent, or drifted across PRD, Paper, Spec, Plans, artifacts, and insights."
 ---
 
 # Research Audit
@@ -26,9 +26,24 @@ Gate-aware audit must distinguish execution failure from research falsification.
 
 Reproduction audit must follow `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md`. It must inspect `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
 
-## Audit Modes
+## Skill Invocation Contract
 
-Conceptual `/research audit` modes:
+Conceptual command forms:
+
+```text
+/research audit
+/research audit --mode format
+/research audit --mode migration
+/research audit --mode epoch
+/research audit --mode git
+/research audit --mode evidence
+/research audit --mode paper-binding
+/research audit --mode full
+```
+
+`/research audit` is invoked through the `research` controller. It does not run as a top-level skill outside the research loop.
+
+## Audit Modes
 
 - `format` — checks epoch_v1 files, template metadata, agent docs, `AGENTS.md`, `CLAUDE.md`.
 - `migration` — detects legacy flat layout and writes migration guidance.

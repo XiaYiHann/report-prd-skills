@@ -1,6 +1,6 @@
 ---
 name: research-insight
-description: "Use when completed runs, blockers, anomalies, negative results, or saved exploration sessions need evidence-grounded interpretation into the current epoch wiki or legacy insight logs."
+description: "Use when completed runs, blockers, anomalies, negative results, or saved exploration sessions need evidence-grounded interpretation into the current epoch wiki or legacy insight logs. Also use when the user requests interpretation, analysis, or summary of any executed task evidence."
 ---
 
 # Research Insight
@@ -10,6 +10,18 @@ description: "Use when completed runs, blockers, anomalies, negative results, or
 `research-insight` is the explicit interpretation layer for the research loop. It turns executed task evidence, blockers, negative results, and saved exploration sessions into bounded, evidence-grounded insight records.
 
 It is not an execution skill, PRD authority, Spec authority, Audit authority, or Paper Binding authority.
+
+## Skill Invocation Contract
+
+Conceptual command forms:
+
+```text
+/research insight
+/research insight --promote <explore_session_id>
+/research insight --gate <gate_id>
+```
+
+`/research insight` is invoked through the `research` controller. It does not run as a top-level skill outside the research loop.
 
 ## Use When
 

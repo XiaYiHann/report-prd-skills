@@ -1,6 +1,6 @@
 ---
 name: research-paper
-description: "Use when a planned top-conference-style research paper under docs/research/paper needs creation, update, placeholder checking, or polishing."
+description: "Use when a planned top-conference-style research paper under docs/research/paper needs creation, update, placeholder checking, or polishing. If the current epoch is not closed_stable, produce a placeholder-complete manuscript or gap report. If the epoch is closed_stable or paper_binding_ready and the Paper Binding Gate is satisfied, produce a binding-ready manuscript."
 ---
 
 # Research Paper
@@ -12,6 +12,18 @@ Generate or update `docs/research/paper/` as the academic expression derived fro
 The final output of this skill must be a **complete, submission-ready conference manuscript draft**, not a fill-in template. It should read like a real NeurIPS / ICLR / AA AI paper: Abstract, Introduction, Related Work, Problem Formulation, Method, Experiments, Results, Limitations, and Conclusion. Do not leave visible `【待填写】` placeholders in the final paper.
 
 The paper surface may be English, because it targets top-conference manuscript style. Explanatory blockers and gap reports are Chinese. The paper must remain derived from PRD and checked against Spec; it cannot create executable experiments by itself.
+
+## Skill Invocation Contract
+
+Conceptual command forms:
+
+```text
+/research paper
+/research paper --mode draft
+/research paper --mode binding
+```
+
+`/research paper` is invoked through the `research` controller. It does not run as a top-level skill outside the research loop.
 
 ## Paper Binding Gate
 

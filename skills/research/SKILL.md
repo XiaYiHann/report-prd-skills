@@ -1,6 +1,6 @@
 ---
 name: research
-description: "Use when a research workspace under docs/research needs the default autonomous controller across PRD, Spec, Plan, execution, audit, insight feedback, or paper stages."
+description: "Use when a research workspace under docs/research needs the default autonomous controller across PRD, Spec, Plan, execution, audit, insight feedback, or paper stages, and no sub-mode (explore, insight, or audit) is explicitly invoked."
 ---
 
 # research
@@ -248,6 +248,16 @@ Codex / Claude Code are the supported agent executors. They read `Vn/NEXT_ACTION
 
 `--executor prompt-only` remains only as a legacy-controller compatibility slot. The epoch controller does not run an independent backend and must not claim that it ran harnesses or generated experimental evidence.
 
+## Glossary
+
+Terms used across the research skill family with precise operational definitions:
+
+- **Research Corridor** — The scope declared in `RESEARCH_DIRECTION.md` plus the current epoch's `Vn/PRD.md`. If those files are absent, the agent must stop and request human clarification rather than guessing the boundary.
+- **backend** — An independent resident execution environment (e.g., a daemon, server, or persistent compute layer) that runs experiments, harnesses, or generates empirical evidence. The `research` skill does not provide such a backend; Codex / Claude Code are the agent executors.
+- **Charter-bounded** — The epoch loop is constrained by a human-approved research charter (`RESEARCH_DIRECTION.md`). Agents may not modify the charter or explore outside its scope without explicit human instruction.
+- **工程问题 (engineering issue)** — Bug fixes, path corrections, reruns, minor spec field fixes, paper placeholder fixes, or stale-plan regeneration. These stay in the current version.
+- **研究问题改变 (research issue change)** — Changes to the main research question, core hypothesis, baseline landscape, metric/dataset/model choice, or phase. These justify creating `Vn+1`.
+
 ## Git Safety
 
 Allowed Git operations: `git status`, `git diff`, `git log`, `git add` allowed files, `git commit` current task, and `git tag` closeout / paper binding.
@@ -256,11 +266,11 @@ Forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git cle
 
 ## Explore and Audit
 
-`/research explore` is pure discussion and optional saved EXP sessions. It can propose wiki, task, baseline, literature, next-version, or paper-shape updates, but cannot execute them.
+`/research explore` is pure discussion and optional saved EXP sessions. It can propose wiki, task, baseline, literature, next-version, or paper-shape updates, but cannot execute them. When the user explicitly invokes `/research explore`, delegate immediately to the `research-explore` skill.
 
-`/research insight` promotes existing evidence, blockers, negative results, failed paths, or saved EXP sessions into the current `Vn/wiki/*`. It must separate fact, artifact, interpretation, and speculation.
+`/research insight` promotes existing evidence, blockers, negative results, failed paths, or saved EXP sessions into the current `Vn/wiki/*`. It must separate fact, artifact, interpretation, and speculation. When the user explicitly invokes `/research insight`, delegate immediately to the `research-insight` skill.
 
-`/research audit` is the gatekeeper for format, migration, git, evidence, and paper binding. It can detect legacy workspace layout and generate a migration plan; it must not silently rewrite research claims.
+`/research audit` is the gatekeeper for format, migration, git, evidence, and paper binding. It can detect legacy workspace layout and generate a migration plan; it must not silently rewrite research claims. When the user explicitly invokes `/research audit`, delegate immediately to the `research-audit` skill.
 
 ## Claude Code Subagents
 
