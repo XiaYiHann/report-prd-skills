@@ -5929,6 +5929,34 @@ def validate_epoch_search_reproduction_files(epoch_dir: Path, manifest: dict[str
     return issues
 
 
+def validate_reproduction_index_shape(index: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    items = as_list(index.get("items"))
+    for item in items:
+        if not isinstance(item, dict):
+            issues.append("reproduction item must be a mapping")
+            continue
+        repro_id = str(item.get("repro_id") or item.get("id") or "<missing>")
+        reproduction_type = str(item.get("reproduction_type") or "")
+        if reproduction_type and reproduction_type not in REPRODUCTION_TYPES:
+            issues.append(f"invalid reproduction_type for {repro_id}: {reproduction_type}")
+        status = str(item.get("status") or "")
+        if status and status not in REPRODUCTION_STATUSES:
+            issues.append(f"invalid reproduction status for {repro_id}: {status}")
+        evidence_level = str(item.get("evidence_level") or "")
+        if evidence_level and evidence_level not in REPRODUCTION_EVIDENCE_LEVELS:
+            issues.append(f"invalid evidence_level for {repro_id}: {evidence_level}")
+    return issues
+
+
+def validate_epoch_search_reproduction_shape(epoch_dir: Path) -> list[str]:
+    issues: list[str] = []
+    index_path = epoch_dir / "reproduction" / "REPRODUCTION_INDEX.yaml"
+    if index_path.exists():
+        issues.extend(validate_reproduction_index_shape(load_yaml(index_path)))
+    return issues
+
+
 def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[EpochSchemaIssue]:
     issues: list[EpochSchemaIssue] = []
     manifest = load_epoch_manifest()
@@ -5950,6 +5978,8 @@ def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[Epoch
             for issue in validate_gate_queue_shape(load_yaml(queue_path)):
                 issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/{issue}"))
         issues.extend(validate_epoch_search_reproduction_files(epoch_dir, manifest))
+        for issue in validate_epoch_search_reproduction_shape(epoch_dir):
+            issues.append(EpochSchemaIssue(f"{version}/reproduction/REPRODUCTION_INDEX.yaml", f"{version}/{issue}"))
         issues.extend(validate_epoch_wiki_set(epoch_dir, manifest, strict=strict))
     return issues
 

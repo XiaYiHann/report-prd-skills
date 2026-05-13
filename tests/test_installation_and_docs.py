@@ -117,6 +117,20 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         ]:
             self.assertIn(phrase, text)
 
+    def test_search_and_reproduction_policy_docs_define_boundaries(self) -> None:
+        search = (REPO_ROOT / "docs" / "research" / "agent" / "SEARCH_POLICY.md").read_text(encoding="utf-8")
+        reproduction = (REPO_ROOT / "docs" / "research" / "agent" / "REPRODUCTION_POLICY.md").read_text(encoding="utf-8")
+        audit = (REPO_ROOT / "docs" / "research" / "agent" / "REPRODUCTION_AUDIT_POLICY.md").read_text(encoding="utf-8")
+
+        self.assertIn("Search is mandatory", search)
+        self.assertIn("Absence evidence", search)
+        self.assertIn("bounded", search.lower())
+        self.assertIn("official_code", reproduction)
+        self.assertIn("faithful_reimplementation", reproduction)
+        self.assertIn("Environment failure", reproduction)
+        self.assertIn("claim_support_level", audit)
+        self.assertIn("literature_only", audit)
+
     def test_readme_documents_gate_aware_terms(self) -> None:
         text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         for phrase in ["Gate", "Task", "Harness", "Audit", "Insight"]:
