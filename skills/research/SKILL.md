@@ -258,6 +258,25 @@ Terms used across the research skill family with precise operational definitions
 - **工程问题 (engineering issue)** — Bug fixes, path corrections, reruns, minor spec field fixes, paper placeholder fixes, or stale-plan regeneration. These stay in the current version.
 - **研究问题改变 (research issue change)** — Changes to the main research question, core hypothesis, baseline landscape, metric/dataset/model choice, or phase. These justify creating `Vn+1`.
 
+## Global Language Contract
+
+All human-facing research artifacts under `docs/research/` must be **Chinese by default**.
+
+This includes:
+- PRD prose, plans, prompts, gap reports, blockers, and acceptance criteria
+- Audit reports, drift findings, repair plans, and wiki entries
+- EXP sessions, explore syntheses, and insight interpretations
+- Task run reports, decision logs, and loop logs
+
+Machine-facing layers remain **English** for parser compatibility:
+- YAML keys, stable IDs, schema fields, and filenames
+- LaTeX structural commands and TikZ code
+- Git commit messages and branch names
+
+The only explicit exception is `research-paper`: the manuscript body (Abstract, Introduction, Method, Experiments, Results) may be English for top-conference submission style. All associated metadata, blockers, gap reports, placeholder maps, and binding decisions remain Chinese.
+
+Sub-skills that already define their own language clauses (`research-spec`, `research-plan`, `research-init`) remain valid and must not contradict this contract.
+
 ## Git Safety
 
 Allowed Git operations: `git status`, `git diff`, `git log`, `git add` allowed files, `git commit` current task, and `git tag` closeout / paper binding.
