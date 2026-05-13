@@ -438,6 +438,10 @@ commit_policy: per_gate_or_blocker
 
 # V0 Goal — {title}
 
+> **本文件是版本总纲（version-level anchor），不是当前任务（task-level）文件。**
+> 它定义整个 `V0` 的总体使命、全局约束和成功标准。只有在版本核心问题或范围发生偏移时才修改。
+> 当前循环的具体原子任务由 `NEXT_ACTION.md` 定义；具体执行计划由 `PLAN.md` 定义。
+
 ## 工作目录
 在 `{{repo_path}}` 工作。
 
@@ -448,12 +452,14 @@ commit_policy: per_gate_or_blocker
 - 禁止把 design intent 写成 repo-observed fact。
 - 不要手改 generated artifacts。
 
-## 版本目标
+## 版本目标（Overall Mission for V0）
 {purpose}
 
-**核心研究问题**：【待填写：用一句可证伪命题表达】
+**核心研究问题**：【待填写：用一句可证伪命题表达。这是整个 V0 要回答的问题，不是当前任务。】
 
 **预期交付物**：【待填写：方法、基准、系统、理论或分析贡献】
+
+**版本成功标准**：【待填写：什么条件下 V0 可以 closeout】
 
 ## 总规则
 - 每次只推进最早未完成 gate，不跳 gate。

@@ -80,6 +80,8 @@ single_step_file: NEXT_ACTION.md
 
 Plan generation must first read `Vn/goal.md` and inject its global constraints (language, style, evidence rules, gate strategy, commit policy) into `PLAN.md` and `ai_loop_prompt.md`. The goal.md constraints are the ceiling; PLAN.md and NEXT_ACTION.md must not contradict them.
 
+**Distinction**: `goal.md` is the version-level anchor that defines the overall mission for the entire `Vn`. `PLAN.md` is the concrete execution schedule derived from it. `NEXT_ACTION.md` is the task-level file that changes every loop and names exactly one atomic deliverable. Do not conflate the version goal with the current task.
+
 Loop rules:
 
 - Each loop may complete at most one active task.

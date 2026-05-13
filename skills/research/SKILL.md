@@ -63,6 +63,12 @@ Every `/research` run must first read:
 8. `docs/research/{CURRENT}/SPEC.yaml`
 9. `docs/research/{CURRENT}/PLAN.md`
 
+**File-level distinction**:
+- `goal.md` is the **version-level** anchor. It defines the overall mission, global constraints, and success criteria for the entire `Vn`. It changes only when the version's core question or scope shifts.
+- `PRD.md` is the research hypothesis source of truth.
+- `PLAN.md` is the concrete execution schedule derived from `goal.md` and `SPEC.yaml`.
+- `NEXT_ACTION.md` is the **task-level** file. It changes every loop and names exactly one atomic deliverable for the current iteration.
+
 Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.md` from legacy epochs. Never let an old-version PRD override the current epoch PRD.（旧版本只读 `closeout.md` 和轻量 wiki；禁止让旧版本 PRD 覆盖当前版本 PRD。）
 
 ### Ralph-loop readiness check
