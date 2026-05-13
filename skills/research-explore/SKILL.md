@@ -140,7 +140,7 @@ If web access is unavailable, write `docs/research/explore/proposals/LITERATURE_
 
 ## Hard Boundaries
 
-Explore can suggest; it cannot execute.
+Explore can suggest; it cannot execute. "Execute" here means experiment execution (running code, generating data, modifying `STATUS.yaml` or `RESEARCH_DIRECTION.md`). Document expression (writing proposals, saving EXP sessions) is not execution and is allowed.
 
 It must not:
 
@@ -151,5 +151,9 @@ It must not:
 - claim a result is stable
 - turn exploratory insight into paper result
 - fabricate literature, experiments, artifacts, stdout/stderr, benchmark numbers, or hashes
+
+## Active Recommendation Rule
+
+If exploration produces a finding with `update_wiki` or `add_task_candidate` level value for the current epoch, the agent must end the response with an explicit save proposal naming the target wiki file (e.g., `Vn/wiki/open_questions.md`) and wait for user confirmation. Do not remain silent and do not write without approval.
 
 Explore 不执行，Git 不解释，Wiki 不证明，Audit 不发明，Paper 不反推。

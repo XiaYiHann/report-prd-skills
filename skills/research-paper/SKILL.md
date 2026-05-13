@@ -13,6 +13,8 @@ The final output of this skill must be a **complete, submission-ready conference
 
 The paper surface may be English, because it targets top-conference manuscript style. Explanatory blockers and gap reports are Chinese. The paper must remain derived from PRD and checked against Spec; it cannot create executable experiments by itself.
 
+This skill performs **expression execution** (document compilation, file output, LaTeX rendering). It does not perform **experiment execution** (running new experiments, generating undeclared data, or modifying `STATUS.yaml` / `RESEARCH_DIRECTION.md`). Expression execution is within this skill's scope; experiment execution is not.
+
 ## Skill Invocation Contract
 
 Conceptual command forms:

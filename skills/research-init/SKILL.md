@@ -101,7 +101,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 
 ## Hard Rules
 
-- Do not initialize `docs/report/` for new work.
+- Do not initialize `docs/report/` for new work. If the user explicitly requests it, record `report_init_blocker.md` explaining that `docs/research/` is the current architecture, wait for explicit human confirmation, and only then degrade to legacy initialization.
 - Do not create `research-evidence`, `research-writing`, or `research-goal`; use `research-insight` for interpretation.
 - Scaffold files may contain blockers; readiness validators must fail until contracts are concrete.
 - PRD, Plan, prompts, gap reports, and explanatory YAML values must be Chinese.

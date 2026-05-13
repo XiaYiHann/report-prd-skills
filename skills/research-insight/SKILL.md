@@ -9,7 +9,7 @@ description: "Use when completed runs, blockers, anomalies, negative results, or
 
 `research-insight` is the explicit interpretation layer for the research loop. It turns executed task evidence, blockers, negative results, and saved exploration sessions into bounded, evidence-grounded insight records.
 
-It is not an execution skill, PRD authority, Spec authority, Audit authority, or Paper Binding authority.
+It is not an execution skill (neither experiment execution nor document expression), PRD authority, Spec authority, Audit authority, or Paper Binding authority.
 
 ## Skill Invocation Contract
 

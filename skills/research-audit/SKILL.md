@@ -24,7 +24,7 @@ Audit is a hard gate, not only a scaffold generator. In epoch workspaces it must
 
 Gate-aware audit must distinguish execution failure from research falsification. `failed_execution` means code, environment, dependency, timeout, or process failure; `failed_harness` means the verification predicate or artifact schema failed. Neither status can be interpreted as a falsified research hypothesis. A Gate may be marked `falsified` only after a `research_falsification_candidate` has valid harness outputs and adversarial audit rules out code, data, metric, harness, environment, PRD, and SPEC defects.
 
-Reproduction audit must follow `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md`. It must inspect `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
+Reproduction audit uses `docs/research/agent/REPRODUCTION_POLICY.md` as the authoritative source for reproduction types, status values, and evidence levels. It uses `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md` as the execution standard for gatekeeper output format and claim support rules. Both skills must keep these two files aligned. It must inspect `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
 
 ## Skill Invocation Contract
 
@@ -108,12 +108,13 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 
 Current epoch audits also write machine-readable results to `docs/research/{CURRENT}/audits/YYYY-MM-DD-audit/audit_results.yaml`.
 
-`repair_plan.md` now splits repairs into:
+`repair_plan.md` splits repairs into:
 - **must-fix-before-execution** (execution failures)
-- **insight-opportunity** (research failures / anomalies / diagnostic experiments; hand off to `research-insight`)
+- **insight-opportunity** (research failures / anomalies / diagnostic experiments)
 - **can-fix-later**
-- **recommended next research-plan target**
-- **recommended next research-insight target**
+- **recommended-next-target** (neutral type label: `execution_repair`, `spec_regeneration`, `insight_interpretation`, `plan_update`)
+
+Audit marks and classifies; it does not route. The `research` controller reads `repair_plan.md` and decides which skill handles each repair type.
 
 ## Prerequisites
 
