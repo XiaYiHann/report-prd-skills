@@ -27,6 +27,49 @@ Audit 负责守门
 Closeout 负责进入下一轮或论文绑定
 ```
 
+## 安装
+
+一行在线安装（默认安装 Claude Code skills + 项目 subagents）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash
+```
+
+从本地 checkout 安装：
+
+```bash
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
+```
+
+常用选项：
+
+```bash
+./install.sh --init-workspace   # 同时创建 docs/research/ epoch 工作区
+./install.sh --no-agents        # 只安装 skills
+./install.sh --force            # 覆盖已有目标文件
+./install.sh --dry-run          # 只打印计划，不写文件
+```
+
+安装后文件布局：
+
+```text
+~/.claude/skills/
+  research/            # unified autonomous controller
+  research-explore/    # pure exploration
+  research-insight/    # evidence-grounded interpretation
+  research-init/       # workspace initialization
+  research-prd/        # PRD maintenance
+  research-paper/      # paper generation
+  research-spec/       # spec compilation
+  research-plan/       # plan generation
+  research-audit/      # cross-file consistency audit
+
+.claude/agents/
+  research-math.md     research-literature.md  research-reproduce.md
+  research-coding.md   research-experiment.md  research-analysis.md
+  research-paper.md    research-audit.md
+```
+
 ## Charter-bounded Epoch Research Loop
 
 新版系统定义为 **Charter-bounded Epoch Research Loop**。
@@ -450,60 +493,6 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 prompt-only scaffold 不能作为实验结果或 paper binding 证据。
 
 旧的分技能仍可手动使用：`research-prd`、`research-paper`、`research-spec`、`research-plan`、`research-audit`。但自动托管研究项目时，默认先运行 `/research`。
-
-## 安装与迁移
-
-一行在线安装（默认安装 Claude Code skills + 当前项目 subagents）：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash
-```
-
-安装后目标目录：
-
-```text
-~/.claude/skills/
-  research/            # unified autonomous controller
-  research-explore/    # pure exploration
-  research-insight/    # evidence-grounded interpretation into Vn/wiki
-  research-init/       # workspace initialization
-  research-prd/        # PRD maintenance
-  research-paper/      # paper generation
-  research-spec/       # spec compilation
-  research-plan/       # plan generation
-  research-audit/      # cross-file consistency audit
-
-.claude/agents/
-  research-math.md          # math formulation checks
-  research-literature.md    # literature search
-  research-reproduce.md     # baseline reproduction
-  research-coding.md        # implementation
-  research-experiment.md    # experiment execution
-  research-analysis.md      # result analysis
-  research-paper.md         # paper updates
-  research-audit.md         # cross-file drift detection
-```
-
-常用选项：
-
-```bash
-./install.sh --init-workspace   # 同时创建 docs/research/ epoch 工作区
-./install.sh --no-agents        # 只安装 skills
-./install.sh --user-agents      # subagents 安装到 ~/.claude/agents
-./install.sh --project-agents   # subagents 安装到 ./.claude/agents（默认）
-./install.sh --skills-only      # 只安装 skills
-./install.sh --agents-only      # 只安装 subagents
-./install.sh --force            # 覆盖已有目标文件
-./install.sh --dry-run          # 只打印计划，不写文件
-```
-
-从本地 checkout 安装：
-
-```bash
-RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
-```
-
-安装器默认遵守已有文件：目标已存在时跳过；传 `--force` 才覆盖。
 
 ## 技能列表
 
