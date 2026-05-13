@@ -40,6 +40,11 @@ Supported selectors:
 - `insight_log.md` (legacy compatibility)
 - `final_summary.md`
 
+## Prerequisites
+
+- `research-spec` must be installed; the plan generator reads `Vn/SPEC.yaml` and calls `validate_research.py`.
+- `research-init` shared scripts must be on the Python path.
+
 ## Command
 
 ```bash
@@ -107,7 +112,11 @@ Git protocol:
 - After work: tests if code changed, `git diff --stat`, update `LOOP_LOG.md`, optionally commit current task according to `TASK_QUEUE.yaml.git`, record hash in `GIT_STATE.yaml`.
 - Never push, reset, clean, rebase, force push, rewrite history, or delete out-of-scope files unless the user explicitly authorizes it.
 
-`ai_loop_prompt.md` must say:
+## AI Loop Prompt Enforcement
+
+`generate_research_plan.py` is responsible for generating `ai_loop_prompt.md`. The following clauses are machine-enforced requirements, not advisory suggestions:
+
+`ai_loop_prompt.md` must contain:
 
 - 可执行真源是 `docs/research/spec/`；执行时以 Spec 为准，Paper 为辅助参考；
 - PRD 是人类研究真源；
@@ -138,3 +147,7 @@ Git protocol:
   - 有没有值得微调 15 度的方向？
 
 `research-plan` 不再是主要 insight 生成入口。它负责把这些问题放进执行 prompt；正式解释、分类和 wiki promotion 由 `research-insight` 完成。
+
+### Validation
+
+`validate_research.py --mode loop-prompt-ready` checks that `ai_loop_prompt.md` contains all must-say clauses. A missing clause causes a validation failure, not a warning.

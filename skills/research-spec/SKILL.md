@@ -116,6 +116,11 @@ Reproduction is a track inside Spec and Plan, not a top-level skill. Every repro
 
 Paper-based reimplementation must record algorithm sources, missing details, adopted defaults, faithfulness risk, and that it must be reported as non-official reimplementation.
 
+## Prerequisites
+
+- `research-init` must be installed; the spec generator reads the epoch workspace layout from `research-init/_shared/scripts/research_workspace.py`.
+- PRD must be filled and structurally complete before spec compilation.
+
 ## Commands
 
 ```bash
@@ -141,6 +146,23 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode migration-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode git-ready
 ```
+
+## Validation Mode Registry
+
+| Mode | Trigger condition | Called by | Prerequisites |
+|------|-------------------|-----------|---------------|
+| `prd-ready` | PRD has been filled and needs structural validation | `research-prd` | `RESEARCH_DIRECTION.md` exists and approved |
+| `spec-ready` | SPEC needs to be executable | `research-spec` | `prd-ready` passes |
+| `plan-ready` | PLAN needs to be derived from SPEC | `research-plan` | `spec-ready` passes |
+| `direction-ready` | New workspace needs direction validation | `research-init` | `RESEARCH_DIRECTION.md` exists |
+| `epoch-ready` | Epoch schema invariance check | `research-audit` | `CURRENT` exists |
+| `loop-ready` | Loop can safely start | `research` / `research-plan` | `plan-ready` passes |
+| `closeout-ready` | Version can close | `research` / `research-audit` | All active tasks completed or blocked with evidence |
+| `paper-binding-ready` | Paper can bind claims | `research-paper` / `research-audit` | `closeout-ready` passes and `PAPER_BINDING_DECISION.md` approves |
+| `format-ready` | File format compliance | `research-audit` | Workspace initialized |
+| `migration-ready` | Legacy to epoch migration check | `research-audit` | Legacy layout detected |
+| `git-ready` | Git state compliance | `research-audit` | Git available |
+| `loop-prompt-ready` | `ai_loop_prompt.md` contains all required clauses | `research-plan` | `plan-ready` passes |
 
 ## Language Contract
 

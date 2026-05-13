@@ -45,10 +45,10 @@ Conceptual command forms:
 
 ## Audit Modes
 
-- `format` — checks epoch_v1 files, template metadata, agent docs, `AGENTS.md`, `CLAUDE.md`.
+- `format` — checks epoch_v1 files, template metadata, agent docs, `AGENTS.md`, `CLAUDE.md`. **(planned — not yet implemented in `generate_research_audit.py`; falls back to `full`)**
 - `migration` — detects legacy flat layout and writes migration guidance.
 - `epoch` — checks current `Vn` authority chain, task queue, next action, wiki, closeout.
-- `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits.
+- `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits. **(planned — not yet implemented in `generate_research_audit.py`; falls back to `full`)**
 - `evidence` — checks artifact/evidence eligibility and anti-mock rules.
 - `paper-binding` — checks Paper Binding gates.
 - `full` — runs all relevant audit families.
@@ -114,6 +114,11 @@ Current epoch audits also write machine-readable results to `docs/research/{CURR
 - **can-fix-later**
 - **recommended next research-plan target**
 - **recommended next research-insight target**
+
+## Prerequisites
+
+- `research-init` must be installed and its shared scripts (`research-init/_shared/scripts/`) must be on the Python path. The audit script imports `research_workspace` from that location.
+- If `research-init` is missing, run `skill-sync` or install the research skill family as a unit.
 
 ## Command
 
