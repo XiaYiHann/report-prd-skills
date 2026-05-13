@@ -93,6 +93,8 @@ Every `/research` run must first read:
 - `research_loop.py` defaults to epoch contract mode when `CURRENT` and `Vn/` exist; the legacy deterministic controller requires explicit `--legacy-controller`.
 - Execute only `Vn/NEXT_ACTION.md`; do not skip `TASK_QUEUE.yaml`.
 - Treat `TASK_QUEUE.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
+- Treat `docs/research/agent/SEARCH_POLICY.md` and `docs/research/agent/REPRODUCTION_POLICY.md` as hard execution policies.
+- Default epochs start with `G0_SEARCH_LOCK` and `G1_REPRODUCTION_LOCK`; do not activate proposed-method experiment tasks until these gates are passed, explicitly human-waived, or blocked with recorded evidence.
 - Stay inside the Research Corridor.
 - Do not create `Vn+1` before current `Vn/closeout.md` is complete and status is `closed_*`.
 - If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.

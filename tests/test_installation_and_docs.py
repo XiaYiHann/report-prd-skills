@@ -138,6 +138,24 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("failed_execution", text)
         self.assertIn("failed_harness", text)
 
+    def test_readme_documents_search_and_reproduction_gates(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Search and Evidence Acquisition Policy", readme)
+        self.assertIn("G0_SEARCH_LOCK", readme)
+        self.assertIn("G1_REPRODUCTION_LOCK", readme)
+        self.assertIn("reproduction failure", readme.lower())
+        self.assertIn("docs/research/Vn/reproduction", readme)
+        self.assertIn("reproduction/Vn", readme)
+
+    def test_research_skills_reference_search_and_reproduction_policies(self) -> None:
+        research_skill = (REPO_ROOT / "skills" / "research" / "SKILL.md").read_text(encoding="utf-8")
+        audit_skill = (REPO_ROOT / "skills" / "research-audit" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("SEARCH_POLICY.md", research_skill)
+        self.assertIn("REPRODUCTION_POLICY.md", research_skill)
+        self.assertIn("G0_SEARCH_LOCK", research_skill)
+        self.assertIn("REPRODUCTION_AUDIT_POLICY.md", audit_skill)
+        self.assertIn("claim_support_level", audit_skill)
+
     def test_installer_installs_skills_and_project_agents_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "claude" / "skills"

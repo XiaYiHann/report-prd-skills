@@ -24,6 +24,8 @@ Audit is a hard gate, not only a scaffold generator. In epoch workspaces it must
 
 Gate-aware audit must distinguish execution failure from research falsification. `failed_execution` means code, environment, dependency, timeout, or process failure; `failed_harness` means the verification predicate or artifact schema failed. Neither status can be interpreted as a falsified research hypothesis. A Gate may be marked `falsified` only after a `research_falsification_candidate` has valid harness outputs and adversarial audit rules out code, data, metric, harness, environment, PRD, and SPEC defects.
 
+Reproduction audit must follow `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md`. It must inspect `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
+
 ## Audit Modes
 
 Conceptual `/research audit` modes:

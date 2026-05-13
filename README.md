@@ -253,9 +253,15 @@ Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML fr
 
 主 agent（`/research` controller）始终负责：状态推进、gate 判定、NEXT_ACTION 执行、wiki/closeout。
 
-## Literature Policy
+## Search and Evidence Acquisition Policy
 
-要求在 project start、version start、baseline lock、unexpected strong/negative result、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 literature blocker，不编造文献。
+Search is a hard evidence-acquisition step, not a writing aid. 新 epoch 默认先执行 `G0_SEARCH_LOCK`，再执行 `G1_REPRODUCTION_LOCK`；proposed-method experiment 不能在这两个 early gates resolved 之前成为 active task，除非存在明确 human waiver 和 audit 记录。
+
+Search 必须覆盖 literature、official code、third-party implementations、datasets、model checkpoints、known issues / forks / reproduction notes，以及 current local repository state。要求在 project start、version start、baseline lock、reproduction task、dataset/model/metric selection、unexpected strong/negative result、pivot proposal、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 search blocker，不编造文献、代码仓库、数据集、指标或模型能力。
+
+Reproduction failure 必须分类，不能静默忽略，也不能当作 hypothesis falsification。`blocked_missing_code`、`blocked_missing_data`、`blocked_stale_dependency`、`blocked_ambiguous_algorithm`、`failed_metric_mismatch`、`failed_unexplained` 都需要进入 `REPRODUCTION_INDEX.yaml` 和 audit；只有 valid harness output 加 adversarial audit 才能支撑研究解释。
+
+`docs/research/Vn/reproduction/` 是 reproduction metadata 真源；`reproduction/Vn/` 是可执行 reproduction workspace，只有具体复现任务开始时才创建。旧 epoch 的 reproduction 结果不能自动支撑当前 claim；必须通过 `SPEC.yaml` 的 `carry_forward` / `reproduction_contract` 显式继承，并满足同一研究问题、dataset/metric 兼容、artifact hash 和 audit passed。
 
 ## Git Memory Layer
 

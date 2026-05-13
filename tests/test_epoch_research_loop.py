@@ -135,7 +135,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             git_state = read_yaml(research_dir / "V0" / "GIT_STATE.yaml")
 
             self.assertIn("git", task)
-            self.assertEqual(task["git"]["commit_message"], "research(V0): complete TASK_001")
+            self.assertEqual(task["git"]["commit_message"], "research(V0): complete search lock task")
             self.assertIn("## Git Protocol", next_action)
             self.assertIn("## 12. Git Closeout", closeout)
             self.assertIn("## Git Binding", binding)
