@@ -426,6 +426,67 @@ low / medium / high
 """
 
 
+def goal_markdown(title: str, purpose: str) -> str:
+    return f"""---
+version: V0
+language: zh-CN
+style: formal_academic
+evidence_rule: no_fabrication
+gate_strategy: sequential_only
+commit_policy: per_gate_or_blocker
+---
+
+# V0 Goal — {title}
+
+## 工作目录
+在 `{{repo_path}}` 工作。
+
+## 全局约束
+- 全程中文、正式学术风格。
+- 遵守 AGENTS.md：TDD、最小实现、证据分层。
+- 禁止伪造实验、stdout、artifact、hash。
+- 禁止把 design intent 写成 repo-observed fact。
+- 不要手改 generated artifacts。
+
+## 版本目标
+{purpose}
+
+**核心研究问题**：【待填写：用一句可证伪命题表达】
+
+**预期交付物**：【待填写：方法、基准、系统、理论或分析贡献】
+
+## 总规则
+- 每次只推进最早未完成 gate，不跳 gate。
+- 每个 gate 流程：preflight → execution → audit → wiki/state update → commit。
+- 失败要分类为 blocked / failed_execution / failed_harness / diagnostic。
+- 不要直接说研究假设被证伪，除非有完整 harness 与审计。
+
+## Gate 序列
+【待填写：G0, G1, G2, ... 及其前置条件】
+
+## 测试要求
+- 每个新增脚本先写测试。
+- 至少运行已有的 gate 测试和 harness 测试。
+- 运行 `git diff --check`。
+
+## 提交要求
+- 每完成一个 gate 或明确 blocker，提交一次 commit。
+- Commit 格式：`type(scope): description`
+- 示例：`test(research): add v0 g1 preflight gate`
+
+## 最终回复格式
+每次任务完成后必须报告：
+- current gate
+- verdict（pass / blocked / failed）
+- artifact paths
+- tests run
+- commit hash
+- next gate / blocker
+
+必须以文件和证据为准，不要空泛建议。
+"""
+
+
 def prd_markdown(title: str, purpose: str) -> str:
     return f"""# Research PRD
 
@@ -4502,6 +4563,9 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
         (research_dir / dirname).mkdir(parents=True, exist_ok=True)
     for sub in ["anomaly_reports", "pivot_proposals", "negative_results"]:
         (research_dir / "insights" / sub).mkdir(parents=True, exist_ok=True)
+
+    goal = goal_markdown(title, purpose)
+    write_text(research_dir / "V0" / "goal.md", goal, force)
 
     prd = prd_markdown(title, purpose)
     write_text(research_dir / "prd" / "research_prd.md", prd, force)
