@@ -118,6 +118,9 @@ EPOCH_REQUIRED_FILES = epoch_required_files()
 
 EPOCH_WIKI_FILES = epoch_wiki_files()
 
+TASK_STATUSES = set(epoch_manifest_list("task", load_epoch_manifest().get("status_enums", {})))
+GATE_STATUSES = set(epoch_manifest_list("gate", load_epoch_manifest().get("status_enums", {})))
+
 CLOSED_VERSION_STATUSES = {
     "closed_success",
     "closed_negative",
@@ -128,6 +131,7 @@ CLOSED_VERSION_STATUSES = {
 }
 
 PAPER_BINDING_STATUSES = {"closed_stable", "paper_binding_ready"}
+AUDIT_RESULT_STATUSES = {"pass", "repair_required", "human_review_required", "falsification_confirmed"}
 
 AGENT_REQUIRED_FILES = [
     "RUNBOOK.md",
@@ -2174,17 +2178,37 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
     }
 
 
-def epoch_task_queue_payload(version: str) -> dict[str, Any]:
+def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
+    task_id = "T_G0_001"
     return {
         **template_metadata(),
         "version": version,
         "queue_status": "active",
+        "current_gate": "G0",
+        "current_task": task_id,
+        "gates": [
+            {
+                "gate_id": "G0",
+                "name": "PRD Approval",
+                "order": 0,
+                "status": "active",
+                "tasks": [{"task_id": task_id, "status": "active"}],
+                "audit": {
+                    "required": False,
+                    "status": "pending",
+                    "modes": ["format", "harness"],
+                },
+            }
+        ],
         "tasks": [
             {
-                "id": "TASK_001",
+                "id": task_id,
+                "task_id": task_id,
+                "gate_id": "G0",
                 "phase": "specification",
                 "title": "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md",
                 "status": "active",
+                "type": "documentation",
                 "agent_mode": ["main"],
                 "allowed_files": [
                     "docs/research/RESEARCH_DIRECTION.md",
@@ -2198,6 +2222,12 @@ def epoch_task_queue_payload(version: str) -> dict[str, Any]:
                 "output_refs": ["PRD.md", "LOOP_LOG.md", "NEXT_ACTION.md"],
                 "success_criteria": ["Research Direction 的核心方向已由用户批准或明确要求继续保持 draft。", "V0/PRD.md 已回答核心问题、假设、最小实验和停止条件。"],
                 "test_commands": [],
+                "harness": {
+                    "command": "",
+                    "timeout_sec": 0,
+                    "success_predicate": "human approval or documented blocker",
+                    "artifact_paths": ["PRD.md", "LOOP_LOG.md"],
+                },
                 "evidence_required": ["human_approval_or_blocker", "updated_file_path"],
                 "git": {
                     "require_clean_before_start": False,
@@ -2212,6 +2242,61 @@ def epoch_task_queue_payload(version: str) -> dict[str, Any]:
             }
         ],
     }
+
+
+def epoch_task_queue_payload(version: str) -> dict[str, Any]:
+    return default_gate_aware_task_queue(version)
+
+
+def default_audit_queue(version: str) -> dict[str, Any]:
+    return {"schema_version": 1, "epoch": version, "audits": []}
+
+
+def default_insight_index(version: str) -> dict[str, Any]:
+    return {"schema_version": 1, "epoch": version, "insights": []}
+
+
+def default_human_review_requests(version: str) -> dict[str, Any]:
+    return {"schema_version": 1, "epoch": version, "requests": []}
+
+
+def default_paper_claim_ledger(version: str) -> dict[str, Any]:
+    return {"schema_version": 1, "epoch": version, "claims": []}
+
+
+def active_task_from_gate_queue(queue: dict[str, Any]) -> dict[str, Any] | None:
+    current_task = str(queue.get("current_task") or "")
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    if current_task:
+        for task in tasks:
+            if str(task.get("task_id") or task.get("id") or "") == current_task and str(task.get("status")) == "active":
+                return task
+    active = [task for task in tasks if str(task.get("status")) == "active"]
+    return active[0] if len(active) == 1 else None
+
+
+def validate_gate_queue_shape(queue: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    for field in ["current_gate", "current_task", "gates", "tasks"]:
+        if field not in queue:
+            issues.append(f"TASK_QUEUE.yaml missing required field: {field}")
+    gates = [gate for gate in as_list(queue.get("gates")) if isinstance(gate, dict)]
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    for gate in gates:
+        status = str(gate.get("status") or "")
+        if status not in GATE_STATUSES:
+            issues.append(f"invalid gate status: {status}")
+    for task in tasks:
+        status = str(task.get("status") or "")
+        if status not in TASK_STATUSES:
+            issues.append(f"invalid task status: {status}")
+    current_gate = queue.get("current_gate")
+    if current_gate and not any(str(gate.get("gate_id") or "") == str(current_gate) for gate in gates):
+        issues.append(f"current_gate {current_gate} does not exist in gates")
+    current_task = queue.get("current_task")
+    if current_task and not any(str(task.get("task_id") or task.get("id") or "") == str(current_task) for task in tasks):
+        issues.append(f"current_task {current_task} does not exist in tasks")
+    return issues
 
 
 def _fmt_list(items: list[str] | None, indent: str = "- ") -> str:
@@ -2241,13 +2326,17 @@ After completion:
 - Do not push unless explicitly instructed."""
 
 
+def _task_identifier(task: dict[str, Any]) -> str:
+    return str(task.get("task_id") or task.get("id") or "")
+
+
 def _resolve_gate_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
     gate_id = str(task.get("gate_id") or "")
     if gate_id:
         return gate_id
     spec = load_yaml(epoch_dir / "SPEC.yaml")
     gates = as_list(spec.get("gates"))
-    task_id = str(task.get("id") or "")
+    task_id = _task_identifier(task)
     for gate in gates:
         if not isinstance(gate, dict):
             continue
@@ -2265,7 +2354,7 @@ def _resolve_harness_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
     if harness_ref:
         return harness_ref
     spec = load_yaml(epoch_dir / "SPEC.yaml")
-    task_id = str(task.get("id") or "")
+    task_id = _task_identifier(task)
     for key in ("harnesses", "experiment_harnesses", "reproduction_harnesses"):
         for h in as_list(spec.get(key)):
             if not isinstance(h, dict):
@@ -2284,8 +2373,33 @@ def _resolve_harness_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
     return "N/A"
 
 
+def render_next_action(task: dict[str, Any] | None, queue: dict[str, Any], version: str) -> str:
+    if task is None:
+        return f"""# NEXT ACTION
+
+## Active Task
+
+NO ACTIVE TASK
+
+## Objective
+
+No active task is available for `{version}`.
+
+## Forbidden Actions
+
+- Do not invent a task.
+- Do not modify Research Direction.
+- Do not create Vn+1.
+
+## If Blocked
+
+Inspect `TASK_QUEUE.yaml`, repair the queue state, or request human review.
+"""
+    return epoch_next_action_template(version, task)
+
+
 def epoch_next_action_template(version: str, task: dict[str, Any] | None = None) -> str:
-    task_id = str(task.get("id") or "TASK_001") if task else "TASK_001"
+    task_id = _task_identifier(task) if task else "T_G0_001"
     title = str(task.get("title") or "【待填写】") if task else "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md"
     success_criteria = as_list(task.get("success_criteria")) if task else []
     test_commands = as_list(task.get("test_commands")) if task else []
@@ -2296,7 +2410,7 @@ def epoch_next_action_template(version: str, task: dict[str, Any] | None = None)
     forbidden_files = as_list(task.get("forbidden_files")) if task else []
     phase = str(task.get("phase") or "") if task else ""
 
-    gate_line = "ungated"
+    gate_line = str(task.get("gate_id") or "ungated") if task else "G0"
     harness_block = "N/A"
     git_block = _fmt_git_protocol(task) if task else _fmt_git_protocol({})
     if task:
@@ -2306,13 +2420,13 @@ def epoch_next_action_template(version: str, task: dict[str, Any] | None = None)
 
     return f"""# NEXT ACTION
 
-## Current Version
-
-{version}
-
 ## Active Task
 
-{task_id}
+- Epoch: {version}
+- Gate: {gate_line}
+- Task ID: {task_id}
+- Task Title: {title}
+- Task Type: {str(task.get('type') or phase or 'unspecified') if task else 'specification'}
 
 ## Phase
 
@@ -2379,12 +2493,13 @@ Gate 通过条件：该 Gate 下所有 task 完成且 harness 通过或产生 do
 
 ## Forbidden Actions
 
-- 不自动修改 `RESEARCH_DIRECTION.md` 的核心方向
+- Do not modify Research Direction 的核心方向
 - 不创建 Vn+1，除非当前 Vn 已 closeout
 - 不写 paper result（paper 由 Paper Binding gate 控制）
 - 不声称实验真实完成，除非命令确实执行并记录
 - 不改动 TASK_QUEUE.yaml 中 forbidden_files 范围内的文件
 - 不越过 Research Corridor
+- Do not mark research hypothesis falsified unless harness passed and audit confirms.
 
 ## Success Criteria
 
@@ -2397,6 +2512,16 @@ Gate 通过条件：该 Gate 下所有 task 完成且 harness 通过或产生 do
 ## Git Protocol
 
 {git_block}
+
+## Completion Contract
+
+Task can be marked completed only if:
+
+- command or prompt-only action was actually performed;
+- exit code is recorded when a command was run;
+- stdout/stderr summary or blocker evidence is recorded;
+- changed files are listed;
+- artifact hashes are recorded if artifacts were created.
 
 ## If Blocked
 
@@ -2417,7 +2542,7 @@ Gate 通过条件：该 Gate 下所有 task 完成且 harness 通过或产生 do
 
 更新：
 
-- `TASK_QUEUE.yaml`（当前 task: done，下一个 task: active）
+- `TASK_QUEUE.yaml`（当前 task: completed，下一个 task: active；若 Gate 完成则进入 audit_required）
 - `LOOP_LOG.md`
 - `NEXT_ACTION.md`（写入下一个原子任务）
 - `wiki/*`（若跨越 gate 边界，调用 research-insight）
@@ -2427,15 +2552,8 @@ Gate 通过条件：该 Gate 下所有 task 完成且 harness 通过或产生 do
 def write_next_action_from_task_queue(epoch_dir: Path, version: str) -> Path:
     """Read TASK_QUEUE.yaml, find the active task, and write a fully populated NEXT_ACTION.md."""
     queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
-    tasks = as_list(queue.get("tasks"))
-    active_task = None
-    for task in tasks:
-        if isinstance(task, dict) and str(task.get("status", "")).strip() == "active":
-            active_task = task
-            break
-    if active_task is None:
-        active_task = {"id": "NO_ACTIVE_TASK", "title": "无活跃任务——请检查 TASK_QUEUE.yaml", "phase": "blocked"}
-    content = markdown_template(epoch_next_action_template(version, active_task))
+    active_task = active_task_from_gate_queue(queue)
+    content = markdown_template(render_next_action(active_task, queue, version))
     path = epoch_dir / "NEXT_ACTION.md"
     path.write_text(content, encoding="utf-8")
     return path
@@ -3233,12 +3351,16 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
+    write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
+    write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
+    write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
     write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
     write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
     write_text(epoch_dir / "runs" / "TASK_001_report.md", markdown_template(task_run_report_template(version)), force)
     write_yaml(epoch_dir / "runs" / "TASK_001_report.yaml", task_run_report_payload(version), force)
     for filename, content in wiki_templates(version).items():
         write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
+    write_yaml(epoch_dir / "wiki" / "insight_index.yaml", default_insight_index(version), force)
     for path in [
         epoch_dir / "plans" / ".gitkeep",
         epoch_dir / "runs" / ".gitkeep",
@@ -3307,10 +3429,14 @@ def create_epoch(
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
+    write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
+    write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
+    write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
     write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
     write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
     for filename, content in wiki_templates(version).items():
         write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
+    write_yaml(epoch_dir / "wiki" / "insight_index.yaml", default_insight_index(version), force)
     for path in [
         epoch_dir / "plans" / ".gitkeep",
         epoch_dir / "runs" / ".gitkeep",
@@ -5074,6 +5200,9 @@ def direction_path_from_epoch(epoch_dir: Path, status: dict[str, Any]) -> Path:
 
 
 def active_task_id_from_next_action(next_action_text: str) -> str:
+    match = re.search(r"- Task ID:\s*([A-Za-z0-9_\-]+)", next_action_text)
+    if match:
+        return match.group(1).strip()
     match = re.search(r"## Active Task\s+([A-Za-z0-9_\-]+)", next_action_text, re.DOTALL)
     if match:
         return match.group(1).strip()
@@ -5107,6 +5236,116 @@ class AuditCheckResult:
     paths: list[str]
 
 
+@dataclass
+class StaleFinding:
+    code: str
+    source_path: str
+    dependent_path: str
+    expected_hash: str | None
+    actual_hash: str
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _frontmatter_value(path: Path, key: str) -> str | None:
+    if not path.exists():
+        return None
+    text = read_text(path)
+    if not text.startswith("---"):
+        return None
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return None
+    payload = yaml.safe_load(parts[1])
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get(key)
+    return str(value) if value is not None else None
+
+
+def _hash_from_yaml(path: Path, key: str) -> str | None:
+    if not path.exists():
+        return None
+    value = load_yaml(path).get(key)
+    return str(value) if value is not None else None
+
+
+def _append_stale_if_needed(
+    findings: list[StaleFinding],
+    code: str,
+    source: Path,
+    dependent: Path,
+    expected_hash: str | None,
+) -> None:
+    if not expected_hash or not source.exists() or not dependent.exists():
+        return
+    actual = sha256_file(source)
+    if expected_hash != actual:
+        findings.append(
+            StaleFinding(
+                code=code,
+                source_path=source.name,
+                dependent_path=dependent.name,
+                expected_hash=expected_hash,
+                actual_hash=actual,
+            )
+        )
+
+
+def detect_epoch_stale_hashes(epoch_dir: Path) -> list[StaleFinding]:
+    findings: list[StaleFinding] = []
+    prd = epoch_dir / "PRD.md"
+    spec = epoch_dir / "SPEC.yaml"
+    plan = epoch_dir / "PLAN.md"
+    queue = epoch_dir / "TASK_QUEUE.yaml"
+    next_action = epoch_dir / "NEXT_ACTION.md"
+    _append_stale_if_needed(findings, "SPEC_STALE", prd, spec, _hash_from_yaml(spec, "source_prd_hash"))
+    _append_stale_if_needed(findings, "PLAN_STALE", spec, plan, _frontmatter_value(plan, "source_spec_hash"))
+    _append_stale_if_needed(findings, "TASK_QUEUE_STALE", plan, queue, _hash_from_yaml(queue, "source_plan_hash"))
+    _append_stale_if_needed(
+        findings,
+        "NEXT_ACTION_STALE",
+        queue,
+        next_action,
+        _frontmatter_value(next_action, "source_task_queue_hash"),
+    )
+    return findings
+
+
+def write_blocked_next_action_for_stale(epoch_dir: Path, findings: list[StaleFinding]) -> None:
+    lines = [
+        "# NEXT ACTION",
+        "",
+        "## STALE HASH BLOCKER",
+        "",
+        "Do not execute active tasks until stale downstream files are regenerated.",
+        "",
+        "## Findings",
+        "",
+    ]
+    for finding in findings:
+        lines.extend(
+            [
+                f"- code: {finding.code}",
+                f"  source_path: {finding.source_path}",
+                f"  dependent_path: {finding.dependent_path}",
+                f"  expected_hash: {finding.expected_hash}",
+                f"  actual_hash: {finding.actual_hash}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Required Action",
+            "",
+            "Regenerate stale SPEC/PLAN/TASK_QUEUE/NEXT_ACTION files from their current source files.",
+        ]
+    )
+    (epoch_dir / "NEXT_ACTION.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def audit_pass(check_id: str, message: str, paths: list[str] | None = None) -> AuditCheckResult:
     return AuditCheckResult(check_id, "PASS", "P2", message, paths or [])
 
@@ -5126,7 +5365,57 @@ def has_blocking_audit_failures(results: list[AuditCheckResult]) -> bool:
 def completed_tasks(epoch_dir: Path) -> list[dict[str, Any]]:
     queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
     tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
-    return [task for task in tasks if str(task.get("status")) == "done"]
+    return [task for task in tasks if str(task.get("status")) in {"done", "completed"}]
+
+
+def check_gate_evidence_completeness(epoch_dir: Path) -> list[AuditCheckResult]:
+    results: list[AuditCheckResult] = []
+    for task in completed_tasks(epoch_dir):
+        task_id = str(task.get("task_id") or task.get("id") or "")
+        if not task_id:
+            continue
+        report_path = epoch_dir / "runs" / f"{task_id}_report.yaml"
+        report_label = f"{epoch_dir.name}/runs/{task_id}_report.yaml"
+        if not report_path.exists():
+            results.append(audit_fail("missing_run_report", f"completed task {task_id} has no run report", [report_label]))
+            continue
+        report = load_yaml(report_path)
+        execution = report.get("execution", {}) if isinstance(report.get("execution"), dict) else {}
+        command = report.get("command", {}) if isinstance(report.get("command"), dict) else {}
+        exit_code = execution.get("exit_code", command.get("exit_code"))
+        if exit_code is None:
+            results.append(audit_fail("missing_exit_code", f"completed task {task_id} run report has no exit_code", [report_label]))
+    return results
+
+
+def _report_is_mock_backed(report: dict[str, Any]) -> bool:
+    anti_mock = report.get("anti_mock", {}) if isinstance(report.get("anti_mock"), dict) else {}
+    dataset_type = str(anti_mock.get("dataset_type") or "").lower()
+    if dataset_type in MOCK_SOURCE_TYPES:
+        return True
+    conclusion = report.get("conclusion", {}) if isinstance(report.get("conclusion"), dict) else {}
+    return conclusion.get("research_interpretation_allowed") is False
+
+
+def check_paper_claim_ledger(epoch_dir: Path) -> list[AuditCheckResult]:
+    ledger = load_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml")
+    findings: list[AuditCheckResult] = []
+    for claim in as_list(ledger.get("claims")):
+        if not isinstance(claim, dict) or str(claim.get("status")) != "allowed":
+            continue
+        evidence = claim.get("current_evidence", {}) if isinstance(claim.get("current_evidence"), dict) else {}
+        for report_ref in as_list(evidence.get("run_reports")):
+            report_path = epoch_dir / str(report_ref)
+            report = load_yaml(report_path)
+            if _report_is_mock_backed(report):
+                findings.append(
+                    audit_fail(
+                        "mock_evidence_supports_paper_claim",
+                        f"allowed claim {claim.get('claim_id')} uses mock or interpretation-forbidden evidence",
+                        [f"{epoch_dir.name}/{report_ref}"],
+                    )
+                )
+    return findings
 
 
 def run_evidence_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
@@ -5136,14 +5425,15 @@ def run_evidence_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
     if not tasks:
         return [audit_pass("evidence.no_completed_tasks", "No completed tasks require evidence checks yet.", [epoch_dir.name])]
     for task in tasks:
-        task_id = str(task.get("id") or "")
+        task_id = str(task.get("task_id") or task.get("id") or "")
         report_path = epoch_dir / "runs" / f"{task_id}_report.yaml"
         report_label = f"{epoch_dir.name}/runs/{task_id}_report.yaml"
         if not report_path.exists():
             results.append(audit_fail("evidence.done_task_has_run_report", f"completed task {task_id} has no run report", [report_label]))
             continue
         report = load_yaml(report_path)
-        if not isinstance(report, dict) or report.get("task", {}).get("status") != "done":
+        report_status = report.get("task", {}).get("status") if isinstance(report.get("task"), dict) else None
+        if not isinstance(report, dict) or str(report_status) not in {"done", "completed"}:
             results.append(audit_fail("evidence.done_task_has_run_report", f"completed task {task_id} has no done-status run report", [report_label]))
             continue
         execution = report.get("execution", {}) if isinstance(report.get("execution"), dict) else {}
@@ -5157,6 +5447,7 @@ def run_evidence_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
             results.append(audit_fail("evidence.done_task_has_artifact_hash", f"completed task {task_id} run report has no artifact sha256", [report_label]))
     if not results:
         results.append(audit_pass("evidence.completed_tasks_have_structured_reports", "Completed tasks have structured run reports."))
+    results.extend(check_paper_claim_ledger(epoch_dir))
     return results
 
 
@@ -5251,6 +5542,10 @@ def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[Epoch
             if not path.is_dir():
                 issues.append(EpochSchemaIssue(f"{version}/{dirname}", f"missing {version}/{dirname}: {path.as_posix()}"))
         issues.extend(validate_epoch_yaml_fields(epoch_dir, manifest))
+        queue_path = epoch_dir / "TASK_QUEUE.yaml"
+        if queue_path.exists():
+            for issue in validate_gate_queue_shape(load_yaml(queue_path)):
+                issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/{issue}"))
         issues.extend(validate_epoch_wiki_set(epoch_dir, manifest, strict=strict))
     return issues
 

@@ -92,6 +92,7 @@ Every `/research` run must first read:
 - Default to the current `Vn`; do not advance legacy folders when `CURRENT` exists.
 - `research_loop.py` defaults to epoch contract mode when `CURRENT` and `Vn/` exist; the legacy deterministic controller requires explicit `--legacy-controller`.
 - Execute only `Vn/NEXT_ACTION.md`; do not skip `TASK_QUEUE.yaml`.
+- Treat `TASK_QUEUE.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
 - Stay inside the Research Corridor.
 - Do not create `Vn+1` before current `Vn/closeout.md` is complete and status is `closed_*`.
 - If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.
@@ -104,6 +105,7 @@ Every `/research` run must first read:
 - Never use mock/toy/smoke outputs as claim evidence.
 - Never treat prompt-only scaffold as experiment evidence or Paper Binding evidence.
 - If execution fails, retry within the current plan's allowed scope.
+- Do not treat `failed_execution` or `failed_harness` as research falsification. Classify failures using `docs/research/agent/FAILURE_TRIAGE_POLICY.md`.
 - If spec is incomplete but PRD is clear, repair spec and regenerate the plan.
 - If PRD is ambiguous or a research hypothesis is challenged, stop and request human review.
 

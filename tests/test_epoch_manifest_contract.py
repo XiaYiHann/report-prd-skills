@@ -48,6 +48,9 @@ class EpochManifestContractTests(unittest.TestCase):
                 "LOOP_LOG.md",
                 "GIT_STATE.yaml",
                 "git_log.md",
+                "AUDIT_QUEUE.yaml",
+                "HUMAN_REVIEW_REQUESTS.yaml",
+                "PAPER_CLAIM_LEDGER.yaml",
                 "closeout.md",
                 "PAPER_BINDING_DECISION.md",
             ],
@@ -69,6 +72,7 @@ class EpochManifestContractTests(unittest.TestCase):
                 "literature_notes.md",
                 "open_questions.md",
                 "next_version_seed.md",
+                "insight_index.yaml",
             ],
         )
 

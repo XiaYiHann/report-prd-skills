@@ -29,6 +29,9 @@ SHARED_SCRIPT_DIR = SKILLS_DIR / "research-init" / "_shared" / "scripts"
 sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
 from research_workspace import (  # noqa: E402
+    GATE_STATUSES,
+    TASK_STATUSES,
+    as_list,
     load_yaml,
     read_text,
     write_next_action_from_task_queue,
@@ -38,7 +41,16 @@ from research_workspace import (  # noqa: E402
 
 
 SCHEMA_VERSION = 1
-VALID_STATUSES = {"done", "blocked", "failed", "skipped"}
+VALID_STATUSES = set(TASK_STATUSES) | {"done", "failed"}
+VALID_FAILURE_CLASSES = {
+    "environment_failure",
+    "execution_failure",
+    "harness_failure",
+    "spec_gap",
+    "prd_ambiguity",
+    "research_falsification_candidate",
+    "confirmed_research_falsification",
+}
 VALID_EXECUTORS = {"codex", "claude-code", "manual"}
 
 
@@ -63,35 +75,115 @@ def append_loop_log(epoch_dir: Path, task_id: str, status: str, commit_hash: str
     log_path.write_text((existing.rstrip() + "\n" + entry), encoding="utf-8")
 
 
-def update_task_queue(epoch_dir: Path, task_id: str, status: str) -> dict[str, Any] | None:
+def normalize_task_status(status: str) -> str:
+    aliases = {"done": "completed", "failed": "failed_execution"}
+    normalized = aliases.get(status, status)
+    if normalized not in TASK_STATUSES:
+        raise ValueError(f"invalid task status: {status}")
+    return normalized
+
+
+def _task_id(task: dict[str, Any]) -> str:
+    return str(task.get("task_id") or task.get("id") or "")
+
+
+def _gate_id(gate: dict[str, Any]) -> str:
+    return str(gate.get("gate_id") or gate.get("id") or "")
+
+
+def _sync_gate_task_status(queue: dict[str, Any], task_id: str, status: str) -> None:
+    for gate in as_list(queue.get("gates")):
+        if not isinstance(gate, dict):
+            continue
+        for gate_task in as_list(gate.get("tasks")):
+            if isinstance(gate_task, dict) and str(gate_task.get("task_id") or "") == task_id:
+                gate_task["status"] = status
+
+
+def evaluate_gate_after_task(queue: dict[str, Any], gate_id: str) -> None:
+    gates = [gate for gate in as_list(queue.get("gates")) if isinstance(gate, dict)]
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    gate = next((item for item in gates if _gate_id(item) == gate_id), None)
+    if gate is None:
+        return
+
+    gate_tasks = [
+        task for task in tasks
+        if str(task.get("gate_id") or gate_id) == gate_id
+    ]
+    if any(str(task.get("status")) in {"blocked", "failed_execution", "failed_harness"} for task in gate_tasks):
+        gate["status"] = "blocked"
+        queue["queue_status"] = "blocked"
+        queue["current_gate"] = gate_id
+        queue["current_task"] = None
+        return
+
+    pending = [task for task in gate_tasks if str(task.get("status")) == "pending"]
+    if pending:
+        next_task = pending[0]
+        next_task["status"] = "active"
+        _sync_gate_task_status(queue, _task_id(next_task), "active")
+        gate["status"] = "active"
+        queue["queue_status"] = "active"
+        queue["current_gate"] = gate_id
+        queue["current_task"] = _task_id(next_task)
+        return
+
+    if gate_tasks and all(str(task.get("status")) in {"completed", "skipped"} for task in gate_tasks):
+        audit = gate.get("audit", {}) if isinstance(gate.get("audit"), dict) else {}
+        if audit.get("required") is True:
+            gate["status"] = "audit_required"
+            audit["status"] = "pending"
+            gate["audit"] = audit
+            queue["queue_status"] = "audit_required"
+            queue["current_gate"] = gate_id
+            queue["current_task"] = None
+        else:
+            gate["status"] = "passed"
+            queue["queue_status"] = "passed"
+            queue["current_gate"] = gate_id
+            queue["current_task"] = None
+
+
+def update_gate_aware_task_queue(
+    epoch_dir: Path,
+    task_id: str,
+    status: str,
+    gate_id: str | None,
+    failure_class: str | None,
+) -> dict[str, Any] | None:
     queue_path = epoch_dir / "TASK_QUEUE.yaml"
     queue = load_yaml(queue_path)
-    tasks = queue.get("tasks", [])
-    if not isinstance(tasks, list):
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    if not tasks:
         return None
 
     next_task = None
-    for i, task in enumerate(tasks):
-        if not isinstance(task, dict):
-            continue
-        if str(task.get("id", "")) == task_id:
+    resolved_gate_id = gate_id
+    for task in tasks:
+        if _task_id(task) == task_id:
             task["status"] = status
             task["completed_at"] = today_string()
-            # Find next pending task
-            for j in range(i + 1, len(tasks)):
-                if isinstance(tasks[j], dict) and tasks[j].get("status") in ("pending", None):
-                    next_task = tasks[j]
-                    break
+            if failure_class:
+                task["failure_class"] = failure_class
+            resolved_gate_id = resolved_gate_id or str(task.get("gate_id") or "")
+            _sync_gate_task_status(queue, task_id, status)
             break
 
-    if next_task and status == "done":
-        next_task["status"] = "active"
-
-    if status in ("blocked", "failed"):
+    if resolved_gate_id:
+        evaluate_gate_after_task(queue, resolved_gate_id)
+    elif status in {"blocked", "failed_execution", "failed_harness"}:
         queue["queue_status"] = "blocked"
 
     write_yaml(queue_path, queue, force=True)
+    current_task = str(queue.get("current_task") or "")
+    if current_task:
+        next_task = next((task for task in tasks if _task_id(task) == current_task), None)
     return next_task
+
+
+def update_task_queue(epoch_dir: Path, task_id: str, status: str) -> dict[str, Any] | None:
+    return update_gate_aware_task_queue(epoch_dir, task_id, status, None, None)
 
 
 def update_git_state(epoch_dir: Path, commit_hash: str | None, task_id: str, status: str) -> None:
@@ -125,7 +217,7 @@ def update_status_yaml(epoch_dir: Path, task_id: str, status: str) -> None:
     status_path = epoch_dir / "STATUS.yaml"
     payload = load_yaml(status_path) if status_path.exists() else {}
     payload["last_completed_task"] = task_id
-    if status == "blocked":
+    if status in ("blocked", "failed_execution", "failed_harness"):
         payload["status"] = "gate_blocked"
         payload["blocked_task"] = task_id
     elif status in ("done", "completed"):
@@ -161,19 +253,33 @@ def build_run_report_from_args(epoch_dir: Path, version: str, args: Any) -> dict
     blocker_reason = args.blocker_reason.strip() or None
     commit_hash = args.commit_hash.strip() or None
     gate_id = args.gate_id.strip() or None
+    status = normalize_task_status(args.status)
+    failure_class = getattr(args, "failure_class", "") or None
     tests_passed = getattr(args, "tests_passed", None)
     return {
-        "report_version": 1,
+        "schema_version": 2,
+        "report_version": 2,
+        "epoch": version,
+        "gate_id": gate_id,
+        "task_id": args.task_id,
+        "executor": getattr(args, "executor", "manual"),
         "task": {
             "version": version,
             "task_id": args.task_id,
-            "status": args.status,
+            "status": status,
             "gate_id": gate_id,
         },
         "git": {
             "commit_created": commit_hash is not None,
             "commit_hash": commit_hash,
             "dirty_tree_after_task": getattr(args, "dirty_tree_after_task", False),
+        },
+        "environment": {},
+        "command": {
+            "raw": list(getattr(args, "command", [])),
+            "cwd": str(epoch_dir.parent.parent),
+            "timeout_sec": None,
+            "exit_code": getattr(args, "exit_code", None),
         },
         "execution": {
             "executor": getattr(args, "executor", "manual"),
@@ -182,6 +288,16 @@ def build_run_report_from_args(epoch_dir: Path, version: str, args: Any) -> dict
             "stderr_path": getattr(args, "stderr_path", None),
             "exit_code": getattr(args, "exit_code", None),
             "files_changed": list(getattr(args, "file_changed", [])),
+        },
+        "stdout_summary": "",
+        "stderr_summary": "",
+        "artifacts": artifacts,
+        "metrics": [],
+        "reproducibility": {},
+        "anti_mock": {
+            "dataset_type": None,
+            "mock_labeled": None,
+            "allowed_for_paper_claim": False,
         },
         "evidence": {
             "tests": {
@@ -193,9 +309,14 @@ def build_run_report_from_args(epoch_dir: Path, version: str, args: Any) -> dict
             "blockers": [blocker_reason] if blocker_reason else [],
         },
         "gate_outcome": {
-            "gate_passed": args.status == "done",
-            "gate_blocked": args.status in ("blocked", "failed"),
+            "gate_passed": False,
+            "gate_blocked": status in ("blocked", "failed_execution", "failed_harness"),
             "blocker_reason": blocker_reason,
+        },
+        "conclusion": {
+            "task_result": "pass" if status == "completed" else status,
+            "failure_class": failure_class,
+            "research_interpretation_allowed": False,
         },
         "next_action": {"recommendation": None, "wiki_update_needed": False},
     }
@@ -218,6 +339,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--commit-hash", default="", help="Git commit hash after task completion.")
     parser.add_argument("--gate-id", default="", help="Gate ID this task belongs to.")
     parser.add_argument("--blocker-reason", default="", help="Reason when status is blocked or failed.")
+    parser.add_argument("--failure-class", default="", choices=[""] + sorted(VALID_FAILURE_CLASSES), help="Failure triage class.")
     parser.add_argument("--note", default="", help="Optional free-text note for LOOP_LOG.md.")
     parser.add_argument("--executor", default="manual", choices=sorted(VALID_EXECUTORS), help="Agent executor submitting this evidence.")
     parser.add_argument("--command", action="append", default=[], help="Command executed by the agent. Can be repeated.")
@@ -258,34 +380,36 @@ def main() -> int:
     commit_hash = args.commit_hash.strip() or None
     gate_id = args.gate_id.strip() or None
     blocker_reason = args.blocker_reason.strip() or None
+    status = normalize_task_status(args.status)
+    failure_class = args.failure_class.strip() or None
 
     if args.dry_run:
-        print(f"[DRY RUN] would update state for {version}/{args.task_id} -> {args.status}")
+        print(f"[DRY RUN] would update state for {version}/{args.task_id} -> {status}")
         print(f"  commit_hash: {commit_hash}")
         print(f"  gate_id: {gate_id}")
         print(f"  blocker_reason: {blocker_reason}")
         return 0
 
     # 1. Update TASK_QUEUE.yaml and find next task
-    next_task = update_task_queue(epoch_dir, args.task_id, args.status)
-    print(f"[OK] TASK_QUEUE.yaml: {args.task_id} -> {args.status}")
+    next_task = update_gate_aware_task_queue(epoch_dir, args.task_id, status, gate_id, failure_class)
+    print(f"[OK] TASK_QUEUE.yaml: {args.task_id} -> {status}")
     if next_task:
-        print(f"[OK] next task activated: {next_task.get('id', '?')}")
+        print(f"[OK] next task activated: {next_task.get('task_id') or next_task.get('id', '?')}")
 
     # 2. Append to LOOP_LOG.md
-    append_loop_log(epoch_dir, args.task_id, args.status, commit_hash, args.note)
+    append_loop_log(epoch_dir, args.task_id, status, commit_hash, args.note)
     print(f"[OK] LOOP_LOG.md appended")
 
     # 3. Update GIT_STATE.yaml
-    update_git_state(epoch_dir, commit_hash, args.task_id, args.status)
+    update_git_state(epoch_dir, commit_hash, args.task_id, status)
     print(f"[OK] GIT_STATE.yaml updated")
 
     # 4. Update STATUS.yaml
-    update_status_yaml(epoch_dir, args.task_id, args.status)
+    update_status_yaml(epoch_dir, args.task_id, status)
     print(f"[OK] STATUS.yaml updated")
 
     # 5. Write task run report
-    write_run_report_from_args(epoch_dir, version, args.task_id, args.status, commit_hash, gate_id, blocker_reason, args)
+    write_run_report_from_args(epoch_dir, version, args.task_id, status, commit_hash, gate_id, blocker_reason, args)
     print(f"[OK] runs/{args.task_id}_report.yaml written")
 
     # 6. Regenerate NEXT_ACTION.md from TASK_QUEUE

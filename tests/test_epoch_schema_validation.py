@@ -65,3 +65,29 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("cannot create next version before current epoch has closed_* status", result.stdout)
+
+    def test_epoch_ready_rejects_missing_gate_aware_queue_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue.pop("current_gate", None)
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V0/TASK_QUEUE.yaml missing required field: current_gate", result.stdout)
+
+    def test_epoch_ready_rejects_invalid_gate_and_task_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue["gates"][0]["status"] = "almost_done"
+            queue["tasks"][0]["status"] = "working"
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid gate status", result.stdout)
+        self.assertIn("invalid task status", result.stdout)

@@ -105,7 +105,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             queue["tasks"] = [queue["tasks"][0]]
             write_yaml(queue_path, queue)
             next_action = research_dir / "V0" / "NEXT_ACTION.md"
-            next_action.write_text(next_action.read_text(encoding="utf-8").replace("TASK_001", "TASK_999", 1), encoding="utf-8")
+            next_action.write_text(next_action.read_text(encoding="utf-8").replace("T_G0_001", "TASK_999", 1), encoding="utf-8")
             mismatch = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
             self.assertNotEqual(mismatch.returncode, 0)
             self.assertIn("does not match TASK_QUEUE active task", mismatch.stdout)

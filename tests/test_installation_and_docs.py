@@ -103,6 +103,27 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("Audit Modernization", readme)
         self.assertIn("Explore 负责想", readme)
 
+    def test_failure_triage_policy_exists_and_defines_research_falsification_boundary(self) -> None:
+        path = REPO_ROOT / "docs" / "research" / "agent" / "FAILURE_TRIAGE_POLICY.md"
+        self.assertTrue(path.exists())
+        text = path.read_text(encoding="utf-8")
+        for phrase in [
+            "Environment Failure",
+            "Execution Failure",
+            "Harness Failure",
+            "Research Falsification Candidate",
+            "Confirmed Research Falsification",
+            "Allowed only after adversarial audit",
+        ]:
+            self.assertIn(phrase, text)
+
+    def test_readme_documents_gate_aware_terms(self) -> None:
+        text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        for phrase in ["Gate", "Task", "Harness", "Audit", "Insight"]:
+            self.assertIn(phrase, text)
+        self.assertIn("failed_execution", text)
+        self.assertIn("failed_harness", text)
+
     def test_installer_installs_skills_and_project_agents_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "claude" / "skills"

@@ -10,6 +10,9 @@ required_files:
   - LOOP_LOG.md
   - GIT_STATE.yaml
   - git_log.md
+  - AUDIT_QUEUE.yaml
+  - HUMAN_REVIEW_REQUESTS.yaml
+  - PAPER_CLAIM_LEDGER.yaml
   - closeout.md
   - PAPER_BINDING_DECISION.md
 required_dirs:
@@ -28,6 +31,7 @@ required_wiki_files:
   - literature_notes.md
   - open_questions.md
   - next_version_seed.md
+  - insight_index.yaml
 yaml_required_fields:
   STATUS.yaml:
     - template_version
@@ -62,12 +66,59 @@ yaml_required_fields:
     - template_version
     - version
     - queue_status
+    - current_gate
+    - current_task
+    - gates
     - tasks
+  AUDIT_QUEUE.yaml:
+    - schema_version
+    - epoch
+    - audits
+  HUMAN_REVIEW_REQUESTS.yaml:
+    - schema_version
+    - epoch
+    - requests
+  PAPER_CLAIM_LEDGER.yaml:
+    - schema_version
+    - epoch
+    - claims
 run_report_required_fields:
+  - schema_version
   - report_version
+  - epoch
+  - gate_id
+  - task_id
+  - executor
   - task
+  - git
+  - environment
+  - command
   - execution
+  - stdout_summary
+  - stderr_summary
+  - artifacts
+  - metrics
+  - reproducibility
+  - anti_mock
   - evidence
   - gate_outcome
+  - conclusion
+status_enums:
+  task:
+    - pending
+    - active
+    - completed
+    - blocked
+    - failed_execution
+    - failed_harness
+    - skipped
+  gate:
+    - pending
+    - active
+    - audit_required
+    - audit_failed
+    - passed
+    - blocked
+    - falsified
 allowed_extra_patterns:
   - '.gitkeep'

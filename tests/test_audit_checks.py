@@ -4,9 +4,14 @@
 from __future__ import annotations
 
 from research_workflow_helpers import *  # noqa: F403
+import sys
 
 
 AUDIT_CHECKS_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "audit_checks.py"  # noqa: F405
+SHARED_SCRIPT_DIR = REPO_ROOT / "skills" / "research-init" / "_shared" / "scripts"  # noqa: F405
+sys.path.insert(0, str(SHARED_SCRIPT_DIR))
+
+from research_workspace import check_gate_evidence_completeness, check_paper_claim_ledger  # noqa: E402
 
 
 class AuditChecksTests(unittest.TestCase):  # noqa: F405
@@ -33,10 +38,11 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
             queue["tasks"][0]["status"] = "done"
             write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+            task_id = queue["tasks"][0]["task_id"]
             write_yaml(
-                research_dir / "V0" / "runs" / "TASK_001_report.yaml",
+                research_dir / "V0" / "runs" / f"{task_id}_report.yaml",
                 {
-                    "task": {"version": "V0", "task_id": "TASK_001", "status": "done"},
+                    "task": {"version": "V0", "task_id": task_id, "status": "done"},
                     "execution": {"executor": "codex", "commands_run": [], "exit_code": None},
                     "evidence": {"tests": {"passed": False, "output_path": None}, "artifacts": []},
                 },
@@ -90,3 +96,60 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("evidence.done_task_has_run_report", result.stdout)
+
+    def test_init_workspace_writes_audit_and_review_state_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            epoch = research_dir / "V0"
+            self.assertTrue((epoch / "AUDIT_QUEUE.yaml").exists())
+            self.assertTrue((epoch / "HUMAN_REVIEW_REQUESTS.yaml").exists())
+            self.assertTrue((epoch / "PAPER_CLAIM_LEDGER.yaml").exists())
+            self.assertTrue((epoch / "wiki" / "insight_index.yaml").exists())
+
+    def test_audit_fails_completed_task_without_run_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            epoch = research_dir / "V0"
+            queue = read_yaml(epoch / "TASK_QUEUE.yaml")
+            queue["tasks"][0]["status"] = "completed"
+            write_yaml(epoch / "TASK_QUEUE.yaml", queue)
+
+            findings = check_gate_evidence_completeness(epoch)
+
+        self.assertIn("missing_run_report", [finding.check_id for finding in findings])
+        self.assertTrue(any(finding.severity == "P0" for finding in findings))
+
+    def test_audit_fails_mock_backed_paper_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            epoch = research_dir / "V0"
+            write_yaml(
+                epoch / "PAPER_CLAIM_LEDGER.yaml",
+                {
+                    "schema_version": 1,
+                    "epoch": "V0",
+                    "claims": [
+                        {
+                            "claim_id": "C1",
+                            "status": "allowed",
+                            "current_evidence": {"run_reports": ["runs/T_G0_001_report.yaml"]},
+                        }
+                    ],
+                },
+            )
+            write_yaml(
+                epoch / "runs" / "T_G0_001_report.yaml",
+                {
+                    "schema_version": 2,
+                    "anti_mock": {"dataset_type": "mock"},
+                    "conclusion": {"research_interpretation_allowed": False},
+                    "command": {"exit_code": 0},
+                },
+            )
+
+            findings = check_paper_claim_ledger(epoch)
+
+        self.assertIn("mock_evidence_supports_paper_claim", [finding.check_id for finding in findings])
