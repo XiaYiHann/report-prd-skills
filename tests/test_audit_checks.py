@@ -11,7 +11,11 @@ AUDIT_CHECKS_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "aud
 SHARED_SCRIPT_DIR = REPO_ROOT / "skills" / "research-init" / "_shared" / "scripts"  # noqa: F405
 sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
-from research_workspace import check_gate_evidence_completeness, check_paper_claim_ledger  # noqa: E402
+from research_workspace import (  # noqa: E402
+    check_gate_evidence_completeness,
+    check_paper_claim_ledger,
+    check_reproduction_claim_boundaries,
+)
 
 
 class AuditChecksTests(unittest.TestCase):  # noqa: F405
@@ -153,3 +157,37 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
             findings = check_paper_claim_ledger(epoch)
 
         self.assertIn("mock_evidence_supports_paper_claim", [finding.check_id for finding in findings])
+
+    def test_audit_fails_smoke_only_reproduction_backed_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace(repo)
+            epoch = research_dir / "V0"
+            index = read_yaml(epoch / "reproduction" / "REPRODUCTION_INDEX.yaml")
+            index["items"] = [
+                {
+                    "repro_id": "R_SMOKE",
+                    "reproduction_type": "official_code",
+                    "status": "smoke_passed",
+                    "evidence_level": "official_smoke_only",
+                    "audit_status": "passed",
+                    "claim_support_level": "sanity_only",
+                }
+            ]
+            write_yaml(epoch / "reproduction" / "REPRODUCTION_INDEX.yaml", index)
+            write_yaml(
+                epoch / "PAPER_CLAIM_LEDGER.yaml",
+                {
+                    "claims": [
+                        {
+                            "claim_id": "C1",
+                            "status": "allowed",
+                            "current_evidence": {"reproductions": ["R_SMOKE"]},
+                        }
+                    ]
+                },
+            )
+
+            findings = check_reproduction_claim_boundaries(epoch)
+
+        self.assertIn("unsupported_reproduction_claim_evidence", [finding.check_id for finding in findings])

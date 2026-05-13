@@ -5786,6 +5786,77 @@ def _report_is_mock_backed(report: dict[str, Any]) -> bool:
     return conclusion.get("research_interpretation_allowed") is False
 
 
+def reproduction_items_by_id(epoch_dir: Path) -> dict[str, dict[str, Any]]:
+    index = load_yaml(epoch_dir / "reproduction" / "REPRODUCTION_INDEX.yaml")
+    items: dict[str, dict[str, Any]] = {}
+    for item in as_list(index.get("items")):
+        if not isinstance(item, dict):
+            continue
+        repro_id = str(item.get("repro_id") or item.get("id") or "")
+        if repro_id:
+            items[repro_id] = item
+    return items
+
+
+def _claim_reproduction_refs(claim: dict[str, Any]) -> list[str]:
+    refs: list[str] = []
+    for field in ("current_evidence", "required_evidence"):
+        payload = claim.get(field) if isinstance(claim.get(field), dict) else {}
+        refs.extend(str(item) for item in as_list(payload.get("reproductions")) if str(item))
+    return list(dict.fromkeys(refs))
+
+
+def check_reproduction_claim_boundaries(epoch_dir: Path) -> list[AuditCheckResult]:
+    ledger = load_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml")
+    reproduction_items = reproduction_items_by_id(epoch_dir)
+    findings: list[AuditCheckResult] = []
+    unsupported_levels = {"literature_only", "official_smoke_only", "failed_but_informative"}
+    for claim in as_list(ledger.get("claims")):
+        if not isinstance(claim, dict) or str(claim.get("status")) != "allowed":
+            continue
+        claim_id = str(claim.get("claim_id") or "<missing>")
+        for repro_id in _claim_reproduction_refs(claim):
+            item = reproduction_items.get(repro_id)
+            if item is None:
+                findings.append(
+                    audit_fail(
+                        "missing_reproduction_claim_evidence",
+                        f"allowed claim {claim_id} references missing reproduction evidence {repro_id}",
+                        [f"{epoch_dir.name}/reproduction/REPRODUCTION_INDEX.yaml"],
+                    )
+                )
+                continue
+            evidence_level = str(item.get("evidence_level") or "")
+            claim_support = str(item.get("claim_support_level") or "")
+            audit_status = str(item.get("audit_status") or "")
+            if evidence_level in unsupported_levels or claim_support in {"sanity_only", "none"}:
+                findings.append(
+                    audit_fail(
+                        "unsupported_reproduction_claim_evidence",
+                        f"allowed claim {claim_id} uses unsupported reproduction evidence {repro_id}",
+                        [f"{epoch_dir.name}/reproduction/REPRODUCTION_INDEX.yaml"],
+                    )
+                )
+            if audit_status != "passed":
+                findings.append(
+                    audit_fail(
+                        "reproduction_audit_not_passed",
+                        f"allowed claim {claim_id} uses reproduction evidence {repro_id} without passed audit",
+                        [f"{epoch_dir.name}/reproduction/REPRODUCTION_INDEX.yaml"],
+                    )
+                )
+            if claim_support == "partial":
+                findings.append(
+                    audit_fail(
+                        "partial_reproduction_claim_support",
+                        f"allowed claim {claim_id} uses partial reproduction evidence {repro_id}; mark claim as partial or keep placeholder",
+                        [f"{epoch_dir.name}/reproduction/REPRODUCTION_INDEX.yaml"],
+                        severity="P1",
+                    )
+                )
+    return findings
+
+
 def check_paper_claim_ledger(epoch_dir: Path) -> list[AuditCheckResult]:
     ledger = load_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml")
     findings: list[AuditCheckResult] = []
@@ -5804,6 +5875,7 @@ def check_paper_claim_ledger(epoch_dir: Path) -> list[AuditCheckResult]:
                         [f"{epoch_dir.name}/{report_ref}"],
                     )
                 )
+    findings.extend(check_reproduction_claim_boundaries(epoch_dir))
     return findings
 
 
@@ -5812,7 +5884,8 @@ def run_evidence_audit_checks(research_dir: Path) -> list[AuditCheckResult]:
     epoch_dir = current_epoch_dir(research_dir)
     tasks = completed_tasks(epoch_dir)
     if not tasks:
-        return [audit_pass("evidence.no_completed_tasks", "No completed tasks require evidence checks yet.", [epoch_dir.name])]
+        ledger_findings = check_paper_claim_ledger(epoch_dir)
+        return ledger_findings or [audit_pass("evidence.no_completed_tasks", "No completed tasks require evidence checks yet.", [epoch_dir.name])]
     for task in tasks:
         task_id = str(task.get("task_id") or task.get("id") or "")
         report_path = epoch_dir / "runs" / f"{task_id}_report.yaml"
