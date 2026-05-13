@@ -1,6 +1,6 @@
 ---
 name: research-prd
-description: "Use when docs/research/prd needs a professional Research PRD for a concrete master-student execution project."
+description: "Use when docs/research/prd needs a professional Research PRD for a concrete research execution project."
 ---
 
 # Research PRD

@@ -156,4 +156,4 @@ It must not:
 
 If exploration produces a finding with `update_wiki` or `add_task_candidate` level value for the current epoch, the agent must end the response with an explicit save proposal naming the target wiki file (e.g., `Vn/wiki/open_questions.md`) and wait for user confirmation. Do not remain silent and do not write without approval.
 
-Explore 不执行，Git 不解释，Wiki 不证明，Audit 不发明，Paper 不反推。
+Explore does not execute; Git does not interpret; Wiki does not prove; Audit does not invent; Paper does not reverse-engineer.（Explore 不执行，Git 不解释，Wiki 不证明，Audit 不发明，Paper 不反推。）

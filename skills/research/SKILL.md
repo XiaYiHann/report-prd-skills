@@ -61,7 +61,7 @@ Every `/research` run must first read:
 7. `docs/research/{CURRENT}/SPEC.yaml`
 8. `docs/research/{CURRENT}/PLAN.md`
 
-旧版本只读 `closeout.md` 和轻量 wiki。禁止让旧版本 PRD 覆盖当前版本 PRD。
+Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.md` from legacy epochs. Never let an old-version PRD override the current epoch PRD.（旧版本只读 `closeout.md` 和轻量 wiki；禁止让旧版本 PRD 覆盖当前版本 PRD。）
 
 ### Ralph-loop readiness check
 
@@ -186,9 +186,7 @@ The PRD is treated as the current best research hypothesis. The agent must recor
 
 ## Version transition policy
 
-工程问题留在当前版本；研究问题改变才开下一版本。
-
-Create `Vn+1` only when current status is closed and `closeout.md` says `create_next_version: true`, or when closeout shows that the main research question, core hypothesis, baseline landscape, metric/dataset/model choice, or phase has changed. Do not create a new version for code bugs, missing paths, reruns, minor spec field fixes, paper placeholder fixes, or stale-plan regeneration.
+Create `Vn+1` only when current status is closed and `closeout.md` says `create_next_version: true`, or when closeout shows that the main research question, core hypothesis, baseline landscape, metric/dataset/model choice, or phase has changed. Do not create a new version for code bugs, missing paths, reruns, minor spec field fixes, paper placeholder fixes, or stale-plan regeneration.（工程问题留在当前版本；研究问题改变才开下一版本。）
 
 ## Paper Binding policy
 
