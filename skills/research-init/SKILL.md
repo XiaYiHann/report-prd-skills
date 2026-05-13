@@ -55,6 +55,7 @@ The command creates the new default structure:
 - `docs/research/explore/sessions/EXP_0001.md`
 - `docs/research/explore/syntheses/EXP_SYNTHESIS.md`
 - `docs/research/explore/proposals/*`
+- `docs/research/V0/goal.md`
 - `docs/research/V0/PRD.md`
 - `docs/research/V0/SPEC.yaml`
 - `docs/research/V0/PLAN.md`
@@ -109,6 +110,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - Use structured placeholders such as `【待填写：...】`; do not leave raw `TODO` placeholders.
 - `CURRENT` defaults to `V0`.
 - `V0/STATUS.yaml` defaults to `status=initialized`.
+- `V0/goal.md` defaults to a scaffold with YAML frontmatter (`version`, `language`, `style`, `evidence_rule`, `gate_strategy`, `commit_policy`) and Chinese body sections: 工作目录, 全局约束, 版本目标, 总规则, Gate 序列, 测试要求, 提交要求, 最终回复格式. It is the per-version high-level execution prompt and constraint anchor.
 - `V0/NEXT_ACTION.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
 - `V0/TASK_QUEUE.yaml` tasks include a Git policy block.
 - `V0/GIT_STATE.yaml` disables push by default and records commit/tag policies.

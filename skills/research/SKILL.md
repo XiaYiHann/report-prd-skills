@@ -37,6 +37,7 @@ Authority chain:
 ```text
 RESEARCH_DIRECTION.md
   -> CURRENT
+  -> Vn/goal.md
   -> Vn/PRD.md
   -> Vn/SPEC.yaml
   -> Vn/PLAN.md
@@ -55,11 +56,12 @@ Every `/research` run must first read:
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/NEXT_ACTION.md`
-5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-6. `docs/research/{CURRENT}/PRD.md`
-7. `docs/research/{CURRENT}/SPEC.yaml`
-8. `docs/research/{CURRENT}/PLAN.md`
+4. `docs/research/{CURRENT}/goal.md`
+5. `docs/research/{CURRENT}/NEXT_ACTION.md`
+6. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+7. `docs/research/{CURRENT}/PRD.md`
+8. `docs/research/{CURRENT}/SPEC.yaml`
+9. `docs/research/{CURRENT}/PLAN.md`
 
 Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.md` from legacy epochs. Never let an old-version PRD override the current epoch PRD.（旧版本只读 `closeout.md` 和轻量 wiki；禁止让旧版本 PRD 覆盖当前版本 PRD。）
 
