@@ -33,7 +33,9 @@ from research_workspace import (  # noqa: E402
     TASK_STATUSES,
     as_list,
     load_yaml,
+    missing_search_outputs,
     read_text,
+    task_search_required,
     write_next_action_from_task_queue,
     write_task_run_report,
     write_yaml,
@@ -184,6 +186,23 @@ def update_gate_aware_task_queue(
 
 def update_task_queue(epoch_dir: Path, task_id: str, status: str) -> dict[str, Any] | None:
     return update_gate_aware_task_queue(epoch_dir, task_id, status, None, None)
+
+
+def current_task_payload(epoch_dir: Path, task_id: str) -> dict[str, Any] | None:
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    for task in as_list(queue.get("tasks")):
+        if isinstance(task, dict) and _task_id(task) == task_id:
+            return task
+    return None
+
+
+def assert_search_completion_allowed(epoch_dir: Path, task: dict[str, Any] | None) -> None:
+    if not task or not task_search_required(task):
+        return
+    missing = missing_search_outputs(epoch_dir, task)
+    if missing:
+        joined = ", ".join(missing)
+        raise ValueError(f"missing search evidence for { _task_id(task) }: {joined}")
 
 
 def update_git_state(epoch_dir: Path, commit_hash: str | None, task_id: str, status: str) -> None:
@@ -389,6 +408,13 @@ def main() -> int:
         print(f"  gate_id: {gate_id}")
         print(f"  blocker_reason: {blocker_reason}")
         return 0
+
+    if status == "completed":
+        try:
+            assert_search_completion_allowed(epoch_dir, current_task_payload(epoch_dir, args.task_id))
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 1
 
     # 1. Update TASK_QUEUE.yaml and find next task
     next_task = update_gate_aware_task_queue(epoch_dir, args.task_id, status, gate_id, failure_class)

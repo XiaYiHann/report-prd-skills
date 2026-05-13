@@ -2271,19 +2271,9 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
 
 def default_search_metadata(version: str) -> dict[str, dict[str, Any] | str]:
     return {
-        "search_report.md": "# Search Report\n\nNo search has been executed yet.\n",
-        "web_search_log.yaml": {
-            "schema_version": 1,
-            "epoch": version,
-            "queries": [],
-            "absence_claims": [],
-        },
-        "repo_search_log.yaml": {
-            "schema_version": 1,
-            "epoch": version,
-            "commands": [],
-            "findings": {},
-        },
+        "search_report.md": "",
+        "web_search_log.yaml": "",
+        "repo_search_log.yaml": "",
         "candidate_baselines.yaml": {
             "schema_version": 1,
             "epoch": version,
@@ -2647,6 +2637,37 @@ def _task_identifier(task: dict[str, Any]) -> str:
     return str(task.get("task_id") or task.get("id") or "")
 
 
+def task_search_required(task: dict[str, Any]) -> bool:
+    search = task.get("search")
+    if isinstance(search, dict):
+        return search.get("required") is True
+    return task.get("search_required") is True
+
+
+def required_search_outputs(task: dict[str, Any]) -> list[str]:
+    search = task.get("search") if isinstance(task.get("search"), dict) else {}
+    output = search.get("output") if isinstance(search.get("output"), dict) else {}
+    paths = [
+        str(output.get("search_log") or "search/web_search_log.yaml"),
+        str(output.get("repo_search_log") or "search/repo_search_log.yaml"),
+        str(output.get("summary") or "search/search_report.md"),
+    ]
+    return [path for path in dict.fromkeys(paths) if path]
+
+
+def missing_search_outputs(epoch_dir: Path, task: dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+    if not task_search_required(task):
+        return missing
+    for relative in required_search_outputs(task):
+        path = epoch_dir / relative
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        substantive = "\n".join(line for line in text.splitlines() if line.strip() and line.strip() != "---" and not line.startswith("template_") and not line.startswith("schema_version:") and not line.startswith("generated_by:"))
+        if not path.exists() or not substantive.strip():
+            missing.append(relative)
+    return missing
+
+
 def _resolve_gate_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
     gate_id = str(task.get("gate_id") or "")
     if gate_id:
@@ -2715,6 +2736,28 @@ Inspect `TASK_QUEUE.yaml`, repair the queue state, or request human review.
     return epoch_next_action_template(version, task)
 
 
+def _search_precondition_block(task: dict[str, Any] | None) -> str:
+    if not task or not task_search_required(task):
+        return ""
+    required = required_search_outputs(task)
+    required_lines = "\n".join(f"- `{path}`" for path in required)
+    return f"""
+## Search Precondition
+
+Search Required: yes
+
+Before implementation or experiment execution:
+1. Search web for official paper/project/code/data/model/metric evidence.
+2. Search current repository for existing implementation, scripts, configs, tests, and prior notes.
+3. Record queries, URLs, dates, commands, and findings.
+4. Record absence evidence when official code/data/model cannot be found.
+5. Continue only after search logs exist.
+
+Required search evidence:
+{required_lines}
+"""
+
+
 def epoch_next_action_template(version: str, task: dict[str, Any] | None = None) -> str:
     task_id = _task_identifier(task) if task else "T_G0_001"
     title = str(task.get("title") or "【待填写】") if task else "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md"
@@ -2756,6 +2799,7 @@ def epoch_next_action_template(version: str, task: dict[str, Any] | None = None)
 ## Objective
 
 本轮只完成一个原子动作。不要重新规划整个项目。不要跳过 TASK_QUEUE.yaml。
+{_search_precondition_block(task)}
 
 ## Read First
 
