@@ -32,6 +32,40 @@ FORBIDDEN_RESULT_PHRASES = [
     "results demonstrate",
 ]
 REPRODUCTION_MODES = {"official_code_reuse", "official_code_adaptation", "paper_based_reimplementation"}
+REPRODUCTION_TYPES = {
+    "official_code",
+    "forked_official_code",
+    "third_party_code",
+    "faithful_reimplementation",
+    "analytical_baseline",
+    "literature_only_not_executable",
+}
+REPRODUCTION_STATUSES = {
+    "pending",
+    "search_done",
+    "planned",
+    "environment_ready",
+    "smoke_passed",
+    "small_scale_passed",
+    "full_passed",
+    "blocked_missing_code",
+    "blocked_missing_data",
+    "blocked_stale_dependency",
+    "blocked_ambiguous_algorithm",
+    "failed_metric_mismatch",
+    "failed_unexplained",
+    "excluded_by_human",
+}
+REPRODUCTION_EVIDENCE_LEVELS = {
+    "official_full_reproduction",
+    "official_small_scale_reproduction",
+    "official_smoke_only",
+    "third_party_reproduction",
+    "faithful_reimplementation",
+    "analytical_baseline",
+    "literature_only",
+    "failed_but_informative",
+}
 
 
 PRD_SECTIONS = [
@@ -112,6 +146,14 @@ def epoch_required_files(manifest: dict[str, Any] | None = None) -> list[str]:
 
 def epoch_wiki_files(manifest: dict[str, Any] | None = None) -> list[str]:
     return epoch_manifest_list("required_wiki_files", manifest)
+
+
+def epoch_search_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_search_files", manifest)
+
+
+def epoch_reproduction_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_reproduction_files", manifest)
 
 
 EPOCH_REQUIRED_FILES = epoch_required_files()
@@ -2030,6 +2072,8 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             "required_at": ["project_start", "version_start", "baseline_lock", "unexpected_result", "paper_binding"],
             "block_if_missing_for": ["new_method_claim", "baseline_superiority_claim", "related_work_section"],
         },
+        "reproduction_contract": default_reproduction_contract(version),
+        "filesystem_contract": default_filesystem_contract(version),
         "subagent_policy": {
             "allow_subagents": True,
             "allowed_subagents": [
@@ -2073,6 +2117,53 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             {"id": "G_PAPER_BINDING_ALLOWED", "required_for": "paper_binding"},
         ],
         "carry_forward": [],
+    }
+
+
+def default_reproduction_contract(version: str) -> dict[str, Any]:
+    return {
+        "required": True,
+        "search_required_before_reproduction": True,
+        "minimum_reproduction_evidence": {
+            "closest_method_baseline_required": True,
+            "strongest_reported_baseline_required": True,
+            "simplest_classical_or_control_baseline_required": True,
+            "failures_must_be_classified": True,
+            "audit_required": True,
+        },
+        "evidence_levels": {
+            "official_full": {"can_support_claim": True},
+            "official_small_scale": {"can_support_claim": "partial"},
+            "faithful_reimplementation": {"can_support_claim": "partial"},
+            "literature_only": {"can_support_claim": False},
+        },
+        "carry_forward": {
+            "allowed": True,
+            "requires": [
+                "same_research_question",
+                "same_dataset_or_justified_proxy",
+                "same_metric",
+                "artifact_hash_available",
+                "audit_passed",
+            ],
+        },
+    }
+
+
+def default_filesystem_contract(version: str) -> dict[str, Any]:
+    return {
+        "state_root": f"docs/research/{version}",
+        "search_metadata_root": f"docs/research/{version}/search",
+        "reproduction_metadata_root": f"docs/research/{version}/reproduction",
+        "reproduction_workspace_root": f"reproduction/{version}",
+        "experiment_root": f"experiments/{version}",
+        "artifact_root": f"artifacts/{version}",
+        "data_manifest_root": "data/manifests",
+        "allowed_large_file_policy": {
+            "commit_large_artifacts": False,
+            "require_hash_manifest": True,
+            "require_external_path_record": True,
+        },
     }
 
 
@@ -2178,68 +2269,294 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
     }
 
 
+def default_search_metadata(version: str) -> dict[str, dict[str, Any] | str]:
+    return {
+        "search_report.md": "# Search Report\n\nNo search has been executed yet.\n",
+        "web_search_log.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "queries": [],
+            "absence_claims": [],
+        },
+        "repo_search_log.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "commands": [],
+            "findings": {},
+        },
+        "candidate_baselines.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "candidates": [],
+        },
+        "candidate_reproductions.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "candidates": [],
+        },
+    }
+
+
+def default_reproduction_metadata(version: str) -> dict[str, dict[str, Any] | str]:
+    return {
+        "REPRODUCTION_INDEX.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "source_prd_hash": "",
+            "source_spec_hash": "",
+            "reproduction_policy": {
+                "required_before_own_experiments": True,
+                "allow_literature_only_baseline": False,
+                "allow_failed_reproduction_as_evidence": True,
+                "failed_reproduction_requires_audit": True,
+            },
+            "items": [],
+        },
+        "REPRODUCTION_PLAN.md": "# Reproduction Plan\n\nNo reproduction item has been locked yet.\n",
+        "REPRODUCTION_DELTA.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "previous_epoch": None,
+            "delta_check": {},
+            "carry_forward_from_previous": [],
+            "new_reproductions_required": [],
+            "decision": {
+                "reproduction_gate_required": True,
+                "can_skip_full_reproduction": False,
+            },
+        },
+    }
+
+
+def default_search_reproduction_gates(version: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "gate_id": "G0_SEARCH_LOCK",
+            "name": "Search and Context Lock",
+            "order": 0,
+            "status": "active",
+            "tasks": [
+                {"task_id": "T_G0_001", "status": "active"},
+                {"task_id": "T_G0_002", "status": "pending"},
+                {"task_id": "T_G0_003", "status": "pending"},
+            ],
+            "audit": {
+                "required": True,
+                "status": "pending",
+                "modes": ["literature", "search"],
+            },
+        },
+        {
+            "gate_id": "G1_REPRODUCTION_LOCK",
+            "name": "Reproduction Lock",
+            "order": 1,
+            "status": "pending",
+            "tasks": [
+                {"task_id": "T_G1_001", "status": "pending"},
+                {"task_id": "T_G1_999", "status": "pending"},
+            ],
+            "audit": {
+                "required": True,
+                "status": "pending",
+                "modes": ["reproduction", "artifact"],
+            },
+        },
+    ]
+
+
 def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
     task_id = "T_G0_001"
+    gates = default_search_reproduction_gates(version)
     return {
         **template_metadata(),
         "version": version,
         "queue_status": "active",
-        "current_gate": "G0",
+        "current_gate": "G0_SEARCH_LOCK",
         "current_task": task_id,
-        "gates": [
-            {
-                "gate_id": "G0",
-                "name": "PRD Approval",
-                "order": 0,
-                "status": "active",
-                "tasks": [{"task_id": task_id, "status": "active"}],
-                "audit": {
-                    "required": False,
-                    "status": "pending",
-                    "modes": ["format", "harness"],
-                },
-            }
-        ],
+        "gates": gates,
         "tasks": [
             {
                 "id": task_id,
                 "task_id": task_id,
-                "gate_id": "G0",
-                "phase": "specification",
-                "title": "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md",
+                "gate_id": "G0_SEARCH_LOCK",
+                "phase": "search",
+                "title": "Web search prior work and baselines",
                 "status": "active",
-                "type": "documentation",
-                "agent_mode": ["main"],
+                "type": "literature_search",
+                "agent_mode": ["main", "research-literature"],
+                "search": {
+                    "required": True,
+                    "reason": "version start and baseline discovery",
+                    "output": {
+                        "search_log": "search/web_search_log.yaml",
+                        "repo_search_log": "search/repo_search_log.yaml",
+                        "summary": "search/search_report.md",
+                    },
+                },
                 "allowed_files": [
-                    "docs/research/RESEARCH_DIRECTION.md",
-                    f"docs/research/{version}/PRD.md",
+                    f"docs/research/{version}/search/search_report.md",
+                    f"docs/research/{version}/search/web_search_log.yaml",
+                    f"docs/research/{version}/search/repo_search_log.yaml",
+                    f"docs/research/{version}/search/candidate_baselines.yaml",
+                    f"docs/research/{version}/search/candidate_reproductions.yaml",
                     f"docs/research/{version}/LOOP_LOG.md",
                     f"docs/research/{version}/NEXT_ACTION.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
-                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.md"],
-                "output_refs": ["PRD.md", "LOOP_LOG.md", "NEXT_ACTION.md"],
-                "success_criteria": ["Research Direction 的核心方向已由用户批准或明确要求继续保持 draft。", "V0/PRD.md 已回答核心问题、假设、最小实验和停止条件。"],
+                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.md", "SPEC.yaml"],
+                "output_refs": [
+                    "search/search_report.md",
+                    "search/web_search_log.yaml",
+                    "search/repo_search_log.yaml",
+                    "search/candidate_baselines.yaml",
+                    "search/candidate_reproductions.yaml",
+                ],
+                "success_criteria": [
+                    "Prior work, baseline, dataset, model, and metric search has been logged.",
+                    "Candidate baselines and reproductions are recorded or scarcity is justified.",
+                    "Absence evidence is recorded when official code or data cannot be found.",
+                ],
                 "test_commands": [],
                 "harness": {
                     "command": "",
                     "timeout_sec": 0,
-                    "success_predicate": "human approval or documented blocker",
-                    "artifact_paths": ["PRD.md", "LOOP_LOG.md"],
+                    "success_predicate": "search logs and report exist",
+                    "artifact_paths": [
+                        "search/search_report.md",
+                        "search/web_search_log.yaml",
+                        "search/repo_search_log.yaml",
+                    ],
                 },
-                "evidence_required": ["human_approval_or_blocker", "updated_file_path"],
+                "evidence_required": ["web_search_log", "repo_search_log", "search_report"],
                 "git": {
                     "require_clean_before_start": False,
                     "commit_after_done": True,
-                    "commit_message": f"research({version}): complete TASK_001",
+                    "commit_message": f"research({version}): complete search lock task",
                     "include_diff_summary": True,
                     "record_commit_hash": True,
                 },
                 "after_completion": {
                     "update": ["LOOP_LOG.md", "TASK_QUEUE.yaml", "NEXT_ACTION.md", "wiki/epoch_summary.md"]
                 },
-            }
+            },
+            {
+                "id": "T_G0_002",
+                "task_id": "T_G0_002",
+                "gate_id": "G0_SEARCH_LOCK",
+                "phase": "search",
+                "title": "Repository search for existing code/data/configs",
+                "status": "pending",
+                "type": "repo_search",
+                "search": {"required": True, "reason": "local repository evidence discovery"},
+                "allowed_files": [
+                    f"docs/research/{version}/search/repo_search_log.yaml",
+                    f"docs/research/{version}/LOOP_LOG.md",
+                    f"docs/research/{version}/NEXT_ACTION.md",
+                    f"docs/research/{version}/TASK_QUEUE.yaml",
+                ],
+                "forbidden_files": [],
+                "input_refs": ["../../"],
+                "output_refs": ["search/repo_search_log.yaml"],
+                "success_criteria": ["Repository search commands and findings are logged."],
+                "test_commands": [],
+                "harness": {
+                    "command": "",
+                    "timeout_sec": 0,
+                    "success_predicate": "repo_search_log exists",
+                    "artifact_paths": ["search/repo_search_log.yaml"],
+                },
+                "evidence_required": ["repo_search_log"],
+            },
+            {
+                "id": "T_G0_003",
+                "task_id": "T_G0_003",
+                "gate_id": "G0_SEARCH_LOCK",
+                "phase": "reproduction_planning",
+                "title": "Lock candidate reproduction set",
+                "status": "pending",
+                "type": "reproduction_planning",
+                "search": {"required": False},
+                "allowed_files": [
+                    f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
+                    f"docs/research/{version}/reproduction/REPRODUCTION_PLAN.md",
+                    f"docs/research/{version}/LOOP_LOG.md",
+                    f"docs/research/{version}/NEXT_ACTION.md",
+                    f"docs/research/{version}/TASK_QUEUE.yaml",
+                ],
+                "forbidden_files": [],
+                "input_refs": ["search/candidate_reproductions.yaml", "search/candidate_baselines.yaml"],
+                "output_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
+                "success_criteria": ["Candidate reproduction set is locked or blocker is recorded."],
+                "test_commands": [],
+                "harness": {
+                    "command": "",
+                    "timeout_sec": 0,
+                    "success_predicate": "REPRODUCTION_INDEX.yaml exists",
+                    "artifact_paths": ["reproduction/REPRODUCTION_INDEX.yaml"],
+                },
+                "evidence_required": ["reproduction_index"],
+            },
+            {
+                "id": "T_G1_001",
+                "task_id": "T_G1_001",
+                "gate_id": "G1_REPRODUCTION_LOCK",
+                "phase": "reproduction",
+                "title": "Classify and plan selected reproductions",
+                "status": "pending",
+                "type": "reproduction_planning",
+                "search": {"required": True, "reason": "reproduction task"},
+                "allowed_files": [
+                    f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
+                    f"docs/research/{version}/reproduction/REPRODUCTION_PLAN.md",
+                    f"docs/research/{version}/search/web_search_log.yaml",
+                    f"docs/research/{version}/search/repo_search_log.yaml",
+                    f"docs/research/{version}/LOOP_LOG.md",
+                    f"docs/research/{version}/NEXT_ACTION.md",
+                    f"docs/research/{version}/TASK_QUEUE.yaml",
+                ],
+                "forbidden_files": [],
+                "input_refs": ["reproduction/REPRODUCTION_INDEX.yaml"],
+                "output_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
+                "success_criteria": ["Reproduction items are classified with status and evidence level."],
+                "test_commands": [],
+                "harness": {
+                    "command": "",
+                    "timeout_sec": 0,
+                    "success_predicate": "all reproduction items classified or blocker recorded",
+                    "artifact_paths": ["reproduction/REPRODUCTION_INDEX.yaml"],
+                },
+                "evidence_required": ["reproduction_index", "search_log"],
+            },
+            {
+                "id": "T_G1_999",
+                "task_id": "T_G1_999",
+                "gate_id": "G1_REPRODUCTION_LOCK",
+                "phase": "audit",
+                "title": "Audit reproduction evidence",
+                "status": "pending",
+                "type": "reproduction_audit",
+                "search": {"required": False},
+                "allowed_files": [
+                    f"docs/research/{version}/audits/**",
+                    f"docs/research/{version}/AUDIT_QUEUE.yaml",
+                    f"docs/research/{version}/LOOP_LOG.md",
+                    f"docs/research/{version}/NEXT_ACTION.md",
+                    f"docs/research/{version}/TASK_QUEUE.yaml",
+                ],
+                "forbidden_files": [],
+                "input_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "PAPER_CLAIM_LEDGER.yaml"],
+                "output_refs": ["AUDIT_QUEUE.yaml", "audits/"],
+                "success_criteria": ["Reproduction evidence is audited before method experiments."],
+                "test_commands": [],
+                "harness": {
+                    "command": "",
+                    "timeout_sec": 0,
+                    "success_predicate": "reproduction audit pass, repair, or human review decision recorded",
+                    "artifact_paths": ["AUDIT_QUEUE.yaml"],
+                },
+                "evidence_required": ["audit_report"],
+            },
         ],
     }
 
@@ -3338,7 +3655,7 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(agent_dir / "GIT_POLICY.md", markdown_template(git_policy_template()), force)
 
     epoch_dir = research_dir / version
-    for dirname in ["plans", "runs", "artifacts", "audits", "wiki"]:
+    for dirname in ["plans", "runs", "artifacts", "audits", "search", "reproduction", "wiki"]:
         (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
     write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
@@ -3354,6 +3671,18 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
     write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
     write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
+    for filename, content in default_search_metadata(version).items():
+        path = epoch_dir / "search" / filename
+        if isinstance(content, str):
+            write_text(path, markdown_template(content), force)
+        else:
+            write_yaml(path, content, force)
+    for filename, content in default_reproduction_metadata(version).items():
+        path = epoch_dir / "reproduction" / filename
+        if isinstance(content, str):
+            write_text(path, markdown_template(content), force)
+        else:
+            write_yaml(path, content, force)
     write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
     write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
     write_text(epoch_dir / "runs" / "TASK_001_report.md", markdown_template(task_run_report_template(version)), force)
@@ -3366,6 +3695,8 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
         epoch_dir / "runs" / ".gitkeep",
         epoch_dir / "artifacts" / ".gitkeep",
         epoch_dir / "audits" / ".gitkeep",
+        epoch_dir / "search" / ".gitkeep",
+        epoch_dir / "reproduction" / ".gitkeep",
     ]:
         write_text(path, "", force)
 
@@ -3432,6 +3763,18 @@ def create_epoch(
     write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
     write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
     write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
+    for filename, content in default_search_metadata(version).items():
+        path = epoch_dir / "search" / filename
+        if isinstance(content, str):
+            write_text(path, markdown_template(content), force)
+        else:
+            write_yaml(path, content, force)
+    for filename, content in default_reproduction_metadata(version).items():
+        path = epoch_dir / "reproduction" / filename
+        if isinstance(content, str):
+            write_text(path, markdown_template(content), force)
+        else:
+            write_yaml(path, content, force)
     write_text(epoch_dir / "closeout.md", markdown_template(epoch_closeout_template(version)), force)
     write_text(epoch_dir / "PAPER_BINDING_DECISION.md", markdown_template(paper_binding_decision_template(version)), force)
     for filename, content in wiki_templates(version).items():
@@ -3442,6 +3785,8 @@ def create_epoch(
         epoch_dir / "runs" / ".gitkeep",
         epoch_dir / "artifacts" / ".gitkeep",
         epoch_dir / "audits" / ".gitkeep",
+        epoch_dir / "search" / ".gitkeep",
+        epoch_dir / "reproduction" / ".gitkeep",
     ]:
         write_text(path, "", force)
     write_text(research_dir / "CURRENT", version + "\n", force=True)
@@ -5526,6 +5871,20 @@ def validate_epoch_wiki_set(epoch_dir: Path, manifest: dict[str, Any], strict: b
     return issues
 
 
+def validate_epoch_search_reproduction_files(epoch_dir: Path, manifest: dict[str, Any]) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    version = epoch_dir.name
+    for filename in epoch_manifest_list("required_search_files", manifest):
+        path = epoch_dir / "search" / filename
+        if not path.exists():
+            issues.append(EpochSchemaIssue(f"{version}/search/{filename}", f"missing {version}/search/{filename}: {path.as_posix()}"))
+    for filename in epoch_manifest_list("required_reproduction_files", manifest):
+        path = epoch_dir / "reproduction" / filename
+        if not path.exists():
+            issues.append(EpochSchemaIssue(f"{version}/reproduction/{filename}", f"missing {version}/reproduction/{filename}: {path.as_posix()}"))
+    return issues
+
+
 def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[EpochSchemaIssue]:
     issues: list[EpochSchemaIssue] = []
     manifest = load_epoch_manifest()
@@ -5546,6 +5905,7 @@ def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[Epoch
         if queue_path.exists():
             for issue in validate_gate_queue_shape(load_yaml(queue_path)):
                 issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/{issue}"))
+        issues.extend(validate_epoch_search_reproduction_files(epoch_dir, manifest))
         issues.extend(validate_epoch_wiki_set(epoch_dir, manifest, strict=strict))
     return issues
 

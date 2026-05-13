@@ -20,7 +20,19 @@ required_dirs:
   - runs
   - artifacts
   - audits
+  - search
+  - reproduction
   - wiki
+required_search_files:
+  - search_report.md
+  - web_search_log.yaml
+  - repo_search_log.yaml
+  - candidate_baselines.yaml
+  - candidate_reproductions.yaml
+required_reproduction_files:
+  - REPRODUCTION_INDEX.yaml
+  - REPRODUCTION_PLAN.md
+  - REPRODUCTION_DELTA.yaml
 required_wiki_files:
   - epoch_summary.md
   - evidence_map.md
@@ -61,6 +73,8 @@ yaml_required_fields:
     - gates
     - anti_mock_policy
     - runtime_contract
+    - reproduction_contract
+    - filesystem_contract
     - carry_forward
   TASK_QUEUE.yaml:
     - template_version

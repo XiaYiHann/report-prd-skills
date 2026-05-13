@@ -18,6 +18,8 @@ from research_workspace import (  # noqa: E402
     EPOCH_REQUIRED_FILES,
     EPOCH_WIKI_FILES,
     epoch_required_files,
+    epoch_reproduction_files,
+    epoch_search_files,
     epoch_wiki_files,
     load_epoch_manifest,
 )
@@ -73,6 +75,26 @@ class EpochManifestContractTests(unittest.TestCase):
                 "open_questions.md",
                 "next_version_seed.md",
                 "insight_index.yaml",
+            ],
+        )
+
+    def test_manifest_declares_search_and_reproduction_metadata_files(self) -> None:
+        self.assertEqual(
+            epoch_search_files(),
+            [
+                "search_report.md",
+                "web_search_log.yaml",
+                "repo_search_log.yaml",
+                "candidate_baselines.yaml",
+                "candidate_reproductions.yaml",
+            ],
+        )
+        self.assertEqual(
+            epoch_reproduction_files(),
+            [
+                "REPRODUCTION_INDEX.yaml",
+                "REPRODUCTION_PLAN.md",
+                "REPRODUCTION_DELTA.yaml",
             ],
         )
 

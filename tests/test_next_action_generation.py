@@ -21,9 +21,9 @@ class NextActionGenerationTests(unittest.TestCase):  # noqa: F405
             research_dir = init_workspace(repo)
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
 
-        self.assertEqual(queue["current_gate"], "G0")
+        self.assertEqual(queue["current_gate"], "G0_SEARCH_LOCK")
         self.assertEqual(queue["current_task"], "T_G0_001")
-        self.assertEqual(queue["gates"][0]["gate_id"], "G0")
+        self.assertEqual(queue["gates"][0]["gate_id"], "G0_SEARCH_LOCK")
         self.assertEqual(queue["gates"][0]["status"], "active")
         self.assertEqual(queue["gates"][0]["audit"]["status"], "pending")
         self.assertEqual(queue["tasks"][0]["task_id"], "T_G0_001")
@@ -37,7 +37,7 @@ class NextActionGenerationTests(unittest.TestCase):  # noqa: F405
             next_action = (research_dir / "V0" / "NEXT_ACTION.md").read_text(encoding="utf-8")
 
         self.assertIn("## Active Task", next_action)
-        self.assertIn("- Gate: G0", next_action)
+        self.assertIn("- Gate: G0_SEARCH_LOCK", next_action)
         self.assertIn("- Task ID: T_G0_001", next_action)
         self.assertIn("## Forbidden Actions", next_action)
         self.assertIn("Do not modify Research Direction", next_action)
