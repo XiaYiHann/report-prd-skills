@@ -3535,6 +3535,19 @@ while STATUS.yaml.status not in (closed_*, gate_blocked):
 - Never use mock/toy/synthetic output as claim evidence.
 - Git allowed: `git status`, `git diff`, `git log`, `git add` allowed files, `git commit` current task, `git tag` closeout/paper binding.
 - Git forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git clean -fd`, `git rebase`, checkout that overwrites user changes, history rewrite, force push, deleting files outside task scope.
+
+## Research Agent Behavior Contract
+
+1. RQ before action. Every task must map to a Research Question, Claim, Experiment, Evidence, Figure/Table, or Paper Section.
+2. Reproduce before propose. Before claiming novelty or designing experiments, search prior work and inspect the current repo.
+3. Evidence before writing. Do not write paper claims unless the corresponding data, log, table, or citation exists.
+4. Surgical edits. Modify only the current version folder or declared target files. Do not silently rewrite unrelated artifacts.
+5. Conflict surfacing. If PRD, spec, task, paper, or code disagree, stop and report the conflict instead of averaging them.
+6. Checkpoint long loops. After each major stage, write what changed, what evidence was produced, and what remains blocked.
+7. Fail visibly. Missing data, failed reproduction, skipped experiment, or unverifiable claim must be explicitly marked.
+8. Deterministic work belongs to scripts. Formatting checks, table generation, metric computation, and file routing should be scripted, not decided by LLM judgment.
+9. Tests are evidence, not decoration. Passing tests only count if they verify the intended scientific or system behavior.
+10. Convention beats novelty. Follow the project's existing folder structure, naming, template, and artifact format unless explicitly asked to migrate.
 """
 
 
@@ -3586,6 +3599,19 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 - Do not create Vn+1 before closeout.
 - Git allowed: status, diff, log, add allowed files, commit current task, tag closeout / paper binding.
 - Git forbidden unless explicitly authorized: git push, git reset --hard, git clean -fd, git rebase, checkout overwriting user changes, rewrite history, force push, deleting files outside task scope.
+
+## 研究智能体行为契约
+
+1. RQ 先于行动。每个任务必须对应一个研究问题、主张、实验、证据、图表或论文章节。
+2. 复现先于提出。在声称新颖性或设计实验之前，搜索已有工作并检查当前仓库。
+3. 证据先于写作。除非存在相应的数据、日志、表格或引用，否则不要撰写论文主张。
+4. 手术式编辑。只修改当前版本文件夹或声明的目标文件。不要静默重写无关工件。
+5. 冲突暴露。如果 PRD、规范、任务、论文或代码不一致，停止并报告冲突，而不是取平均值。
+6. 长循环检查点。每个主要阶段之后，写下发生了什么变化、产生了什么证据以及什么仍然受阻。
+7. 可见失败。缺失的数据、失败的复现、跳过的实验或无法验证的主张必须明确标记。
+8. 确定性工作属于脚本。格式化检查、表格生成、指标计算和文件路由应该脚本化，而不是由 LLM 判断决定。
+9. 测试是证据而非装饰。只有通过验证预期科学或系统行为的测试才算数。
+10. 约定优于新奇。遵循项目的现有文件夹结构、命名、模板和工件格式，除非明确要求迁移。
 """
 
 
@@ -5864,11 +5890,14 @@ def run_epoch_audit_checks(research_dir: Path, mode: str = "full") -> list[Audit
         loop_prompt_validation = validate_loop_prompt_ready(research_dir)
         for issue in loop_prompt_validation.issues:
             results.append(audit_fail("loop_prompt." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
+        contract_validation = validate_agent_contracts(research_dir)
+        for issue in contract_validation.issues:
+            results.append(audit_fail("format.contract." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
         if not any(
             r.status == "FAIL" and r.check_id.startswith(("format.", "direction.", "spine.", "loop_prompt."))
             for r in results
-        ):
-            results.append(audit_pass("format.compliance", "Format, direction, spine, and loop-prompt structure checks passed."))
+        ) and contract_validation.ok:
+            results.append(audit_pass("format.compliance", "Format, direction, spine, loop-prompt, and agent contract checks passed."))
     if mode == "git":
         git_validation = validate_git_ready(research_dir)
         for issue in git_validation.issues:
@@ -7069,6 +7098,156 @@ LOOP_PROMPT_REQUIRED_CLAUSES = [
     ("execution_do_not_ask", ["执行阶段", "不得停止询问", "自主推进"]),
     ("required_info_blocker", ["required information", "缺失", "blocker"]),
 ]
+
+AGENT_CONTRACT_RULES: list[tuple[str, str, str]] = [
+    ("rq_before_action", "RQ before action", "Every task must map to a Research Question, Claim, Experiment, Evidence, Figure/Table, or Paper Section."),
+    ("reproduce_before_propose", "Reproduce before propose", "Before claiming novelty or designing experiments, search prior work and inspect the current repo."),
+    ("evidence_before_writing", "Evidence before writing", "Do not write paper claims unless the corresponding data, log, table, or citation exists."),
+    ("surgical_edits", "Surgical edits", "Modify only the current version folder or declared target files. Do not silently rewrite unrelated artifacts."),
+    ("conflict_surfacing", "Conflict surfacing", "If PRD, spec, task, paper, or code disagree, stop and report the conflict instead of averaging them."),
+    ("checkpoint_long_loops", "Checkpoint long loops", "After each major stage, write what changed, what evidence was produced, and what remains blocked."),
+    ("fail_visibly", "Fail visibly", "Missing data, failed reproduction, skipped experiment, or unverifiable claim must be explicitly marked."),
+    ("deterministic_work_scripts", "Deterministic work belongs to scripts", "Formatting checks, table generation, metric computation, and file routing should be scripted, not decided by LLM judgment."),
+    ("tests_are_evidence", "Tests are evidence, not decoration", "Passing tests only count if they verify the intended scientific or system behavior."),
+    ("convention_beats_novelty", "Convention beats novelty", "Follow the project's existing folder structure, naming, template, and artifact format unless explicitly asked to migrate."),
+]
+
+CLAUDE_CONTRACT_REQUIRED_CLAUSES: list[tuple[str, list[str]]] = [
+    ("rq_before_action", ["RQ before action", "Research Question"]),
+    ("reproduce_before_propose", ["Reproduce before propose", "prior work"]),
+    ("evidence_before_writing", ["Evidence before writing", "data, log, table, or citation"]),
+    ("surgical_edits", ["Surgical edits", "declared target files"]),
+    ("conflict_surfacing", ["Conflict surfacing", "stop and report"]),
+    ("checkpoint_long_loops", ["Checkpoint long loops", "what changed"]),
+    ("fail_visibly", ["Fail visibly", "explicitly marked"]),
+    ("deterministic_work_scripts", ["Deterministic work belongs to scripts", "scripted"]),
+    ("tests_are_evidence", ["Tests are evidence, not decoration", "verify the intended"]),
+    ("convention_beats_novelty", ["Convention beats novelty", "existing folder structure"]),
+]
+
+AGENTS_CONTRACT_REQUIRED_CLAUSES: list[tuple[str, list[str]]] = [
+    ("rq_before_action", ["RQ 先于行动", "研究问题"]),
+    ("reproduce_before_propose", ["复现先于提出", "已有工作"]),
+    ("evidence_before_writing", ["证据先于写作", "数据、日志、表格或引用"]),
+    ("surgical_edits", ["手术式编辑", "声明的目标文件"]),
+    ("conflict_surfacing", ["冲突暴露", "停止并报告"]),
+    ("checkpoint_long_loops", ["长循环检查点", "发生了什么变化"]),
+    ("fail_visibly", ["可见失败", "明确标记"]),
+    ("deterministic_work_scripts", ["确定性工作属于脚本", "脚本化"]),
+    ("tests_are_evidence", ["测试是证据而非装饰", "验证预期"]),
+    ("convention_beats_novelty", ["约定优于新奇", "现有文件夹结构"]),
+]
+
+
+def validate_agent_contracts(research_dir: Path) -> Validation:
+    validation = Validation()
+    repo_root = research_dir.parents[1] if research_dir.name == "research" and research_dir.parent.name == "docs" else research_dir.parent
+    claude_path = repo_root / "CLAUDE.md"
+    agents_path = repo_root / "AGENTS.md"
+    if not claude_path.exists():
+        validation.error("CLAUDE.md missing: cannot verify Research Agent Behavior Contract")
+        return validation
+    if not agents_path.exists():
+        validation.error("AGENTS.md missing: cannot verify Research Agent Behavior Contract")
+        return validation
+    claude_text = read_text(claude_path)
+    agents_text = read_text(agents_path)
+    claude_section = markdown_section(claude_text, "Research Agent Behavior Contract")
+    agents_section = markdown_section(agents_text, "研究智能体行为契约")
+    if not claude_section:
+        validation.error("CLAUDE.md missing '## Research Agent Behavior Contract' section")
+    else:
+        for check_id, required_substrings in CLAUDE_CONTRACT_REQUIRED_CLAUSES:
+            if not all(s in claude_section for s in required_substrings):
+                missing = ", ".join(s for s in required_substrings if s not in claude_section)
+                validation.error(f"CLAUDE.md contract missing rule '{check_id}' (missing: {missing})")
+    if not agents_section:
+        validation.error("AGENTS.md missing '## 研究智能体行为契约' section")
+    else:
+        for check_id, required_substrings in AGENTS_CONTRACT_REQUIRED_CLAUSES:
+            if not all(s in agents_section for s in required_substrings):
+                missing = ", ".join(s for s in required_substrings if s not in agents_section)
+                validation.error(f"AGENTS.md contract missing rule '{check_id}' (missing: {missing})")
+    return validation
+
+
+def repair_agent_contracts(repo_root: Path, force: bool = False) -> list[str]:
+    actions: list[str] = []
+    claude_path = repo_root / "CLAUDE.md"
+    agents_path = repo_root / "AGENTS.md"
+    if not claude_path.exists() and not agents_path.exists():
+        return actions
+    claude_header = "## Research Agent Behavior Contract"
+    agents_header = "## 研究智能体行为契约"
+    claude_rules = "\n".join(f"{i}. {name}. {desc}" for i, (_, name, desc) in enumerate(AGENT_CONTRACT_RULES, start=1))
+    agents_rules = "\n".join(
+        f"{i}. " + "。".join(AGENTS_CONTRACT_REQUIRED_CLAUSES[i-1][1]) + "。"
+        for i in range(1, len(AGENT_CONTRACT_RULES) + 1)
+    )
+    if claude_path.exists():
+        claude_text = read_text(claude_path)
+        if claude_header not in claude_text:
+            new_section = f"\n\n{claude_header}\n\n{claude_rules}\n"
+            claude_path.write_text(claude_text.rstrip() + new_section, encoding="utf-8")
+            actions.append("Added Research Agent Behavior Contract section to CLAUDE.md")
+        else:
+            section = markdown_section(claude_text, "Research Agent Behavior Contract") or ""
+            added_rules: list[str] = []
+            for check_id, required_substrings in CLAUDE_CONTRACT_REQUIRED_CLAUSES:
+                if not all(s in section for s in required_substrings):
+                    rule = next((r for r in AGENT_CONTRACT_RULES if r[0] == check_id), None)
+                    if rule:
+                        idx = next((i for i, (cid, _) in enumerate(CLAUDE_CONTRACT_REQUIRED_CLAUSES) if cid == check_id), 0)
+                        added_rules.append(f"{idx + 1}. {rule[1]}. {rule[2]}")
+            if added_rules:
+                lines = claude_text.rstrip().splitlines()
+                insert_idx = len(lines)
+                for i, line in enumerate(lines):
+                    if claude_header in line:
+                        insert_idx = i + 1
+                        for j in range(i + 1, len(lines)):
+                            if lines[j].startswith("## "):
+                                insert_idx = j
+                                break
+                            insert_idx = j + 1
+                        break
+                lines.insert(insert_idx, "")
+                for rule in added_rules:
+                    lines.insert(insert_idx + 1, rule)
+                claude_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                actions.append(f"Added {len(added_rules)} missing contract rules to CLAUDE.md")
+    if agents_path.exists():
+        agents_text = read_text(agents_path)
+        if agents_header not in agents_text:
+            new_section = f"\n\n{agents_header}\n\n{agents_rules}\n"
+            agents_path.write_text(agents_text.rstrip() + new_section, encoding="utf-8")
+            actions.append("Added 研究智能体行为契约 section to AGENTS.md")
+        else:
+            section = markdown_section(agents_text, "研究智能体行为契约") or ""
+            added_rules: list[str] = []
+            for check_id, required_substrings in AGENTS_CONTRACT_REQUIRED_CLAUSES:
+                if not all(s in section for s in required_substrings):
+                    idx = next((i for i, (cid, _) in enumerate(AGENTS_CONTRACT_REQUIRED_CLAUSES) if cid == check_id), None)
+                    if idx is not None:
+                        added_rules.append(f"{idx + 1}. {AGENTS_CONTRACT_REQUIRED_CLAUSES[idx][1][0]}")
+            if added_rules:
+                lines = agents_text.rstrip().splitlines()
+                insert_idx = len(lines)
+                for i, line in enumerate(lines):
+                    if agents_header in line:
+                        insert_idx = i + 1
+                        for j in range(i + 1, len(lines)):
+                            if lines[j].startswith("## "):
+                                insert_idx = j
+                                break
+                            insert_idx = j + 1
+                        break
+                lines.insert(insert_idx, "")
+                for rule in added_rules:
+                    lines.insert(insert_idx + 1, rule)
+                agents_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                actions.append(f"Added {len(added_rules)} missing contract rules to AGENTS.md")
+    return actions
 
 
 def validate_loop_prompt_ready(research_dir: Path) -> Validation:

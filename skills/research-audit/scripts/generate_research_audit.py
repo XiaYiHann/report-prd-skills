@@ -15,6 +15,7 @@ from research_workspace import (  # noqa: E402
     current_epoch_dir,
     generate_audit,
     generate_migration_audit,
+    repair_agent_contracts,
     resolve_research_dir,
     run_epoch_audit_checks,
     today_string,
@@ -34,6 +35,7 @@ def parse_args() -> argparse.Namespace:
         help="Audit mode. migration writes MIGRATION_AUDIT.md and MIGRATION_PLAN.md.",
     )
     parser.add_argument("--force", action="store_true", help="Overwrite existing audit files.")
+    parser.add_argument("--repair", action="store_true", help="Repair missing agent behavior contracts in CLAUDE.md and AGENTS.md.")
     return parser.parse_args()
 
 
@@ -50,6 +52,11 @@ def main() -> int:
         epoch_dir = current_epoch_dir(research_dir)
         if epoch_dir.exists():
             audit_mode = args.mode if args.mode in {"full", "epoch", "format", "git", "evidence", "paper-binding"} else "full"
+            if args.repair and audit_mode in {"format", "full"}:
+                repo_root = Path(args.repo).resolve()
+                actions = repair_agent_contracts(repo_root, force=args.force)
+                for action in actions:
+                    print(f"[REPAIR] {action}")
             results = run_epoch_audit_checks(research_dir, audit_mode)
             epoch_audit_dir = epoch_dir / "audits" / f"{args.date}-audit"
             epoch_audit_dir.mkdir(parents=True, exist_ok=True)

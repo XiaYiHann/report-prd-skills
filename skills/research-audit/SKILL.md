@@ -47,7 +47,7 @@ Conceptual command forms:
 
 ## Audit Modes
 
-- `format` — checks epoch_v1 file structure, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`. Returns PASS/WARN/FAIL with P0/P1 severity.
+- `format` — checks epoch_v1 file structure, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`, and the `## Research Agent Behavior Contract` / `## 研究智能体行为契约` section with all 10 required rules. Returns PASS/WARN/FAIL with P0/P1 severity.
 - `migration` — detects workspace type (`unknown`, `legacy_flat`, `mixed`, `epoch_v1`) and writes detailed `MIGRATION_AUDIT.md` + `MIGRATION_PLAN.md` with phase-by-phase guidance, including how to bind `direction_ref` and populate the Spine Matrix. Does not default to moving old artifacts or rewriting research claims.
 - `epoch` — checks current `Vn` authority chain, task queue, next action, wiki, closeout.
 - `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits.
