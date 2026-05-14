@@ -11,7 +11,7 @@ USER_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR:-${RESEARCH_
 
 INSTALL_SKILLS=true
 INSTALL_AGENTS=true
-AGENTS_SCOPE="project"
+AGENTS_SCOPE="user"
 INIT_WORKSPACE=false
 FORCE=false
 DRY_RUN=false
@@ -44,14 +44,14 @@ usage() {
 Usage: install.sh [options]
 
 Installs the research-loop skill family for Claude Code. By default it installs
-research skills into ~/.claude/skills and project-level subagents into
-./.claude/agents. It does not initialize docs/research unless requested.
+research skills into ~/.claude/skills and user-level subagents into
+~/.claude/agents. It does not initialize docs/research unless requested.
 
 Options:
   --init-workspace   create the docs/research epoch scaffold
   --no-agents        install skills only; do not install subagents
-  --project-agents   install subagents into ./.claude/agents (default)
-  --user-agents      install subagents into ~/.claude/agents
+  --user-agents      install subagents into ~/.claude/agents (default)
+  --project-agents   install subagents into ./.claude/agents
   --skills-only      install skills only
   --agents-only      install subagents only
   --force            overwrite existing destination files/directories
@@ -67,8 +67,8 @@ Environment:
   RESEARCH_LOOP_CACHE_DIR                   default: ~/.claude/research-loop
   RESEARCH_EXECUTION_SKILLS_SOURCE_DIR      install from local checkout
   RESEARCH_EXECUTION_SKILLS_TARGET_DIR      default: ~/.claude/skills
-  RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR   default: ./.claude/agents
   RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR default: ~/.claude/agents
+  RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR   default: ./.claude/agents
 EOF
 }
 

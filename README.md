@@ -29,12 +29,6 @@ Closeout 负责进入下一轮或论文绑定
 
 ## 安装
 
-一行在线安装（默认安装 Claude Code skills + 项目 subagents，**已存在则 skip**）：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash
-```
-
 **强制更新到最新版本（覆盖已有文件）：**
 
 ```bash
@@ -44,13 +38,12 @@ curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/instal
 从本地 checkout 安装：
 
 ```bash
-RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
+RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
 ```
 
 常用选项：
 
 ```bash
-./install.sh                     # 默认安装 skills + agents（已存在则 skip）
 ./install.sh --force             # 强制覆盖已有文件（更新到最新版本）
 ./install.sh --init-workspace    # 同时创建 docs/research/ epoch 工作区
 ./install.sh --no-agents         # 只安装 skills
@@ -71,7 +64,7 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
   research-plan/       # plan generation
   research-audit/      # cross-file consistency audit
 
-.claude/agents/
+~/.claude/agents/
   research-math.md     research-literature.md  research-reproduce.md
   research-coding.md   research-experiment.md  research-analysis.md
   research-paper.md    research-audit.md
