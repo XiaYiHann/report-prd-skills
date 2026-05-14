@@ -281,7 +281,6 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 self.assertTrue((project / "docs" / "research" / dirname).exists(), dirname)
             self.assertEqual((project / "docs" / "research" / "CURRENT").read_text(encoding="utf-8").strip(), "V0")
             self.assertTrue((project / "docs" / "research" / "RESEARCH_DIRECTION.md").exists())
-            self.assertTrue((project / "docs" / "research" / "V0" / "NEXT_ACTION.md").exists())
             self.assertTrue((project / "docs" / "research" / "agent" / "CODEX_GOAL_TEMPLATE.md").exists())
             self.assertTrue((project / "AGENTS.md").exists())
             self.assertTrue((project / "CLAUDE.md").exists())

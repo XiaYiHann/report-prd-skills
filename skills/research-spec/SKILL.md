@@ -26,7 +26,7 @@ RESEARCH_DIRECTION.md
   -> Vn/SPEC.yaml
   -> Vn/PLAN.md
   -> Vn/TASK_QUEUE.yaml
-  -> Vn/NEXT_ACTION.md
+  -> Vn/TASK_QUEUE.yaml
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
   -> research-insight

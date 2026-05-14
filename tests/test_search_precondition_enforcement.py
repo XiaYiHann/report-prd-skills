@@ -22,17 +22,6 @@ def write_search_evidence(epoch_dir: Path) -> None:
 
 
 class SearchPreconditionEnforcementTests(unittest.TestCase):  # noqa: F405
-    def test_next_action_renders_search_precondition_for_search_required_task(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp)
-            research_dir = init_workspace(repo)
-            text = (research_dir / "V0" / "NEXT_ACTION.md").read_text(encoding="utf-8")
-
-        self.assertIn("## Search Precondition", text)
-        self.assertIn("Search Required: yes", text)
-        self.assertIn("web_search_log.yaml", text)
-        self.assertIn("repo_search_log.yaml", text)
-
     def test_update_state_rejects_completed_search_task_without_search_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

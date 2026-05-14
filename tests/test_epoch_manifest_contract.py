@@ -46,7 +46,6 @@ class EpochManifestContractTests(unittest.TestCase):
                 "PLAN.md",
                 "STATUS.yaml",
                 "TASK_QUEUE.yaml",
-                "NEXT_ACTION.md",
                 "LOOP_LOG.md",
                 "GIT_STATE.yaml",
                 "git_log.md",

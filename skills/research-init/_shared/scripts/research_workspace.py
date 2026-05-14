@@ -440,7 +440,6 @@ commit_policy: per_gate_or_blocker
 
 > **本文件是版本总纲（version-level anchor），不是当前任务（task-level）文件。**
 > 它定义整个 `V0` 的总体使命、全局约束和成功标准。只有在版本核心问题或范围发生偏移时才修改。
-> 当前循环的具体原子任务由 `NEXT_ACTION.md` 定义；具体执行计划由 `PLAN.md` 定义。
 
 ## 工作目录
 在 `{{repo_path}}` 工作。
@@ -1595,7 +1594,6 @@ def research_direction_template(title: str, purpose: str) -> str:
 - 编译 Vn/SPEC.yaml
 - 生成 Vn/PLAN.md
 - 维护 TASK_QUEUE.yaml
-- 写 NEXT_ACTION.md
 - 实现代码 scaffold
 - 写测试
 - 写 run report
@@ -1636,7 +1634,6 @@ RESEARCH_DIRECTION.md
   -> Vn/SPEC.yaml
   -> Vn/PLAN.md
   -> Vn/TASK_QUEUE.yaml
-  -> Vn/NEXT_ACTION.md
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
   -> research-insight
@@ -1669,7 +1666,6 @@ Auto research is not automatic paper writing. It is a charter-bounded, epoch-bas
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/NEXT_ACTION.md`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 6. `docs/research/{CURRENT}/PRD.md`
 7. `docs/research/{CURRENT}/SPEC.yaml`
@@ -1729,7 +1725,6 @@ def claude_loop_prompt_template() -> str:
 1. `docs/research/RESEARCH_DIRECTION.md` — 研究走廊边界
 2. `docs/research/CURRENT` — 当前 epoch 版本号
 3. `docs/research/{CURRENT}/STATUS.yaml` — 当前状态
-4. `docs/research/{CURRENT}/NEXT_ACTION.md` — 本轮唯一要执行的任务
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml` — 任务详情（success_criteria、test_commands、evidence_required）
 
 ### Step 2: Check termination conditions
@@ -1743,7 +1738,6 @@ def claude_loop_prompt_template() -> str:
 
 ### Step 3: Execute the task
 
-Read NEXT_ACTION.md. It describes exactly one atomic task. Execute it:
 
 - 若任务是**代码实现**：写代码、写测试、运行测试、记录 terminal 输出
 - 若任务是**实验执行**：运行声明 harness、保存 stdout/stderr、记录 artifact hash
@@ -1775,7 +1769,6 @@ run report 最小格式：
 
 1. `LOOP_LOG.md` — 追加一条 loop entry
 2. `TASK_QUEUE.yaml` — 当前 task status 改为 `done` 或 `blocked`；下一个 task status 改为 `active`
-3. `NEXT_ACTION.md` — 写入下一个原子任务（task_id、objective、allowed actions、success criteria）
 4. `STATUS.yaml` — 若 gate 通过或阻塞，更新 status
 5. `GIT_STATE.yaml` — 若有 commit，记录 commit hash
 
@@ -1790,7 +1783,6 @@ run report 最小格式：
 - Do not create the next version unless current version is closed and closeout exists.
 - Do not fabricate execution result, artifact, benchmark, stdout/stderr, or paper result.
 - Never rely on previous chat memory as evidence — only persisted files are authoritative.
-- If NEXT_ACTION.md is ambiguous, write a concrete blocker instead of guessing.
 - If the same task fails twice with the same cause, escalate to `gate_blocked` in STATUS.yaml.
 - If code changes are required, run the relevant tests and record terminal evidence.
 - If literature is required but web access is unavailable, write `docs/research/{CURRENT}/runs/LITERATURE_REQUIRED_BLOCKER.md`.
@@ -1802,7 +1794,6 @@ def codex_goal_template() -> str:
 
 ## Goal
 
-完成 `docs/research/{CURRENT}/NEXT_ACTION.md` 中的 active task。
 
 ## Context
 
@@ -1811,7 +1802,6 @@ Read:
 - `docs/research/RESEARCH_DIRECTION.md`
 - `docs/research/CURRENT`
 - `docs/research/{CURRENT}/STATUS.yaml`
-- `docs/research/{CURRENT}/NEXT_ACTION.md`
 - `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 - `docs/research/{CURRENT}/PRD.md`
 - `docs/research/{CURRENT}/SPEC.yaml`
@@ -1846,7 +1836,6 @@ python3 -m pytest tests -q
 - 测试通过或 blocker 明确；
 - `LOOP_LOG.md` 更新；
 - `TASK_QUEUE.yaml` 更新；
-- `NEXT_ACTION.md` 更新；
 - 如产生 insight，`wiki/` 已更新。
 """
 
@@ -1866,7 +1855,6 @@ def subagent_policy_template() -> str:
 - 判断是否 closeout
 - 决定是否生成 Vn+1 draft
 - 阻止 paper claim 越权
-- 更新 `NEXT_ACTION.md`
 
 ## literature_scout
 
@@ -2127,7 +2115,6 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             },
         },
         "agent_autonomy": {
-            "can_create_next_action": True,
             "can_update_task_queue": True,
             "can_write_wiki": True,
             "can_close_version": True,
@@ -2244,7 +2231,6 @@ loop_mode:
   claude_code: ralph_loop
   codex: goal_driven
 active_task_source: TASK_QUEUE.yaml
-single_step_file: NEXT_ACTION.md
 loop_rules:
   - "Each loop may complete at most one active task."
   - "After each loop, update LOOP_LOG.md."
@@ -2258,7 +2244,6 @@ codex_goal_rules:
   - "Codex must cite terminal/test evidence in run report."
   - "Codex should not perform broad literature search unless task phase=literature and network is available."
 claude_ralph_rules:
-  - "Read NEXT_ACTION.md first."
   - "Do not expand scope mid-loop."
   - "Use subagents for large search or audit work."
   - "Write compact persistent state after each loop."
@@ -2326,12 +2311,10 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
         "current_spec": "SPEC.yaml",
         "current_plan": "PLAN.md",
         "current_task_queue": "TASK_QUEUE.yaml",
-        "current_next_action": "NEXT_ACTION.md",
         "current_gate": None,
         "last_completed_task": None,
         "last_loop_report": "LOOP_LOG.md",
         "close_reason": None,
-        "next_action_policy": "consume_NEXT_ACTION_only",
         "paper_binding": {"allowed": False, "reason": "当前版本尚未 closed_stable。"},
     }
 
@@ -2457,7 +2440,6 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/search/candidate_baselines.yaml",
                     f"docs/research/{version}/search/candidate_reproductions.yaml",
                     f"docs/research/{version}/LOOP_LOG.md",
-                    f"docs/research/{version}/NEXT_ACTION.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
@@ -2494,7 +2476,6 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     "record_commit_hash": True,
                 },
                 "after_completion": {
-                    "update": ["LOOP_LOG.md", "TASK_QUEUE.yaml", "NEXT_ACTION.md", "wiki/epoch_summary.md"]
                 },
             },
             {
@@ -2509,7 +2490,6 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "allowed_files": [
                     f"docs/research/{version}/search/repo_search_log.yaml",
                     f"docs/research/{version}/LOOP_LOG.md",
-                    f"docs/research/{version}/NEXT_ACTION.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
@@ -2538,7 +2518,6 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
                     f"docs/research/{version}/reproduction/REPRODUCTION_PLAN.md",
                     f"docs/research/{version}/LOOP_LOG.md",
-                    f"docs/research/{version}/NEXT_ACTION.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
@@ -2569,7 +2548,6 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/search/web_search_log.yaml",
                     f"docs/research/{version}/search/repo_search_log.yaml",
                     f"docs/research/{version}/LOOP_LOG.md",
-                    f"docs/research/{version}/NEXT_ACTION.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
@@ -2598,7 +2576,6 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/audits/**",
                     f"docs/research/{version}/AUDIT_QUEUE.yaml",
                     f"docs/research/{version}/LOOP_LOG.md",
-                    f"docs/research/{version}/NEXT_ACTION.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
@@ -2778,213 +2755,6 @@ def _resolve_harness_for_task(epoch_dir: Path, task: dict[str, Any]) -> str:
     return "N/A"
 
 
-def render_next_action(task: dict[str, Any] | None, queue: dict[str, Any], version: str) -> str:
-    if task is None:
-        return f"""# NEXT ACTION
-
-## Active Task
-
-NO ACTIVE TASK
-
-## Objective
-
-No active task is available for `{version}`.
-
-## Forbidden Actions
-
-- Do not invent a task.
-- Do not modify Research Direction.
-- Do not create Vn+1.
-
-## If Blocked
-
-Inspect `TASK_QUEUE.yaml`, repair the queue state, or request human review.
-"""
-    return epoch_next_action_template(version, task)
-
-
-def _search_precondition_block(task: dict[str, Any] | None) -> str:
-    if not task or not task_search_required(task):
-        return ""
-    required = required_search_outputs(task)
-    required_lines = "\n".join(f"- `{path}`" for path in required)
-    return f"""
-## Search Precondition
-
-Search Required: yes
-
-Before implementation or experiment execution:
-1. Search web for official paper/project/code/data/model/metric evidence.
-2. Search current repository for existing implementation, scripts, configs, tests, and prior notes.
-3. Record queries, URLs, dates, commands, and findings.
-4. Record absence evidence when official code/data/model cannot be found.
-5. Continue only after search logs exist.
-
-Required search evidence:
-{required_lines}
-"""
-
-
-def epoch_next_action_template(version: str, task: dict[str, Any] | None = None) -> str:
-    task_id = _task_identifier(task) if task else "T_G0_001"
-    title = str(task.get("title") or "【待填写】") if task else "完善并人工批准 RESEARCH_DIRECTION.md 与 V0/PRD.md"
-    success_criteria = as_list(task.get("success_criteria")) if task else []
-    test_commands = as_list(task.get("test_commands")) if task else []
-    evidence_required = as_list(task.get("evidence_required")) if task else []
-    input_refs = as_list(task.get("input_refs")) if task else []
-    output_refs = as_list(task.get("output_refs")) if task else []
-    allowed_files = as_list(task.get("allowed_files")) if task else []
-    forbidden_files = as_list(task.get("forbidden_files")) if task else []
-    phase = str(task.get("phase") or "") if task else ""
-
-    gate_line = str(task.get("gate_id") or "ungated") if task else "G0"
-    harness_block = "N/A"
-    git_block = _fmt_git_protocol(task) if task else _fmt_git_protocol({})
-    if task:
-        version_dir = Path("docs") / "research" / version
-        gate_line = _resolve_gate_for_task(version_dir, task)
-        harness_block = _resolve_harness_for_task(version_dir, task)
-
-    return f"""# NEXT ACTION
-
-## Active Task
-
-- Epoch: {version}
-- Gate: {gate_line}
-- Task ID: {task_id}
-- Task Title: {title}
-- Task Type: {str(task.get('type') or phase or 'unspecified') if task else 'specification'}
-
-## Phase
-
-{phase or "unspecified"}
-
-## Title
-
-{title}
-
-## Objective
-
-本轮只完成一个原子动作。不要重新规划整个项目。不要跳过 TASK_QUEUE.yaml。
-{_search_precondition_block(task)}
-
-## Read First
-
-1. `docs/research/RESEARCH_DIRECTION.md`
-2. `docs/research/CURRENT`
-3. `docs/research/{version}/STATUS.yaml`
-4. `docs/research/{version}/TASK_QUEUE.yaml`
-5. `docs/research/{version}/PRD.md`
-6. `docs/research/{version}/SPEC.yaml`
-7. `docs/research/{version}/PLAN.md`
-
-## Task Details
-
-- **title**: {title}
-- **phase**: {phase or 'unspecified'}
-- **success_criteria**:
-{_fmt_list(success_criteria, '  - ')}
-- **test_commands**:
-{_fmt_list(test_commands, '  - ')}
-- **evidence_required**:
-{_fmt_list(evidence_required, '  - ')}
-- **input_refs**:
-{_fmt_list(input_refs, '  - ')}
-- **output_refs**:
-{_fmt_list(output_refs, '  - ')}
-
-## Gate
-
-本任务所属 Gate: `{gate_line}`
-
-Gate 通过条件：该 Gate 下所有 task 完成且 harness 通过或产生 documented blocker。
-
-## Harness
-
-{harness_block}
-
-期望产物：stdout、stderr、artifact hash
-
-## Allowed Files
-
-{_fmt_list(allowed_files, '- `docs/research/{version}/` 下: ') if allowed_files else '- TASK_QUEUE.yaml 中 allowed_files 范围内的文件'}
-
-## Forbidden Files
-
-{_fmt_list(forbidden_files, '- ') if forbidden_files else '（无额外禁止文件）'}
-
-## Allowed Actions
-
-- 编辑 TASK_QUEUE.yaml 中 allowed_files 范围内的文件。
-- 更新 `docs/research/{version}/LOOP_LOG.md`、`TASK_QUEUE.yaml`、`NEXT_ACTION.md`。
-{'  - 编辑 `docs/research/RESEARCH_DIRECTION.md` 仅限用户明确要求或人工批准阶段。' if phase == 'specification' else ''}
-
-## Forbidden Actions
-
-- Do not modify Research Direction 的核心方向
-- 不创建 Vn+1，除非当前 Vn 已 closeout
-- 不写 paper result（paper 由 Paper Binding gate 控制）
-- 不声称实验真实完成，除非命令确实执行并记录
-- 不改动 TASK_QUEUE.yaml 中 forbidden_files 范围内的文件
-- 不越过 Research Corridor
-- Do not mark research hypothesis falsified unless harness passed and audit confirms.
-
-## Success Criteria
-
-{_fmt_list(success_criteria, '- ')}
-
-## Test / Validation
-
-{_fmt_list(test_commands, '- ') if test_commands else '当前任务阶段为 ' + phase + '，不需要运行代码测试。'}
-
-## Git Protocol
-
-{git_block}
-
-## Completion Contract
-
-Task can be marked completed only if:
-
-- command or prompt-only action was actually performed;
-- exit code is recorded when a command was run;
-- stdout/stderr summary or blocker evidence is recorded;
-- changed files are listed;
-- artifact hashes are recorded if artifacts were created.
-
-## If Blocked
-
-写入：
-
-`docs/research/{version}/runs/{task_id}_blocker.yaml` 和 `docs/research/{version}/runs/{task_id}_blocker.md`
-
-并更新：
-
-- `STATUS.yaml`（设为 `gate_blocked`）
-- `TASK_QUEUE.yaml`（标记当前 task 为 blocked）
-- `LOOP_LOG.md`
-- `NEXT_ACTION.md`（描述 blocker 状态）
-
-## After Completion
-
-写入 `docs/research/{version}/runs/{task_id}_report.yaml`（机器可读）和 `docs/research/{version}/runs/{task_id}_report.md`（人类可读）。
-
-更新：
-
-- `TASK_QUEUE.yaml`（当前 task: completed，下一个 task: active；若 Gate 完成则进入 audit_required）
-- `LOOP_LOG.md`
-- `NEXT_ACTION.md`（写入下一个原子任务）
-- `wiki/*`（若跨越 gate 边界，调用 research-insight）
-"""
-
-
-def write_next_action_from_task_queue(epoch_dir: Path, version: str) -> Path:
-    """Read TASK_QUEUE.yaml, find the active task, and write a fully populated NEXT_ACTION.md."""
-    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
-    active_task = active_task_from_gate_queue(queue)
-    content = markdown_template(render_next_action(active_task, queue, version))
-    path = epoch_dir / "NEXT_ACTION.md"
-    path.write_text(content, encoding="utf-8")
-    return path
 
 
 def epoch_loop_log_template(version: str) -> str:
@@ -3591,7 +3361,6 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
 
 ### 阶段 1：PRD 讨论与生成
 
-此时 `docs/research/{CURRENT}/NEXT_ACTION.md` 的 Active Task 为 TASK_001：完善 PRD。
 
 **你需要做**：
 
@@ -3619,15 +3388,12 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
 PRD 锁定后，Bootstrap 控制器推进：
 
 ```bash
-# 重复运行直到 NEXT_ACTION.md 的 Active Task 不再停留在 specification phase
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
 ```
 
-当 NEXT_ACTION.md 中出现具体执行任务（非 TASK_001），进入持续循环：
 
 ```
 while STATUS.yaml.status not in (closed_*, gate_blocked):
-    1. 读取 NEXT_ACTION.md（含完整 task 执行细节）
     2. 执行 task（写代码/跑实验/复现 baseline）
     3. 完成后：
        python3 ~/.claude/skills/research/scripts/update_state.py \
@@ -3638,7 +3404,6 @@ while STATUS.yaml.status not in (closed_*, gate_blocked):
          --repo . --task-id <ID> --status blocked \
          --blocker-reason "具体原因"
     5. 若跨越 Gate 边界 → research-insight → wiki
-    6. 重新读取 NEXT_ACTION.md（已由 update_state.py 自动生成下一个任务）
     7. 继续循环，不询问用户
 ```
 
@@ -3697,7 +3462,6 @@ Codex / Claude Code 每次工作：
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/NEXT_ACTION.md`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 6. `docs/research/{CURRENT}/PRD.md`
 7. `docs/research/{CURRENT}/SPEC.yaml`
@@ -3708,11 +3472,9 @@ If `docs/research/{CURRENT}/SPEC.yaml` is missing or has empty gates, run:
 ```bash
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
 ```
-Repeat until `NEXT_ACTION.md` has a concrete active task beyond specification phase.
 
 ## Continuous Loop
 
-After completing each task, run update_state.py. It atomically advances to the next task and regenerates NEXT_ACTION.md. Then re-read NEXT_ACTION.md and continue. **Do not ask the user whether to continue** unless hitting a stop condition.
 
 ```bash
 python3 ~/.claude/skills/research/scripts/update_state.py \
@@ -3729,7 +3491,6 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 
 ## Rules
 
-- Complete the active task from NEXT_ACTION.md.
 - Run relevant tests if code changes.
 - Record terminal/test evidence in run report.
 - Do not change research direction without human approval.
@@ -3773,9 +3534,6 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
-    write_text(epoch_dir / "NEXT_ACTION.md", markdown_template(epoch_next_action_template(version)), force)
-    if not force:
-        write_next_action_from_task_queue(epoch_dir, version)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
@@ -3865,9 +3623,6 @@ def create_epoch(
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
-    write_text(epoch_dir / "NEXT_ACTION.md", markdown_template(epoch_next_action_template(version)), force)
-    if not force:
-        write_next_action_from_task_queue(epoch_dir, version)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
@@ -3969,7 +3724,6 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "default_structure": "docs/research/V0/",
                 "current_epoch_pointer": "docs/research/CURRENT",
                 "direction_ref": "docs/research/RESEARCH_DIRECTION.md",
-                "next_action_file": "NEXT_ACTION.md",
                 "task_queue_file": "TASK_QUEUE.yaml",
                 "paper_binding_allowed_only_when": ["closed_stable", "paper_binding_ready"],
             },
@@ -3988,7 +3742,6 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 },
             },
             "agent_autonomy": {
-                "can_create_next_action": True,
                 "can_update_task_queue": True,
                 "can_write_wiki": True,
                 "can_close_version": True,
@@ -4693,7 +4446,6 @@ def generate_plan(
         "loop_target": "paper_binding",
         "loop_mode": {"claude_code": "ralph_loop", "codex": "goal_driven"},
         "active_task_source": "TASK_QUEUE.yaml",
-        "single_step_file": "NEXT_ACTION.md",
         "source_versions": {
             "prd_hash": hash_path(research_dir / "prd"),
             "paper_hash": hash_path(research_dir / "paper"),
@@ -4737,7 +4489,6 @@ def generate_plan(
             "Codex should not perform broad literature search unless task phase=literature and network is available.",
         ],
         "claude_ralph_rules": [
-            "Read NEXT_ACTION.md first.",
             "Do not expand scope mid-loop.",
             "Use subagents for large search or audit work.",
             "Write compact persistent state after each loop.",
@@ -5658,16 +5409,6 @@ def direction_path_from_epoch(epoch_dir: Path, status: dict[str, Any]) -> Path:
     return (epoch_dir / ref).resolve()
 
 
-def active_task_id_from_next_action(next_action_text: str) -> str:
-    match = re.search(r"- Task ID:\s*([A-Za-z0-9_\-]+)", next_action_text)
-    if match:
-        return match.group(1).strip()
-    match = re.search(r"## Active Task\s+([A-Za-z0-9_\-]+)", next_action_text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    match = re.search(r"Active Task\s*\n+\s*([A-Za-z0-9_\-]+)", next_action_text)
-    return match.group(1).strip() if match else ""
-
 
 def task_changes_code(task: dict[str, Any]) -> bool:
     if task.get("code_change") is True:
@@ -5759,50 +5500,11 @@ def detect_epoch_stale_hashes(epoch_dir: Path) -> list[StaleFinding]:
     spec = epoch_dir / "SPEC.yaml"
     plan = epoch_dir / "PLAN.md"
     queue = epoch_dir / "TASK_QUEUE.yaml"
-    next_action = epoch_dir / "NEXT_ACTION.md"
     _append_stale_if_needed(findings, "SPEC_STALE", prd, spec, _hash_from_yaml(spec, "source_prd_hash"))
     _append_stale_if_needed(findings, "PLAN_STALE", spec, plan, _frontmatter_value(plan, "source_spec_hash"))
     _append_stale_if_needed(findings, "TASK_QUEUE_STALE", plan, queue, _hash_from_yaml(queue, "source_plan_hash"))
-    _append_stale_if_needed(
-        findings,
-        "NEXT_ACTION_STALE",
-        queue,
-        next_action,
-        _frontmatter_value(next_action, "source_task_queue_hash"),
-    )
     return findings
 
-
-def write_blocked_next_action_for_stale(epoch_dir: Path, findings: list[StaleFinding]) -> None:
-    lines = [
-        "# NEXT ACTION",
-        "",
-        "## STALE HASH BLOCKER",
-        "",
-        "Do not execute active tasks until stale downstream files are regenerated.",
-        "",
-        "## Findings",
-        "",
-    ]
-    for finding in findings:
-        lines.extend(
-            [
-                f"- code: {finding.code}",
-                f"  source_path: {finding.source_path}",
-                f"  dependent_path: {finding.dependent_path}",
-                f"  expected_hash: {finding.expected_hash}",
-                f"  actual_hash: {finding.actual_hash}",
-            ]
-        )
-    lines.extend(
-        [
-            "",
-            "## Required Action",
-            "",
-            "Regenerate stale SPEC/PLAN/TASK_QUEUE/NEXT_ACTION files from their current source files.",
-        ]
-    )
-    (epoch_dir / "NEXT_ACTION.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def audit_pass(check_id: str, message: str, paths: list[str] | None = None) -> AuditCheckResult:
@@ -6217,7 +5919,7 @@ def validate_epoch_ready(research_dir: Path) -> Validation:
         for line in non_placeholder_lines(out_of_scope_section)
         if line.startswith("-")
     ]
-    current_text = "\n".join(read_text(epoch_dir / name) for name in ["PRD.md", "PLAN.md", "NEXT_ACTION.md"] if (epoch_dir / name).exists())
+    current_text = "\n".join(read_text(epoch_dir / name) for name in ["PRD.md", "PLAN.md"] if (epoch_dir / name).exists())
     for term in forbidden_terms:
         if term and term in current_text and "out-of-scope" not in current_text.lower():
             validation.error(f"current epoch may cross Research Direction out-of-scope term: {term}")
@@ -6236,10 +5938,6 @@ def validate_loop_ready(research_dir: Path) -> Validation:
         validation.error("TASK_QUEUE.yaml must have exactly one active task")
         return validation
     active_task = active[0]
-    next_action = read_text(epoch_dir / "NEXT_ACTION.md")
-    next_task_id = active_task_id_from_next_action(next_action)
-    if next_task_id != str(active_task.get("id")):
-        validation.error(f"NEXT_ACTION.md active task {next_task_id or '<missing>'} does not match TASK_QUEUE active task {active_task.get('id')}")
     if not as_list(active_task.get("success_criteria")):
         validation.error(f"active task {active_task.get('id')} has no success_criteria")
     if not as_list(active_task.get("allowed_files")):
@@ -6401,7 +6099,6 @@ def validate_format_ready(research_dir: Path) -> Validation:
         epoch_dir / "PLAN.md",
         epoch_dir / "STATUS.yaml",
         epoch_dir / "TASK_QUEUE.yaml",
-        epoch_dir / "NEXT_ACTION.md",
         epoch_dir / "GIT_STATE.yaml",
         epoch_dir / "closeout.md",
         epoch_dir / "PAPER_BINDING_DECISION.md",

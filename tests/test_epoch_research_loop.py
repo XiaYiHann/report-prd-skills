@@ -32,7 +32,6 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "PLAN.md",
                 "STATUS.yaml",
                 "TASK_QUEUE.yaml",
-                "NEXT_ACTION.md",
                 "LOOP_LOG.md",
                 "GIT_STATE.yaml",
                 "git_log.md",
@@ -104,11 +103,6 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
             queue["tasks"] = [queue["tasks"][0]]
             write_yaml(queue_path, queue)
-            next_action = research_dir / "V0" / "NEXT_ACTION.md"
-            next_action.write_text(next_action.read_text(encoding="utf-8").replace("T_G0_001", "TASK_999", 1), encoding="utf-8")
-            mismatch = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
-            self.assertNotEqual(mismatch.returncode, 0)
-            self.assertIn("does not match TASK_QUEUE active task", mismatch.stdout)
 
     def test_loop_ready_requires_test_commands_for_code_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -129,14 +123,12 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace(Path(tmp))
             task = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")["tasks"][0]
-            next_action = (research_dir / "V0" / "NEXT_ACTION.md").read_text(encoding="utf-8")
             closeout = (research_dir / "V0" / "closeout.md").read_text(encoding="utf-8")
             binding = (research_dir / "V0" / "PAPER_BINDING_DECISION.md").read_text(encoding="utf-8")
             git_state = read_yaml(research_dir / "V0" / "GIT_STATE.yaml")
 
             self.assertIn("git", task)
             self.assertEqual(task["git"]["commit_message"], "research(V0): complete search lock task")
-            self.assertIn("## Git Protocol", next_action)
             self.assertIn("## 12. Git Closeout", closeout)
             self.assertIn("## Git Binding", binding)
             self.assertFalse(git_state["commit_policy"]["allow_push"])
@@ -268,9 +260,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
         root_claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         self.assertIn("docs/research/CURRENT", root_agents)
-        self.assertIn("NEXT_ACTION.md", root_agents)
+        self.assertNotIn("NEXT_ACTION.md", root_agents)
         self.assertIn("docs/research/CURRENT", root_claude)
-        self.assertIn("NEXT_ACTION.md", root_claude)
+        self.assertNotIn("NEXT_ACTION.md", root_claude)
         for forbidden in ["git push", "git reset --hard", "git clean -fd", "git rebase", "force push"]:
             self.assertIn(forbidden, root_agents)
             self.assertIn(forbidden, root_claude)
@@ -279,7 +271,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             repo = Path(tmp)
             init_workspace(repo)
             self.assertIn("docs/research/CURRENT", (repo / "AGENTS.md").read_text(encoding="utf-8"))
-            self.assertIn("NEXT_ACTION.md", (repo / "CLAUDE.md").read_text(encoding="utf-8"))
+            self.assertNotIn("NEXT_ACTION.md", (repo / "CLAUDE.md").read_text(encoding="utf-8"))
 
     def test_subagent_and_literature_policies_include_required_roles_and_search_points(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

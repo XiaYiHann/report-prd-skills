@@ -7,7 +7,7 @@ description: "Use when a dated research execution run needs a bounded plan, AI l
 
 ## Overview
 
-Create bounded execution plans for the current epoch. New default outputs are `docs/research/{CURRENT}/PLAN.md`, `TASK_QUEUE.yaml`, and `NEXT_ACTION.md`; legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `Vn/SPEC.yaml`; Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
+Create bounded execution plans for the current epoch. New default outputs are `docs/research/{CURRENT}/PLAN.md` and `TASK_QUEUE.yaml`; legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `Vn/SPEC.yaml`; Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
 
 Plan prose, AI loop prompts, and run logs must be Chinese. `plan.yaml` keeps English keys and stable IDs, but explanatory values such as `purpose`, `forbidden_actions`, and `completion_condition` should be Chinese.
 
@@ -29,7 +29,6 @@ Supported selectors:
 
 - `docs/research/{CURRENT}/PLAN.md`
 - `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-- `docs/research/{CURRENT}/NEXT_ACTION.md`
 - `plan.md`
 - `plan.yaml`
 - `ai_loop_prompt.md`
@@ -75,12 +74,12 @@ loop_mode:
   claude_code: ralph_loop
   codex: goal_driven
 active_task_source: TASK_QUEUE.yaml
-single_step_file: NEXT_ACTION.md
+single_step_file: TASK_QUEUE.yaml
 ```
 
-Plan generation must first read `Vn/goal.md` and inject its global constraints (language, style, evidence rules, gate strategy, commit policy) into `PLAN.md` and `ai_loop_prompt.md`. The goal.md constraints are the ceiling; PLAN.md and NEXT_ACTION.md must not contradict them.
+Plan generation must first read `Vn/goal.md` and inject its global constraints (language, style, evidence rules, gate strategy, commit policy) into `PLAN.md` and `ai_loop_prompt.md`. The goal.md constraints are the ceiling; PLAN.md must not contradict them.
 
-**Distinction**: `goal.md` is the version-level anchor that defines the overall mission for the entire `Vn`. `PLAN.md` is the concrete execution schedule derived from it. `NEXT_ACTION.md` is the task-level file that changes every loop and names exactly one atomic deliverable. Do not conflate the version goal with the current task.
+**Distinction**: `goal.md` is the version-level anchor that defines the overall mission for the entire `Vn`. `PLAN.md` is the concrete execution schedule derived from it. 
 
 Loop rules:
 
@@ -104,7 +103,7 @@ Codex goal rules:
 
 Claude ralph-loop rules:
 
-- Read `NEXT_ACTION.md` first.
+- Read the active task from `TASK_QUEUE.yaml` first.
 - Do not expand scope mid-loop.
 - Use subagents for large search or audit work.
 - Write compact persistent state after each loop.

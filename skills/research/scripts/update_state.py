@@ -36,7 +36,6 @@ from research_workspace import (  # noqa: E402
     missing_search_outputs,
     read_text,
     task_search_required,
-    write_next_action_from_task_queue,
     write_task_run_report,
     write_yaml,
 )
@@ -438,9 +437,16 @@ def main() -> int:
     write_run_report_from_args(epoch_dir, version, args.task_id, status, commit_hash, gate_id, blocker_reason, args)
     print(f"[OK] runs/{args.task_id}_report.yaml written")
 
-    # 6. Regenerate NEXT_ACTION.md from TASK_QUEUE
-    next_action_path = write_next_action_from_task_queue(epoch_dir, version)
-    print(f"[OK] {next_action_path.relative_to(repo)} regenerated")
+    # 6. Emit blocker prompt if the queue is blocked
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    if str(queue.get("queue_status", "")) in ("blocked", "audit_required"):
+        current_gate = str(queue.get("current_gate") or gate_id or "unknown")
+        active = [t for t in as_list(queue.get("tasks")) if str(t.get("status")) == "active"]
+        next_task_id = active[0].get("task_id") if active else None
+        print(f"\n[PROMPT] queue_status={queue.get('queue_status')}; gate={current_gate}; next_task={next_task_id}")
+        print(f"  blocker_reason: {blocker_reason or 'N/A'}")
+        print(f"  failure_class: {failure_class or 'N/A'}")
+        print("  -> A human decision is required before automation can continue.")
 
     print(f"\n[OK] atomic state update complete for {version}/{args.task_id}")
     return 0

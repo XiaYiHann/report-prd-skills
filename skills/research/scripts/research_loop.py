@@ -3,7 +3,7 @@
 
 The controller remains prompt-only. New workspaces include a
 Charter-bounded Epoch Research Loop (`RESEARCH_DIRECTION.md`, `CURRENT`,
-and `Vn/NEXT_ACTION.md`). The legacy deterministic controller below is kept
+and `Vn/TASK_QUEUE.yaml`). The legacy deterministic controller below is kept
 compatible with `prd/spec/plans/audits`; generated runbooks define the epoch
 controller contract for Claude Code and Codex without claiming shell execution.
 """
@@ -40,7 +40,6 @@ from research_workspace import (  # noqa: E402
     read_task_run_report,
     slugify,
     validate_research,
-    write_next_action_from_task_queue,
 )
 
 
@@ -786,23 +785,6 @@ class ResearchLoop:
         )
         if note not in existing:
             self.write_text(current_state, existing.rstrip() + "\n" + note)
-        self.regenerate_epoch_next_action()
-
-    def regenerate_epoch_next_action(self) -> None:
-        current_epoch_file = self.research_dir / "CURRENT"
-        if not current_epoch_file.exists():
-            return
-        version = read_text(current_epoch_file).strip()
-        epoch_dir = self.research_dir / version
-        task_queue_path = epoch_dir / "TASK_QUEUE.yaml"
-        if not task_queue_path.exists():
-            return
-        if not self.args.dry_run:
-            write_next_action_from_task_queue(epoch_dir, version)
-        else:
-            self.dry_run_writes.append(
-                str(epoch_dir / "NEXT_ACTION.md") + " (regenerated from TASK_QUEUE.yaml)"
-            )
 
     def advance_once(self, detection: Detection) -> bool:
         """Advance one deterministic step. Return True when execution should stop."""
@@ -893,7 +875,6 @@ class ResearchLoop:
                 plan_id = f"{self.date}-{slugify(purpose)}"
                 self.dry_run_writes.append(self.rel(self.research_dir / "plans" / plan_id))
             self.update_queue_item(purpose, "active", plan_id)
-            self.regenerate_epoch_next_action()
             refreshed = self.detect()
             self.write_state(refreshed)
             self.actions.append({"action": "generated_next_plan", "plan_id": plan_id, "track": track})
@@ -1013,9 +994,8 @@ def epoch_contract_summary(research_dir: Path, repo: Path) -> dict[str, Any]:
         "execution_backend": {
             "mode": "codex_or_claude_code_agent",
             "implemented": True,
-            "note": "Codex / Claude Code execute NEXT_ACTION.md; this script validates and reports the epoch contract without running a backend.",
+            "note": "Agent executor contract; this script validates and reports the epoch contract without running a backend.",
         },
-        "next_action": (epoch_dir / "NEXT_ACTION.md").as_posix(),
         "task_queue": (epoch_dir / "TASK_QUEUE.yaml").as_posix(),
     }
 

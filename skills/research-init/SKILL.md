@@ -61,7 +61,6 @@ The command creates the new default structure:
 - `docs/research/V0/PLAN.md`
 - `docs/research/V0/STATUS.yaml`
 - `docs/research/V0/TASK_QUEUE.yaml`
-- `docs/research/V0/NEXT_ACTION.md`
 - `docs/research/V0/LOOP_LOG.md`
 - `docs/research/V0/GIT_STATE.yaml`
 - `docs/research/V0/git_log.md`
@@ -111,7 +110,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - `CURRENT` defaults to `V0`.
 - `V0/STATUS.yaml` defaults to `status=initialized`.
 - `V0/goal.md` defaults to a scaffold with YAML frontmatter (`version`, `language`, `style`, `evidence_rule`, `gate_strategy`, `commit_policy`) and Chinese body sections: 工作目录, 全局约束, 版本目标, 总规则, Gate 序列, 测试要求, 提交要求, 最终回复格式. **It is the per-version high-level execution prompt and constraint anchor.** It defines the overall mission for the entire `V0`, not the current task. It changes only when the version's core question or scope shifts.
-- `V0/NEXT_ACTION.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
+- `V0/PRD.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
 - `V0/TASK_QUEUE.yaml` tasks include a Git policy block.
 - `V0/GIT_STATE.yaml` disables push by default and records commit/tag policies.
 - Do not delete legacy `prd/spec/plans/audits/insights`; mark them as legacy-compatible context.

@@ -6,7 +6,6 @@ required_files:
   - PLAN.md
   - STATUS.yaml
   - TASK_QUEUE.yaml
-  - NEXT_ACTION.md
   - LOOP_LOG.md
   - GIT_STATE.yaml
   - git_log.md
@@ -55,7 +54,6 @@ yaml_required_fields:
     - current_spec
     - current_plan
     - current_task_queue
-    - current_next_action
     - paper_binding
   SPEC.yaml:
     - template_version

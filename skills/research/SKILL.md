@@ -9,7 +9,7 @@ description: "Use when a research workspace under docs/research needs the defaul
 
 `research` is the unified epoch contract controller for Codex / Claude Code agent executors.
 
-It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and reports the bounded research contract through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute `NEXT_ACTION.md` as the agent executor and must submit structured evidence with `update_state.py`.
+It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and reports the bounded research contract through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute `TASK_QUEUE.yaml` active task as the agent executor and must submit structured evidence with `update_state.py`.
 
 新版系统是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -25,7 +25,7 @@ It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and rep
 `Vn/SPEC.yaml` constrains execution.  
 `Vn/PLAN.md` schedules execution.  
 `Vn/TASK_QUEUE.yaml` defines available work.  
-`Vn/NEXT_ACTION.md` defines the only task for the current loop.  
+The active task from `Vn/TASK_QUEUE.yaml` defines the current loop task.  
 `Vn/GIT_STATE.yaml` records Git checkpoints.  
 `docs/research/explore/` records pure exploration sessions.  
 Runs and artifacts provide evidence.  
@@ -42,7 +42,7 @@ RESEARCH_DIRECTION.md
   -> Vn/SPEC.yaml
   -> Vn/PLAN.md
   -> Vn/TASK_QUEUE.yaml
-  -> Vn/NEXT_ACTION.md
+  -> Vn/TASK_QUEUE.yaml
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
   -> research-insight
@@ -57,7 +57,6 @@ Every `/research` run must first read:
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
 4. `docs/research/{CURRENT}/goal.md`
-5. `docs/research/{CURRENT}/NEXT_ACTION.md`
 6. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 7. `docs/research/{CURRENT}/PRD.md`
 8. `docs/research/{CURRENT}/SPEC.yaml`
@@ -67,7 +66,6 @@ Every `/research` run must first read:
 - `goal.md` is the **version-level** anchor. It defines the overall mission, global constraints, and success criteria for the entire `Vn`. It changes only when the version's core question or scope shifts.
 - `PRD.md` is the research hypothesis source of truth.
 - `PLAN.md` is the concrete execution schedule derived from `goal.md` and `SPEC.yaml`.
-- `NEXT_ACTION.md` is the **task-level** file. It changes every loop and names exactly one atomic deliverable for the current iteration.
 
 Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.md` from legacy epochs. Never let an old-version PRD override the current epoch PRD.（旧版本只读 `closeout.md` 和轻量 wiki；禁止让旧版本 PRD 覆盖当前版本 PRD。）
 
@@ -77,7 +75,7 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 
 - `STATUS.yaml.status` 为 `prd_locked`、`spec_ready`、`plan_ready` 或 `running`
 - `TASK_QUEUE.yaml` 中有 `status: active` 或 `status: pending` 的任务
-- `NEXT_ACTION.md` 中有具体的、非占位符的 Active Task
+- `TASK_QUEUE.yaml` 中有具体的、非占位符的 Active Task
 
 满足条件时输出：
 
@@ -86,7 +84,7 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 
   /ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
 
-启动后每个迭代会自动执行 NEXT_ACTION.md 中的一个原子任务。
+启动后每个迭代会自动执行 `TASK_QUEUE.yaml` 中的 active task。
 受阻时循环自动停止。用 /cancel-ralph 可随时取消。
 ```
 
@@ -99,7 +97,7 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - Always execute the earliest incomplete gate, or write the precise next execution prompt when the controller cannot safely run harnesses itself.
 - Default to the current `Vn`; do not advance legacy folders when `CURRENT` exists.
 - `research_loop.py` defaults to epoch contract mode when `CURRENT` and `Vn/` exist; the legacy deterministic controller requires explicit `--legacy-controller`.
-- Execute only `Vn/NEXT_ACTION.md`; do not skip `TASK_QUEUE.yaml`.
+- Execute only the active task from `Vn/TASK_QUEUE.yaml`; do not skip `TASK_QUEUE.yaml`.
 - Treat `TASK_QUEUE.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
 - Treat `docs/research/agent/SEARCH_POLICY.md` and `docs/research/agent/REPRODUCTION_POLICY.md` as hard execution policies.
 - Default epochs start with `G0_SEARCH_LOCK` and `G1_REPRODUCTION_LOCK`; do not activate proposed-method experiment tasks until these gates are `passed`, explicitly human-waived, or explicitly marked as `failed_harness` with recorded evidence and human waiver. A gate in `blocked` or `falsified` status is not an exemption; it stops activation.
@@ -108,7 +106,7 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.
 - If the user invokes `/research insight`, switch to `research-insight`; interpret existing evidence only and update the current epoch wiki.
 - If the user invokes `/research audit`, honor audit modes: format, migration, epoch, git, evidence, paper-binding, full.
-- Before executing `NEXT_ACTION`, record `git status --short` when Git is available.
+- Before executing the active task, record `git status --short` when Git is available.
 - After task completion, record `git diff --stat`, write a task run report, and commit only when task policy allows.
 - Never infer experiments from paper.
 - Never fabricate data, metrics, baselines, or results.
@@ -135,15 +133,15 @@ This feeds `/research` to Claude Code repeatedly. Each iteration:
 
 1. Read `RESEARCH_DIRECTION.md` and `CURRENT`
 2. Read `Vn/STATUS.yaml` — if `status` is `closed_*` or `paper_binding_ready`, **stop and output completion signal**
-3. Read `Vn/NEXT_ACTION.md` — this is the only task for this iteration
+3. Read the active task from `Vn/TASK_QUEUE.yaml`.
 4. Read `Vn/TASK_QUEUE.yaml` for task details (success criteria, test commands, evidence requirements)
-5. Execute the atomic task described in NEXT_ACTION.md
+5. Execute the atomic task described in the active task entry.
 6. Record Git state before and after
 7. Write `Vn/runs/TASK_XXX_report.md` with commands, evidence, diff summary, and commit hash
 8. Update state files:
    - `LOOP_LOG.md` — append loop entry
    - `TASK_QUEUE.yaml` — mark current task done, activate next
-   - `NEXT_ACTION.md` — write the next atomic task
+   - Update `TASK_QUEUE.yaml` to reflect the next atomic task.
    - `STATUS.yaml` — update status if gate completed or blocked
    - `GIT_STATE.yaml` — record commit hash
 9. If the completed task crosses a gate boundary, call `research-insight` to update `Vn/wiki/*`
@@ -179,10 +177,10 @@ Stops the loop immediately. State files are preserved — restarting the loop re
 ### Loop safety rules
 
 - Never rely on previous chat memory as evidence — only persisted files are authoritative.
-- If `NEXT_ACTION.md` is ambiguous, write a concrete blocker instead of guessing.
+- If the active task is ambiguous, write a concrete blocker instead of guessing.
 - If the same task fails twice with the same cause, escalate to `gate_blocked`.
-- If `NEXT_ACTION.md` references a subagent (e.g., `research-coding`), delegate to that subagent via the Agent tool.
-- Do not expand scope beyond `NEXT_ACTION.md` in a single iteration.
+- If the active task references a subagent (e.g., `research-coding`), delegate to that subagent via the Agent tool.
+- Do not expand scope beyond the active task in a single iteration.
 
 ## Insight policy
 
@@ -208,7 +206,6 @@ Conflict resolution: If `STATUS.yaml` and `PAPER_BINDING_DECISION.md` disagree, 
 - `docs/research/CURRENT`
 - `docs/research/Vn/STATUS.yaml`
 - `docs/research/Vn/TASK_QUEUE.yaml`
-- `docs/research/Vn/NEXT_ACTION.md`
 - `docs/research/Vn/LOOP_LOG.md`
 - `docs/research/Vn/GIT_STATE.yaml`
 - `docs/research/Vn/git_log.md`
@@ -252,7 +249,7 @@ When `CURRENT` and `Vn/` exist, the default implementation reports the epoch con
 
 ## Agent Executor Boundary
 
-Codex / Claude Code are the supported agent executors. They read `Vn/NEXT_ACTION.md`, perform the task in their own runtime, and call `update_state.py` with commands, stdout/stderr paths, exit code, artifact hashes, tests, git state, and blockers.
+Codex / Claude Code are the supported agent executors. They read the active task from `Vn/TASK_QUEUE.yaml`, perform the task in their own runtime, and call `update_state.py` with commands, stdout/stderr paths, exit code, artifact hashes, tests, git state, and blockers.
 
 `--executor prompt-only` remains only as a legacy-controller compatibility slot. The epoch controller does not run an independent backend and must not claim that it ran harnesses or generated experimental evidence.
 

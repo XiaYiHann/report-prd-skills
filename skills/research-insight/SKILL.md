@@ -25,7 +25,7 @@ Conceptual command forms:
 
 ## Use When
 
-- A `NEXT_ACTION.md` task has completed and the run report asks whether wiki should be updated.
+- An active task has completed and the run report asks whether wiki should be updated.
 - A gate passed, failed, or became `gate_blocked`.
 - A negative result, anomaly, failed path, or surprising simplification appears.
 - A saved `/research explore` session should be promoted into wiki candidates.

@@ -14,7 +14,6 @@ sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 from research_workspace import (  # noqa: E402
     StaleFinding,
     detect_epoch_stale_hashes,
-    write_blocked_next_action_for_stale,
 )
 
 
@@ -57,22 +56,3 @@ class StaleHashDetectionTests(unittest.TestCase):  # noqa: F405
 
         self.assertIn("TASK_QUEUE_STALE", [finding.code for finding in findings])
 
-    def test_blocked_next_action_is_written_for_stale_findings(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp)
-            research_dir = init_workspace(repo)
-            epoch = research_dir / "V0"
-            finding = StaleFinding(
-                code="SPEC_STALE",
-                source_path="PRD.md",
-                dependent_path="SPEC.yaml",
-                expected_hash="old",
-                actual_hash="new",
-            )
-
-            write_blocked_next_action_for_stale(epoch, [finding])
-            text = (epoch / "NEXT_ACTION.md").read_text(encoding="utf-8")
-
-        self.assertIn("STALE HASH BLOCKER", text)
-        self.assertIn("SPEC_STALE", text)
-        self.assertIn("Do not execute active tasks", text)

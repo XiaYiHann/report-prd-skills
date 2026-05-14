@@ -1,6 +1,6 @@
 # research-execution-skills
 
-`research-execution-skills` 是一组面向 Codex / Claude Code 的研究执行技能。它不是独立服务端系统，也不提供独立常驻 backend；Codex / Claude Code 是实际执行 `NEXT_ACTION.md` 的 agent executor，技能族负责提供文件系统协议、状态提交入口、证据记录格式和审计门禁。
+`research-execution-skills` 是一组面向 Codex / Claude Code 的研究执行技能。它不是独立服务端系统，也不提供独立常驻 backend；Codex / Claude Code 是实际执行 `TASK_QUEUE.yaml` 中 active task 的 agent executor，技能族负责提供文件系统协议、状态提交入口、证据记录格式和审计门禁。
 
 目标不是让 prompt-only 文档替代实验，而是让 agent executor 在 Git-backed epoch 协议下执行任务，并通过 `update_state.py`、run report、artifact hash 和 audit hard gate 留下可验证证据。
 
@@ -12,7 +12,7 @@
 阶段 2：自动执行      → AI 按 Gate 顺序自动执行所有 task，遇阻断才停，直到 closed_* 或 Paper Binding
 ```
 
-核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源（由 AI 在用户指导下生成）；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml`、`Vn/NEXT_ACTION.md` 只从 Spec 派生；`update_state.py` 在每次任务完成后原子更新 6 个状态文件；Git 记录真实工程变化；Paper 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源（由 AI 在用户指导下生成）；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml` 只从 Spec 派生；`update_state.py` 在每次任务完成后原子更新 6 个状态文件；Git 记录真实工程变化；Paper 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
 
 系统名是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -90,7 +90,7 @@ Research Direction
   -> V0 Spec
   -> V0 Plan
   -> V0 Task Queue
-  -> Claude/Codex executes NEXT_ACTION
+  -> Claude/Codex executes active task
   -> Gate
   -> Wiki
   -> Closeout
@@ -119,7 +119,7 @@ docs/research/
     PLAN.md
     STATUS.yaml
     TASK_QUEUE.yaml
-    NEXT_ACTION.md
+
     LOOP_LOG.md
     GIT_STATE.yaml
     plans/
@@ -148,9 +148,9 @@ docs/research/
 
 | 文件 | 作用 |
 |------|------|
-| `skills/research/scripts/update_state.py` | 原子状态更新器：每次任务完成后一键更新 TASK_QUEUE、LOOP_LOG、GIT_STATE、STATUS、run report、NEXT_ACTION |
+| `skills/research/scripts/update_state.py` | 原子状态更新器：每次任务完成后一键更新 TASK_QUEUE、LOOP_LOG、GIT_STATE、STATUS、run report |
 | `skills/research/scripts/research_loop.py` | 确定性状态机控制器：检测 PRD readiness、生成 Spec/Plan/TASK_QUEUE、推进 Gate |
-| `skills/research-init/_shared/scripts/research_workspace.py` | 共享库：所有模板、NEXT_ACTION 生成、run report schema、Gate 检测 |
+| `skills/research-init/_shared/scripts/research_workspace.py` | 共享库：所有模板、run report schema、Gate 检测 |
 
 每个 `Vn` 是完整研究轮次，不是 PRD minor version。旧版本 `V0...Vn-1` 只能作为 context / memory / history，不再有执行权。旧版本 artifact 不能直接支持当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 `carry_forward`。
 
@@ -161,7 +161,7 @@ docs/research/
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/NEXT_ACTION.md`
+
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 6. `docs/research/{CURRENT}/PRD.md`
 7. `docs/research/{CURRENT}/SPEC.yaml`
@@ -182,7 +182,7 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
 
 ### 阶段 1：PRD 讨论与生成
 
-初始化后 `NEXT_ACTION.md` 的 Active Task 为 TASK_001：完善 PRD。AI 与用户逐章讨论 16 章 PRD，AI 填写所有内容：
+初始化后 `TASK_QUEUE.yaml` 的 Active Task 为 TASK_001：完善 PRD。AI 与用户逐章讨论 16 章 PRD，AI 填写所有内容：
 
 - 第 2 章背景教程、第 3 章相关工作地图：AI 搜索文献帮助理清 landscape
 - 第 4 章基准与复现计划：AI 帮助选 concrete baseline、dataset、metric
@@ -198,18 +198,18 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
 PRD 锁定后，控制器自动推进：
 
 ```bash
-# Bootstrap：重复运行直到生成 SPEC/PLAN/TASK_QUEUE/NEXT_ACTION
+# Bootstrap：重复运行直到生成 SPEC/PLAN/TASK_QUEUE
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
 ```
 
-当 NEXT_ACTION.md 中出现具体执行任务后，进入持续循环：
+当 `TASK_QUEUE.yaml` 中出现具体执行任务后，进入持续循环：
 
 ```
 while STATUS.yaml.status not in (closed_*, gate_blocked):
-    1. 读取 NEXT_ACTION.md（含完整 task 执行细节）
+    1. 读取 `TASK_QUEUE.yaml` 中的 active task（含完整 task 执行细节）
     2. 执行 task（写代码/跑实验/复现 baseline）
     3. 完成后运行 update_state.py 原子更新 6 个状态文件
-    4. NEXT_ACTION.md 已自动更新为下一个任务
+    4. `update_state.py` 已自动更新为下一个 active task
     5. 继续循环，不询问用户
 ```
 
@@ -223,11 +223,11 @@ while STATUS.yaml.status not in (closed_*, gate_blocked):
 
 ## Codex Goal Usage（遗留）
 
-Codex 使用 `docs/research/agent/CODEX_GOAL_TEMPLATE.md`：目标必须是完成当前 `NEXT_ACTION.md` 的 active task。若改代码，运行相关测试；若不能测试，写明 blocker。Codex 不修改 Research Direction，不在 closeout 前创建下一版本，不把未验证 artifact 写成 paper result。
+Codex 使用 `docs/research/agent/CODEX_GOAL_TEMPLATE.md`：目标必须是完成当前 active task。若改代码，运行相关测试；若不能测试，写明 blocker。Codex 不修改 Research Direction，不在 closeout 前创建下一版本，不把未验证 artifact 写成 paper result。
 
 ## Task Queue and Next Action
 
-`TASK_QUEUE.yaml` 是 Gate-aware 队列；同一时间只能有一个 `active` Task，除非显式并行且 `allowed_files` 不冲突。`NEXT_ACTION.md` 是 Claude Code / ralph-loop / Codex 的单步控制文件。短规则：
+`TASK_QUEUE.yaml` 是 Gate-aware 队列；同一时间只能有一个 `active` Task，除非显式并行且 `allowed_files` 不冲突。`TASK_QUEUE.yaml` 是 Gate-aware 状态文件。短规则：
 
 > 工程问题留在当前版本；研究问题改变才开下一版本。
 
@@ -294,7 +294,7 @@ Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML fr
 | `research-paper` | 论文 placeholder 安全更新 |
 | `research-audit` | 跨文件一致性检查 |
 
-主 agent（`/research` controller）始终负责：状态推进、gate 判定、NEXT_ACTION 执行、wiki/closeout。
+主 agent（`/research` controller）始终负责：状态推进、gate 判定、active task 执行、wiki/closeout。
 
 ## Search and Evidence Acquisition Policy
 
@@ -410,7 +410,7 @@ Explore
   -> SPEC
   -> PLAN
   -> TASK_QUEUE
-  -> NEXT_ACTION
+  -> active task
   -> Claude/Codex execution
   -> Git checkpoint
   -> Gate
@@ -450,7 +450,7 @@ Explore
 
 **阶段 1：AI 生成 PRD。** 用户无需手动填写 PRD。AI 与用户逐章讨论 16 章内容，AI 负责填写所有章节（包括 Gate 调度表和 Harness 表），用户只需审批。用户确认后 AI 添加 `PRD_STATUS: HUMAN_APPROVED`。
 
-**阶段 2：自动执行。** PRD 锁定后，Bootstrap 控制器自动生成 Spec → Plan → TASK_QUEUE → NEXT_ACTION。之后进入持续循环：每轮执行 NEXT_ACTION.md 中的一个原子任务，完成后运行 `update_state.py` 原子更新 6 个状态文件，NEXT_ACTION.md 自动更新为下一个任务。循环不询问用户，直到：
+**阶段 2：自动执行。** PRD 锁定后，Bootstrap 控制器自动生成 Spec → Plan → TASK_QUEUE。之后进入持续循环：每轮执行 `TASK_QUEUE.yaml` 中的 active task，完成后运行 `update_state.py` 原子更新 5 个状态文件，active task 自动推进到下一个任务。循环不询问用户，直到：
 - `STATUS.yaml.status` 为 `closed_*` 或 `paper_binding_ready` → 研究完成
 - `STATUS.yaml.status` 为 `gate_blocked` → 报告 blocker，等待人工决策
 - 实验证据反驳 PRD 核心假设 → 写 negative_result，请求人工 review
@@ -458,7 +458,7 @@ Explore
 ### 控制器命令
 
 ```bash
-# Bootstrap 状态机（生成 Spec/Plan/TASK_QUEUE/NEXT_ACTION）
+# Bootstrap 状态机（生成 Spec/Plan/TASK_QUEUE）
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
 
 # 原子状态更新（每次任务完成后执行）
@@ -483,7 +483,7 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 ### 执行 Backend / Agent Executor
 
 ```text
-默认路径：Codex / Claude Code agent executor 读取 `Vn/NEXT_ACTION.md` 并提交结构化证据。
+默认路径：Codex / Claude Code agent executor 读取 `Vn/TASK_QUEUE.yaml` 中的 active task 并提交结构化证据。
 不提供独立常驻 backend；`research_loop.py` 默认只报告 epoch contract，不伪装成 shell runner。
 
 --legacy-controller      # 显式启用 legacy deterministic controller
@@ -609,7 +609,7 @@ Day 1  用户：我想研究 X 方向，核心 idea 是 Y
        用户：审阅 PRD，确认 Gate 顺序和 pass_condition 合理
        用户：批准 → AI 添加 PRD_STATUS: HUMAN_APPROVED
 
-Day 1-3 AI：自动 Bootstrap → 生成 Spec → Plan → TASK_QUEUE → NEXT_ACTION
+Day 1-3 AI：自动 Bootstrap → 生成 Spec → Plan → TASK_QUEUE
        AI：按 Gate 顺序自动执行每个 task
        AI：每完成一个 task 运行 update_state.py，自动推进到下一个
        AI：跨越 Gate 时运行 research-insight 更新 wiki

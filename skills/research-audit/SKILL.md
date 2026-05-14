@@ -63,14 +63,14 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 
 ## Required Questions
 
-- Does current `Vn/PRD.md`, `Vn/PLAN.md`, or `Vn/NEXT_ACTION.md` exceed the Research Corridor?
+- Does current `Vn/PRD.md` or `Vn/PLAN.md` exceed the Research Corridor?
 - Is `RESEARCH_DIRECTION.md` structurally complete: Direction Status, Research Seed, Research Corridor, Out-of-Scope Directions, Prior Work Basis, Desired Paper Shape, Autonomy Boundary, and Global Stop Conditions?
 - Does Direction Status include `direction_id`, `status`, `created_at`, `updated_at`, `current_version`, `final_target`, and `owner_decision_required`?
 - Is Direction status `human_approved` or `frozen` before execution/paper-binding claims proceed?
 - Are Research Corridor, Out-of-Scope Directions, Autonomy Boundary, and Global Stop Conditions non-empty and non-placeholder?
 - Has any agent modified `RESEARCH_DIRECTION.md` without explicit user instruction?
 - Does `CURRENT` match `Vn/STATUS.yaml.version`?
-- Is the active task in `TASK_QUEUE.yaml` the same as `NEXT_ACTION.md`?
+
 - Is there exactly one active task?
 - Was `Vn+1` created before current `Vn/closeout.md` and closed status?
 - PRD updated but paper not updated?
