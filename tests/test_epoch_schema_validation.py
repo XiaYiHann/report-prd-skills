@@ -9,6 +9,101 @@ from research_workflow_helpers import *  # noqa: F403
 
 
 class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
+    def test_epoch_ready_rejects_task_missing_research_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue["tasks"][0].pop("research_binding", None)
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("task T_G0_001 missing research_binding", result.stdout)
+
+    def test_epoch_ready_rejects_spine_bound_task_unknown_rq(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue["tasks"][0]["research_binding"] = {
+                "mode": "spine_bound",
+                "rq_id": "RQ_MISSING",
+                "claim_ids": ["C1"],
+                "experiment_ids": ["E1"],
+                "evidence_ids": ["EV1"],
+                "justification": "bind active task to a concrete research spine chain",
+            }
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("task T_G0_001 research_binding references unknown rq_id: RQ_MISSING", result.stdout)
+
+    def test_loop_ready_rejects_experiment_task_without_experiment_or_evidence_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
+            spine["research_questions"] = [{"id": "RQ1", "text": "q1"}]
+            spine["claims"] = [{"id": "C1", "rq_id": "RQ1", "text": "c1"}]
+            spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
+            spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
+            write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
+
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            active_task = queue["tasks"][0]
+            active_task["phase"] = "experiment"
+            active_task["type"] = "experiment"
+            active_task["test_commands"] = ["python -m pytest tests/test_epoch_schema_validation.py"]
+            active_task["research_binding"] = {
+                "mode": "spine_bound",
+                "rq_id": "RQ1",
+                "claim_ids": ["C1"],
+                "experiment_ids": [],
+                "evidence_ids": [],
+                "justification": "experiment task must bind to declared evidence before execution",
+            }
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("task T_G0_001 spine_bound research_binding missing experiment_ids", result.stdout)
+        self.assertIn("task T_G0_001 spine_bound research_binding missing evidence_ids", result.stdout)
+
+    def test_epoch_ready_rejects_direction_bootstrap_outside_bootstrap_phases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue["tasks"][0]["phase"] = "experiment"
+            queue["tasks"][0]["research_binding"] = {
+                "mode": "direction_bootstrap",
+                "rq_id": None,
+                "claim_ids": [],
+                "experiment_ids": [],
+                "evidence_ids": [],
+                "justification": "version start search/reproduction lock before PRD-spine binding",
+            }
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("task T_G0_001 direction_bootstrap is not allowed in phase: experiment", result.stdout)
+
+    def test_epoch_ready_rejects_direction_bootstrap_outside_g0_g1_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue["tasks"][0]["gate_id"] = "G2_METHOD_LOCK"
+            queue["tasks"][0]["phase"] = "search"
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("task T_G0_001 direction_bootstrap is only allowed in G0/G1 gates: G2_METHOD_LOCK", result.stdout)
+
     def test_epoch_ready_rejects_missing_spec_required_field_in_any_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_closed_fast(Path(tmp))

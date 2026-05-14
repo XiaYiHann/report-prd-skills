@@ -156,7 +156,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("REPRODUCTION_AUDIT_POLICY.md", audit_skill)
         self.assertIn("claim_support_level", audit_skill)
 
-    def test_installer_installs_skills_and_project_agents_by_default(self) -> None:
+    def test_installer_installs_skills_and_project_agents_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "claude" / "skills"
             project_agents = Path(tmp) / "project" / ".claude" / "agents"
@@ -179,7 +179,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
 
             result = subprocess.run(
-                ["bash", str(INSTALL_SCRIPT)],
+                ["bash", str(INSTALL_SCRIPT), "--project-agents"],
                 cwd=REPO_ROOT,
                 env=env,
                 text=True,
@@ -297,7 +297,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
 
             result = subprocess.run(
-                ["bash", str(INSTALL_SCRIPT), "--dry-run", "--init-workspace"],
+                ["bash", str(INSTALL_SCRIPT), "--dry-run", "--init-workspace", "--project-agents"],
                 cwd=project,
                 env=env,
                 text=True,

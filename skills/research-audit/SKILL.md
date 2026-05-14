@@ -74,6 +74,10 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Does `CURRENT` match `Vn/STATUS.yaml.version`?
 
 - Is there exactly one active task?
+- Does every task in `Vn/TASK_QUEUE.yaml` declare `research_binding` with mode `direction_bootstrap`, `spine_bound`, `maintenance`, or `paper_binding`?
+- Do all `spine_bound` task bindings resolve to valid `RESEARCH_SPINE.yaml` RQ, claim, experiment, and evidence ids?
+- Are experiment, analysis, and result-binding active tasks blocked unless they bind concrete `experiment_ids` and `evidence_ids`?
+- Are `direction_bootstrap`, `maintenance`, and `paper_binding` task bindings restricted to their allowed phases and justification rules?
 - Was `Vn+1` created before current `Vn/closeout.md` and closed status?
 - PRD updated but paper not updated?
 - PRD updated but spec not updated?

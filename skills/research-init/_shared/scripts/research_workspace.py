@@ -2485,6 +2485,17 @@ def default_search_reproduction_gates(version: str) -> list[dict[str, Any]]:
     ]
 
 
+def direction_bootstrap_research_binding() -> dict[str, Any]:
+    return {
+        "mode": "direction_bootstrap",
+        "rq_id": None,
+        "claim_ids": [],
+        "experiment_ids": [],
+        "evidence_ids": [],
+        "justification": "version start search/reproduction lock before PRD-spine binding",
+    }
+
+
 def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
     task_id = "T_G0_001"
     gates = default_search_reproduction_gates(version)
@@ -2504,6 +2515,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "title": "Web search prior work and baselines",
                 "status": "active",
                 "type": "literature_search",
+                "research_binding": direction_bootstrap_research_binding(),
                 "agent_mode": ["main", "research-literature"],
                 "search": {
                     "required": True,
@@ -2567,6 +2579,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "title": "Repository search for existing code/data/configs",
                 "status": "pending",
                 "type": "repo_search",
+                "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": True, "reason": "local repository evidence discovery"},
                 "allowed_files": [
                     f"docs/research/{version}/search/repo_search_log.yaml",
@@ -2594,6 +2607,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "title": "Lock candidate reproduction set",
                 "status": "pending",
                 "type": "reproduction_planning",
+                "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": False},
                 "allowed_files": [
                     f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
@@ -2622,6 +2636,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "title": "Classify and plan selected reproductions",
                 "status": "pending",
                 "type": "reproduction_planning",
+                "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": True, "reason": "reproduction task"},
                 "allowed_files": [
                     f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
@@ -2652,6 +2667,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "title": "Audit reproduction evidence",
                 "status": "pending",
                 "type": "reproduction_audit",
+                "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": False},
                 "allowed_files": [
                     f"docs/research/{version}/audits/**",
@@ -2733,6 +2749,166 @@ def validate_gate_queue_shape(queue: dict[str, Any]) -> list[str]:
     current_task = queue.get("current_task")
     if current_task and not any(str(task.get("task_id") or task.get("id") or "") == str(current_task) for task in tasks):
         issues.append(f"current_task {current_task} does not exist in tasks")
+    return issues
+
+
+RESEARCH_BINDING_MODES = {"direction_bootstrap", "spine_bound", "maintenance", "paper_binding"}
+DIRECTION_BOOTSTRAP_GATE_IDS = {"G0_SEARCH_LOCK", "G1_REPRODUCTION_LOCK"}
+DIRECTION_BOOTSTRAP_PHASES = {"search", "reproduction_planning", "reproduction", "audit"}
+MAINTENANCE_PHASES = {"maintenance", "format", "path_repair", "test_repair", "test", "repair", "artifact_repair"}
+PAPER_BINDING_PHASES = {"paper_binding", "paper", "binding"}
+EVIDENCE_BOUND_TASK_TYPES = {
+    "experiment",
+    "experiment_execution",
+    "analysis",
+    "result_analysis",
+    "result_binding",
+    "evaluation",
+}
+
+
+def _binding_list(binding: dict[str, Any], key: str) -> list[str]:
+    return [str(item) for item in as_list(binding.get(key)) if str(item)]
+
+
+def _spine_claims_by_id(spine: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(claim.get("id")): claim
+        for claim in as_list(spine.get("claims"))
+        if isinstance(claim, dict) and claim.get("id")
+    }
+
+
+def _spine_experiments_by_id(spine: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(exp.get("id")): exp
+        for exp in as_list(spine.get("experiments"))
+        if isinstance(exp, dict) and exp.get("id")
+    }
+
+
+def _spine_evidence_by_id(spine: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(evidence.get("id")): evidence
+        for evidence in as_list(spine.get("evidence"))
+        if isinstance(evidence, dict) and evidence.get("id")
+    }
+
+
+def validate_task_research_binding(epoch_dir: Path, queue: dict[str, Any], spine: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    rqs = {str(rq.get("id")) for rq in as_list(spine.get("research_questions")) if isinstance(rq, dict) and rq.get("id")}
+    claims = _spine_claims_by_id(spine)
+    experiments = _spine_experiments_by_id(spine)
+    evidence_items = _spine_evidence_by_id(spine)
+
+    for task in tasks:
+        task_id = _task_identifier(task) or "<missing>"
+        binding = task.get("research_binding")
+        if not isinstance(binding, dict):
+            issues.append(f"task {task_id} missing research_binding")
+            continue
+
+        mode = str(binding.get("mode") or "")
+        if mode not in RESEARCH_BINDING_MODES:
+            issues.append(f"task {task_id} has invalid research_binding mode: {mode}")
+            continue
+
+        justification = str(binding.get("justification") or "").strip()
+        if not justification or "【待填写" in justification:
+            issues.append(f"task {task_id} research_binding missing concrete justification")
+
+        gate_id = str(task.get("gate_id") or "")
+        phase = str(task.get("phase") or "")
+        if mode == "direction_bootstrap":
+            if gate_id not in DIRECTION_BOOTSTRAP_GATE_IDS:
+                issues.append(f"task {task_id} direction_bootstrap is only allowed in G0/G1 gates: {gate_id}")
+            if phase not in DIRECTION_BOOTSTRAP_PHASES:
+                issues.append(f"task {task_id} direction_bootstrap is not allowed in phase: {phase}")
+            continue
+
+        if mode == "maintenance":
+            if phase not in MAINTENANCE_PHASES:
+                issues.append(f"task {task_id} maintenance binding is not allowed in phase: {phase}")
+            if "claim" not in justification.lower() and "主张" not in justification:
+                issues.append(f"task {task_id} maintenance binding must justify why it produces no research claim")
+            continue
+
+        if mode == "paper_binding":
+            if phase not in PAPER_BINDING_PHASES:
+                issues.append(f"task {task_id} paper_binding mode is not allowed in phase: {phase}")
+            if not (epoch_dir / "PAPER_CLAIM_LEDGER.yaml").exists():
+                issues.append(f"task {task_id} paper_binding requires PAPER_CLAIM_LEDGER.yaml")
+            if not (epoch_dir / "PAPER_BINDING_DECISION.md").exists():
+                issues.append(f"task {task_id} paper_binding requires PAPER_BINDING_DECISION.md")
+            continue
+
+        rq_id = str(binding.get("rq_id") or "")
+        if not rq_id:
+            issues.append(f"task {task_id} spine_bound research_binding missing rq_id")
+        elif rq_id not in rqs:
+            issues.append(f"task {task_id} research_binding references unknown rq_id: {rq_id}")
+
+        claim_ids = _binding_list(binding, "claim_ids")
+        if not claim_ids:
+            issues.append(f"task {task_id} spine_bound research_binding missing claim_ids")
+        for claim_id in claim_ids:
+            claim = claims.get(claim_id)
+            if claim is None:
+                issues.append(f"task {task_id} research_binding references unknown claim_id: {claim_id}")
+                continue
+            claim_rq_id = str(claim.get("rq_id") or "")
+            if rq_id and claim_rq_id != rq_id:
+                issues.append(f"task {task_id} claim {claim_id} belongs to rq_id {claim_rq_id}, not {rq_id}")
+
+        experiment_ids = _binding_list(binding, "experiment_ids")
+        if not experiment_ids:
+            issues.append(f"task {task_id} spine_bound research_binding missing experiment_ids")
+        bound_claims_from_experiments: set[str] = set()
+        for experiment_id in experiment_ids:
+            experiment = experiments.get(experiment_id)
+            if experiment is None:
+                issues.append(f"task {task_id} research_binding references unknown experiment_id: {experiment_id}")
+                continue
+            bound_claims_from_experiments.update(str(cid) for cid in as_list(experiment.get("claim_ids")) if str(cid))
+        if experiment_ids and claim_ids and not set(claim_ids).issubset(bound_claims_from_experiments):
+            missing = ", ".join(sorted(set(claim_ids) - bound_claims_from_experiments))
+            issues.append(f"task {task_id} experiment_ids do not cover claim_ids: {missing}")
+
+        evidence_ids = _binding_list(binding, "evidence_ids")
+        if not evidence_ids:
+            issues.append(f"task {task_id} spine_bound research_binding missing evidence_ids")
+        for evidence_id in evidence_ids:
+            evidence = evidence_items.get(evidence_id)
+            if evidence is None:
+                issues.append(f"task {task_id} research_binding references unknown evidence_id: {evidence_id}")
+                continue
+            evidence_experiment_id = str(evidence.get("experiment_id") or "")
+            if experiment_ids and evidence_experiment_id not in experiment_ids:
+                issues.append(f"task {task_id} evidence {evidence_id} belongs to experiment_id {evidence_experiment_id}, not bound experiment_ids")
+    return issues
+
+
+def validate_active_task_research_binding(active_task: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    task_id = _task_identifier(active_task) or "<missing>"
+    binding = active_task.get("research_binding")
+    if not isinstance(binding, dict):
+        return [f"active task {task_id} missing research_binding"]
+
+    mode = str(binding.get("mode") or "")
+    if mode not in {"direction_bootstrap", "maintenance", "paper_binding", "spine_bound"}:
+        issues.append(f"active task {task_id} has invalid research_binding mode: {mode}")
+        return issues
+
+    task_kind = str(active_task.get("type") or "")
+    phase = str(active_task.get("phase") or "")
+    if task_kind in EVIDENCE_BOUND_TASK_TYPES or phase in EVIDENCE_BOUND_TASK_TYPES:
+        if not _binding_list(binding, "experiment_ids"):
+            issues.append(f"active experiment task {task_id} must bind experiment_ids")
+        if not _binding_list(binding, "evidence_ids"):
+            issues.append(f"active experiment task {task_id} must bind evidence_ids")
     return issues
 
 
@@ -4621,6 +4797,8 @@ def generate_plan(
         "artifacts": ["artifacts/**"],
         "loop_rules": [
             "Each loop may complete at most one active task.",
+            "Every TASK_QUEUE.yaml task must declare research_binding.",
+            "Experiment, analysis, and result-binding tasks must use spine_bound binding with experiment_ids and evidence_ids.",
             "After each loop, update LOOP_LOG.md.",
             "If blocked twice by same cause, escalate to gate_blocked.",
             "If no active task exists, generate one from PLAN.md or close version.",
@@ -4688,6 +4866,7 @@ def generate_plan(
                 "- Paper 提供实验设计叙事和上下文参考（baseline、metric、表格结构），帮助 AI 理解预期结果形态。",
                 "- 若 Paper 与 Spec 冲突，以 Spec 为准。",
                 "- 始终执行最早尚未完成的 gate。",
+                "- `TASK_QUEUE.yaml` 中每个 task 必须包含 `research_binding`；实验、分析和结果绑定任务必须通过 `spine_bound` 绑定到 `RESEARCH_SPINE.yaml` 的 RQ、claim、experiment 与 evidence。",
                 "- 如果 required dataset、baseline、metric、seed、command 或 artifact 缺失，停止并记录 blocker。",
                 "",
             ]
@@ -4706,6 +4885,8 @@ def generate_plan(
                 "可以从 Paper 读取实验设计意图（baseline、metric、表格结构、叙事逻辑），但具体的 dataset、seed、command、artifact 路径必须从 Spec 获取。",
                 "若 Paper 与 Spec 冲突，以 Spec 为准。",
                 "始终执行最早尚未完成的 gate。",
+                "执行任何 task 前先检查 `TASK_QUEUE.yaml` 的 `research_binding`；缺失绑定则停止并记录 blocker。",
+                "`spine_bound` task 必须能在 `RESEARCH_SPINE.yaml` 中解析 rq_id、claim_ids、experiment_ids 与 evidence_ids；实验、分析和结果绑定 task 不得缺少 experiment_ids 或 evidence_ids。",
                 "运行 Spec 声明的 harness，并保存 stdout/stderr、artifact hash 和日志路径。",
                 "每轮执行后更新 current_state.md、blocker_log.md、decision_log.md、run_log.md、final_summary.md；legacy dated plan 可继续写 insight_log.md。",
                 "若存在 CURRENT/Vn，正式 insight promotion 交给 research-insight 写入当前 Vn/wiki/*。",
@@ -6018,7 +6199,11 @@ def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[Epoch
         issues.extend(validate_epoch_yaml_fields(epoch_dir, manifest))
         queue_path = epoch_dir / "TASK_QUEUE.yaml"
         if queue_path.exists():
-            for issue in validate_gate_queue_shape(load_yaml(queue_path)):
+            queue = load_yaml(queue_path)
+            for issue in validate_gate_queue_shape(queue):
+                issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/{issue}"))
+            spine = load_yaml(epoch_dir / "RESEARCH_SPINE.yaml")
+            for issue in validate_task_research_binding(epoch_dir, queue, spine):
                 issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/{issue}"))
         issues.extend(validate_epoch_search_reproduction_files(epoch_dir, manifest))
         for issue in validate_epoch_search_reproduction_shape(epoch_dir):
@@ -6144,6 +6329,8 @@ def validate_loop_ready(research_dir: Path) -> Validation:
         validation.error(f"active task {active_task.get('id')} has no forbidden_files")
     if task_changes_code(active_task) and not as_list(active_task.get("test_commands")):
         validation.error(f"code-changing active task {active_task.get('id')} must define test_commands")
+    for issue in validate_active_task_research_binding(active_task):
+        validation.error(issue)
     return validation
 
 

@@ -108,10 +108,24 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
+            spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
+            spine["research_questions"] = [{"id": "RQ1", "text": "q1"}]
+            spine["claims"] = [{"id": "C1", "rq_id": "RQ1", "text": "c1"}]
+            spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
+            spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
+            write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
             queue = read_yaml(queue_path)
             queue["tasks"][0]["phase"] = "implementation"
             queue["tasks"][0]["allowed_files"] = ["src/module.py"]
             queue["tasks"][0]["test_commands"] = []
+            queue["tasks"][0]["research_binding"] = {
+                "mode": "spine_bound",
+                "rq_id": "RQ1",
+                "claim_ids": ["C1"],
+                "experiment_ids": ["E1"],
+                "evidence_ids": ["EV1"],
+                "justification": "implementation task supporting a declared RQ; no result claim is produced before tests pass",
+            }
             write_yaml(queue_path, queue)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])

@@ -100,6 +100,8 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - Default to the current `Vn`; do not advance legacy folders when `CURRENT` exists.
 - `research_loop.py` defaults to epoch contract mode when `CURRENT` and `Vn/` exist; the legacy deterministic controller requires explicit `--legacy-controller`.
 - Execute only the active task from `Vn/TASK_QUEUE.yaml`; do not skip `TASK_QUEUE.yaml`.
+- Do not execute a task that lacks `research_binding`. Every active task must declare whether it is `direction_bootstrap`, `spine_bound`, `maintenance`, or `paper_binding`.
+- For `spine_bound` work, `research_binding` must trace the task to `RESEARCH_SPINE.yaml` through `rq_id`, `claim_ids`, `experiment_ids`, and `evidence_ids`; experiment, analysis, and result-binding tasks must bind concrete experiment and evidence ids before execution.
 - Treat `TASK_QUEUE.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
 - Treat `docs/research/agent/SEARCH_POLICY.md` and `docs/research/agent/REPRODUCTION_POLICY.md` as hard execution policies.
 - Default epochs start with `G0_SEARCH_LOCK` and `G1_REPRODUCTION_LOCK`; do not activate proposed-method experiment tasks until these gates are `passed`, explicitly human-waived, or explicitly marked as `failed_harness` with recorded evidence and human waiver. A gate in `blocked` or `falsified` status is not an exemption; it stops activation.

@@ -81,6 +81,25 @@ Plan generation must first read `Vn/goal.md` and inject its global constraints (
 
 **Distinction**: `goal.md` is the version-level anchor that defines the overall mission for the entire `Vn`. `PLAN.md` is the concrete execution schedule derived from it. 
 
+`TASK_QUEUE.yaml` generation must write a `research_binding` block for every task:
+
+```yaml
+research_binding:
+  mode: direction_bootstrap | spine_bound | maintenance | paper_binding
+  rq_id: RQ1
+  claim_ids: [C1]
+  experiment_ids: [E1]
+  evidence_ids: [EV1]
+  justification: "为什么该 task 是回答这个 RQ 的必要步骤"
+```
+
+Rules:
+
+- `direction_bootstrap` is only for early search, reproduction planning, reproduction, and audit tasks before the RQ spine is stable.
+- `spine_bound` is required for method implementation, experiment execution, analysis, and result binding; ids must resolve in `Vn/RESEARCH_SPINE.yaml`.
+- `maintenance` is only for format, path, artifact, or test repair, and the justification must state why no research claim is produced.
+- `paper_binding` is only for paper-binding tasks and must remain within `PAPER_CLAIM_LEDGER.yaml` and `PAPER_BINDING_DECISION.md`.
+
 Loop rules:
 
 - Each loop may complete at most one active task.
