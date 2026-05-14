@@ -2693,7 +2693,12 @@ def default_human_review_requests(version: str) -> dict[str, Any]:
 
 
 def default_paper_claim_ledger(version: str) -> dict[str, Any]:
-    return {"schema_version": 1, "epoch": version, "claims": []}
+    return {
+        "schema_version": 1,
+        "epoch": version,
+        "claims": [],
+        "_comment": "This is the Paper Binding gate, not the planning spine. Only claims with status=allowed and compatible reproduction evidence may enter the paper. RQ→Claim→Experiment chains belong in RESEARCH_SPINE.yaml.",
+    }
 
 
 def active_task_from_gate_queue(queue: dict[str, Any]) -> dict[str, Any] | None:
@@ -5635,9 +5640,11 @@ def _append_stale_if_needed(
 def detect_epoch_stale_hashes(epoch_dir: Path) -> list[StaleFinding]:
     findings: list[StaleFinding] = []
     prd = epoch_dir / "PRD.md"
+    spine = epoch_dir / "RESEARCH_SPINE.yaml"
     spec = epoch_dir / "SPEC.yaml"
     plan = epoch_dir / "PLAN.md"
     queue = epoch_dir / "TASK_QUEUE.yaml"
+    _append_stale_if_needed(findings, "SPINE_STALE", prd, spine, _hash_from_yaml(spine, "source_prd_hash"))
     _append_stale_if_needed(findings, "SPEC_STALE", prd, spec, _hash_from_yaml(spec, "source_prd_hash"))
     _append_stale_if_needed(findings, "PLAN_STALE", spec, plan, _frontmatter_value(plan, "source_spec_hash"))
     _append_stale_if_needed(findings, "TASK_QUEUE_STALE", plan, queue, _hash_from_yaml(queue, "source_plan_hash"))
@@ -5835,7 +5842,7 @@ def run_paper_binding_audit_checks(research_dir: Path) -> list[AuditCheckResult]
 
 def run_epoch_audit_checks(research_dir: Path, mode: str = "full") -> list[AuditCheckResult]:
     results: list[AuditCheckResult] = []
-    if mode in {"full", "epoch"}:
+    if mode in {"full", "epoch", "format"}:
         schema_issues = validate_epoch_schema(research_dir, strict=True)
         if schema_issues:
             results.extend(
@@ -5844,6 +5851,30 @@ def run_epoch_audit_checks(research_dir: Path, mode: str = "full") -> list[Audit
             )
         else:
             results.append(audit_pass("epoch.schema_invariance", "All epoch directories match the epoch manifest."))
+    if mode in {"full", "format"}:
+        format_validation = validate_format_ready(research_dir)
+        for issue in format_validation.issues:
+            results.append(audit_fail("format." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
+        direction_validation = validate_direction_ready(research_dir)
+        for issue in direction_validation.issues:
+            results.append(audit_fail("direction." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P0"))
+        spine_validation = validate_spine(research_dir)
+        for issue in spine_validation.issues:
+            results.append(audit_fail("spine." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P0"))
+        loop_prompt_validation = validate_loop_prompt_ready(research_dir)
+        for issue in loop_prompt_validation.issues:
+            results.append(audit_fail("loop_prompt." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
+        if not any(
+            r.status == "FAIL" and r.check_id.startswith(("format.", "direction.", "spine.", "loop_prompt."))
+            for r in results
+        ):
+            results.append(audit_pass("format.compliance", "Format, direction, spine, and loop-prompt structure checks passed."))
+    if mode == "git":
+        git_validation = validate_git_ready(research_dir)
+        for issue in git_validation.issues:
+            results.append(audit_fail("git." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
+        if not any(r.status == "FAIL" and r.check_id.startswith("git.") for r in results):
+            results.append(audit_pass("git.compliance", "Git state and commit policy checks passed."))
     if mode in {"full", "evidence"}:
         results.extend(run_evidence_audit_checks(research_dir))
     if mode == "paper-binding":
@@ -6301,15 +6332,21 @@ def migration_audit_text(research_dir: Path) -> str:
     workspace_type = detect_workspace_type(research_dir)
     found = legacy_files(research_dir)
     missing = missing_epoch_files(research_dir)
-    return "\n".join(
+    has_direction = (research_dir / "RESEARCH_DIRECTION.md").exists()
+    has_current = (research_dir / "CURRENT").exists()
+    lines = [
+        "# Migration Audit",
+        "",
+        "## Detected Layout",
+        "",
+        f"- workspace_type: `{workspace_type}`",
+        f"- has RESEARCH_DIRECTION.md: {has_direction}",
+        f"- has CURRENT: {has_current}",
+        "",
+    ]
+    lines.extend(
         [
-            "# Migration Audit",
-            "",
-            "## Detected Layout",
-            "",
-            workspace_type,
-            "",
-            "## Found Legacy Files",
+            "## Found Legacy / Existing Files",
             "",
             *(f"- {item}" for item in found),
             *(["- none"] if not found else []),
@@ -6319,52 +6356,189 @@ def migration_audit_text(research_dir: Path) -> str:
             *(f"- {item}" for item in missing),
             *(["- none"] if not missing else []),
             "",
-            "## Recommended Migration",
-            "",
-            "1. Create `docs/research/RESEARCH_DIRECTION.md` from legacy PRD summary.",
-            "2. Set `CURRENT` to `V0`.",
-            "3. Copy legacy PRD to `docs/research/V0/PRD.md`.",
-            "4. Copy legacy `global_spec.yaml` to `docs/research/V0/SPEC.yaml`.",
-            "5. Convert legacy `plan_queue.yaml` to `docs/research/V0/TASK_QUEUE.yaml`.",
-            "6. Convert `insight_log.md` into `V0/wiki/epoch_summary.md` and `open_questions.md`.",
-            "7. Mark migrated artifacts as carry_forward_candidates, not paper evidence.",
-            "8. Run format audit again.",
-            "",
-            "## Human Review Required",
-            "",
-            "Yes.",
-            "",
+        ]
+    )
+    if workspace_type == "unknown":
+        lines.extend(
+            [
+                "## Diagnosis: New / Uninitialized Project",
+                "",
+                "No recognizable research workspace found. This is either a brand-new project or a repository that has never set up `docs/research/`.",
+                "",
+                "## Recommended Migration Steps",
+                "",
+                "### Phase 1 — Initialize Research Corridor",
+                "",
+                "1. Run `research-init` to scaffold `docs/research/`.",
+                "2. Write `RESEARCH_DIRECTION.md` with the 8 required sections: Direction Status, Research Seed, Research Corridor, Out-of-Scope Directions, Prior Work Basis, Desired Paper Shape, Autonomy Boundary, Global Stop Conditions.",
+                "3. Set `CURRENT` to `V0`.",
+                "",
+                "### Phase 2 — Bootstrap First Epoch",
+                "",
+                "4. Run `generate_research_spec.py` to create `V0/SPEC.yaml` from an initial PRD draft.",
+                "5. Ensure `V0/RESEARCH_SPINE.yaml` sets `direction_ref: ../RESEARCH_DIRECTION.md` and defines at least one RQ.",
+                "6. Run `validate_research.py --mode format-ready` to verify structure.",
+                "",
+                "## Human Review Required",
+                "",
+                "Yes — especially for `RESEARCH_DIRECTION.md` scope and first RQ wording.",
+                "",
+            ]
+        )
+    elif workspace_type == "legacy_flat":
+        lines.extend(
+            [
+                "## Diagnosis: Legacy Flat Layout",
+                "",
+                "The workspace has legacy files (`prd/`, `spec/`, `plans/`, `insights/`) but no epoch structure (`CURRENT`, `Vn/`).",
+                "",
+                "## Recommended Migration Steps",
+                "",
+                "### Phase 1 — Establish Direction",
+                "",
+                "1. Create `RESEARCH_DIRECTION.md` from the legacy PRD summary. It must define the research corridor boundary.",
+                "2. Set `CURRENT=V0`.",
+                "",
+                "### Phase 2 — Migrate Content into Epoch",
+                "",
+                "3. Copy `prd/research_prd.md` → `V0/PRD.md`.",
+                "4. Copy `spec/global_spec.yaml` → `V0/SPEC.yaml`.",
+                "5. Convert `plans/plan_queue.yaml` → `V0/TASK_QUEUE.yaml`.",
+                "6. Convert `insights/insight_log.md` → `V0/wiki/epoch_summary.md` and `V0/wiki/open_questions.md`.",
+                "",
+                "### Phase 3 — Bind the Spine",
+                "",
+                "7. Create `V0/RESEARCH_SPINE.yaml` with `direction_ref: ../RESEARCH_DIRECTION.md`.",
+                "8. Map existing RQs from the legacy PRD into `research_questions`.",
+                "9. Map existing claims/experiments into the spine chain: `RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`.",
+                "10. Mark all migrated artifacts as `carry_forward_candidates`, not paper evidence.",
+                "",
+                "### Phase 4 — Validate",
+                "",
+                "11. Run `validate_research.py --mode format-ready`.",
+                "12. Run `validate_research.py --mode epoch-ready`.",
+                "13. Run `validate_research.py --mode spine-ready`.",
+                "",
+                "## Human Review Required",
+                "",
+                "Yes — direction scope, RQ boundary, and claim mapping must be human-approved.",
+                "",
+            ]
+        )
+    elif workspace_type == "mixed":
+        lines.extend(
+            [
+                "## Diagnosis: Mixed Layout (Epoch + Legacy)",
+                "",
+                "Both epoch files (`Vn/`, `CURRENT`) and legacy folders (`prd/`, `spec/`, `plans/`) exist. The legacy content may be stale or redundant.",
+                "",
+                "## Recommended Migration Steps",
+                "",
+                "1. Determine whether legacy files are superseded by current epoch files. If yes, archive legacy folders (do not delete without human confirmation).",
+                "2. If the epoch is missing `RESEARCH_SPINE.yaml`, create it from the current PRD and bind `direction_ref: ../RESEARCH_DIRECTION.md`.",
+                "3. Populate `RESEARCH_SPINE.yaml` with the full evidence chain (`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`).",
+                "4. Run `validate_research.py --mode spine-ready` to verify chain integrity.",
+                "5. Run `validate_research.py --mode format-ready`.",
+                "",
+                "## Human Review Required",
+                "",
+                "Yes — legacy archive decision and spine mapping.",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "## Diagnosis: Epoch v1 Present",
+                "",
+                "The workspace already has an epoch structure. Migration is only needed if `format-ready` or `spine-ready` reports issues.",
+                "",
+                "## Recommended Action",
+                "",
+                "Run `validate_research.py --mode format-ready` and fix any reported issues.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
             "## Blockers",
             "",
             "- Legacy evidence may not satisfy current paper-binding rules.",
             "- Audit must not rewrite research claims or promote old insight to paper evidence by default.",
+            "- RQ must not exceed the scope declared in `RESEARCH_DIRECTION.md`.",
             "",
         ]
     )
+    return "\n".join(lines)
 
 
 def migration_plan_text(research_dir: Path) -> str:
+    workspace_type = detect_workspace_type(research_dir)
+    if workspace_type == "unknown":
+        steps = [
+            "1. 运行 `research-init` 创建 `docs/research/` 目录结构。",
+            "2. 撰写 `RESEARCH_DIRECTION.md`，包含 8 个必需章节。",
+            "3. 设置 `CURRENT=V0`。",
+            "4. 创建初始 PRD 并写入 `V0/PRD.md`。",
+            "5. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "6. 在 Spine 中定义第一个 RQ。",
+            "7. 运行 `format-ready`、`epoch-ready`、`spine-ready` 验证。",
+        ]
+    elif workspace_type == "legacy_flat":
+        steps = [
+            "1. 创建 `RESEARCH_DIRECTION.md`（基于 legacy PRD 摘要）。",
+            "2. 设置 `CURRENT=V0`。",
+            "3. 复制 `prd/research_prd.md` → `V0/PRD.md`。",
+            "4. 复制 `spec/global_spec.yaml` → `V0/SPEC.yaml`。",
+            "5. 转换 `plans/plan_queue.yaml` → `V0/TASK_QUEUE.yaml`。",
+            "6. 转换 `insights/insight_log.md` → `V0/wiki/epoch_summary.md` 和 `open_questions.md`。",
+            "7. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "8. 将 legacy 中的 RQ/Claim/Experiment 映射进 Spine Matrix。",
+            "9. 标记所有迁移 artifact 为 `carry_forward_candidates`，不作为论文证据。",
+            "10. 运行 `format-ready`、`epoch-ready`、`spine-ready` 验证。",
+        ]
+    elif workspace_type == "mixed":
+        steps = [
+            "1. 评估 legacy 文件是否被当前 epoch 文件取代；若已取代，归档 legacy 目录。",
+            "2. 若 `Vn/RESEARCH_SPINE.yaml` 缺失，从当前 PRD 创建并设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "3. 补全 Spine Matrix（RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section）。",
+            "4. 运行 `format-ready`、`epoch-ready`、`spine-ready` 验证。",
+        ]
+    else:
+        steps = [
+            "1. 运行 `validate_research.py --mode format-ready` 检查现有 epoch 格式合规性。",
+            "2. 运行 `validate_research.py --mode spine-ready` 检查证据链完整性。",
+            "3. 修复所有 reported issues。",
+        ]
     return "\n".join(
         [
             "# Migration Plan",
             "",
             "## Goal",
             "",
-            "把 legacy flat research workspace 迁移到 epoch_v1，但不默认改写研究主张。",
+            "把当前 workspace 迁移到 research-loop 规定的格式：",
             "",
-            "## Task Candidate",
+            "```",
+            "RESEARCH_DIRECTION.md (研究走廊边界)",
+            "  └─> Vn/RESEARCH_SPINE.yaml (direction_ref 必须指向它)",
+            "        └─> RQ1, RQ2, ... (必须落在 RESEARCH_DIRECTION.md 范围内)",
+            "              └─> Claim -> Experiment -> Evidence ...",
+            "```",
             "",
-            "- id: TASK_MIGRATE_LEGACY_TO_V0",
-            "- requires_human_review: true",
-            "- rule: migrated artifacts are carry_forward_candidates, not paper evidence",
+            "## Detected Workspace Type",
+            "",
+            f"`{workspace_type}`",
             "",
             "## Steps",
             "",
-            "1. 创建 Direction draft。",
-            "2. 创建 `CURRENT=V0`。",
-            "3. 将 legacy PRD/SPEC/plan queue 转为 V0 文件。",
-            "4. 将 insights 转为 wiki 候选材料。",
-            "5. 运行 `format-ready`、`epoch-ready`、`git-ready`。",
+            *(f"{step}" for step in steps),
+            "",
+            "## Constraints",
+            "",
+            "- 不得改写研究主张。",
+            "- 迁移的 artifact 只能标记为 `carry_forward_candidates`，不能自动提升为论文证据。",
+            "- `RESEARCH_DIRECTION.md` 是研究走廊边界；所有 RQ 必须落在其范围内。",
+            "- `RESEARCH_SPINE.yaml` 必须设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
             "",
         ]
     )
@@ -6460,7 +6634,11 @@ def validate_prd(research_dir: Path) -> Validation:
     for section in PRD_SECTIONS:
         if section not in text:
             validation.error(f"missing PRD section: {section}")
-    state = load_yaml(research_dir / "state.yaml")
+    epoch_dir = current_epoch_dir(research_dir)
+    if (epoch_dir / "STATUS.yaml").exists():
+        state = load_yaml(epoch_dir / "STATUS.yaml")
+    else:
+        state = load_yaml(research_dir / "state.yaml")
     prd_state = state.get("prd", {}) if isinstance(state.get("prd"), dict) else {}
     if "PRD_STATUS: HUMAN_APPROVED" not in text and prd_state.get("human_approved") is not True:
         validation.error("PRD missing human approval marker: PRD_STATUS: HUMAN_APPROVED")
@@ -6843,13 +7021,20 @@ def validate_spec(research_dir: Path) -> Validation:
 
 def validate_plan(research_dir: Path) -> Validation:
     validation = Validation()
-    plans_dir = research_dir / "plans"
-    plan_dirs = sorted(path for path in plans_dir.iterdir() if path.is_dir()) if plans_dir.exists() else []
+    plan_dirs: list[Path] = []
+    legacy_plans = research_dir / "plans"
+    if legacy_plans.exists():
+        plan_dirs.extend(path for path in legacy_plans.iterdir() if path.is_dir())
+    version = current_epoch_name(research_dir)
+    if version:
+        epoch_plans = research_dir / version / "plans"
+        if epoch_plans.exists():
+            plan_dirs.extend(path for path in epoch_plans.iterdir() if path.is_dir())
     if not plan_dirs:
         validation.error("no dated research plan exists")
         return validation
     ids = collect_spec_ids(research_dir)
-    current_spec_hash = hash_path(research_dir / "spec")
+    current_spec_hash = hash_path(research_dir / version / "SPEC.yaml") if version else hash_path(research_dir / "spec")
     current_paper_hash = hash_path(research_dir / "paper")
     for plan_dir in plan_dirs:
         plan_yaml = plan_dir / "plan.yaml"
@@ -6876,6 +7061,42 @@ def validate_plan(research_dir: Path) -> Validation:
                 validation.error(f"plan {plan_dir.name} references missing spec harness {harness_id}")
         for name in ["ai_loop_prompt.md", "current_state.md", "blocker_log.md", "decision_log.md", "run_log.md", "insight_log.md", "final_summary.md"]:
             validation.require_file(plan_dir / name, f"plan {plan_dir.name}/{name}")
+    return validation
+
+
+LOOP_PROMPT_REQUIRED_CLAUSES = [
+    ("document_writing_stop_ask", ["文档撰写阶段", "停止并请求用户确认"]),
+    ("execution_do_not_ask", ["执行阶段", "不得停止询问", "自主推进"]),
+    ("required_info_blocker", ["required information", "缺失", "blocker"]),
+]
+
+
+def validate_loop_prompt_ready(research_dir: Path) -> Validation:
+    validation = Validation()
+    plans_dir = research_dir / "plans"
+    plan_dirs = sorted(path for path in plans_dir.iterdir() if path.is_dir()) if plans_dir.exists() else []
+    for plan_dir in plan_dirs:
+        prompt_path = plan_dir / "ai_loop_prompt.md"
+        if not prompt_path.exists():
+            continue
+        text = prompt_path.read_text(encoding="utf-8")
+        for check_id, required_substrings in LOOP_PROMPT_REQUIRED_CLAUSES:
+            if not all(s in text for s in required_substrings):
+                missing = ", ".join(s for s in required_substrings if s not in text)
+                validation.error(
+                    f"plan {plan_dir.name} ai_loop_prompt.md missing clause '{check_id}' (missing: {missing})"
+                )
+    epoch_dir = current_epoch_dir(research_dir)
+    if epoch_dir:
+        epoch_prompt = epoch_dir / "ai_loop_prompt.md"
+        if epoch_prompt.exists():
+            text = epoch_prompt.read_text(encoding="utf-8")
+            for check_id, required_substrings in LOOP_PROMPT_REQUIRED_CLAUSES:
+                if not all(s in text for s in required_substrings):
+                    missing = ", ".join(s for s in required_substrings if s not in text)
+                    validation.error(
+                        f"epoch ai_loop_prompt.md missing clause '{check_id}' (missing: {missing})"
+                    )
     return validation
 
 

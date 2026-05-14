@@ -18,7 +18,7 @@ class ReproductionIndexValidationTests(unittest.TestCase):  # noqa: F405
     def test_default_reproduction_index_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             issues = validate_epoch_schema(research_dir)
 
         self.assertEqual([], [issue for issue in issues if "reproduction" in str(issue).lower()])
@@ -26,7 +26,7 @@ class ReproductionIndexValidationTests(unittest.TestCase):  # noqa: F405
     def test_invalid_reproduction_type_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             index_path = research_dir / "V0" / "reproduction" / "REPRODUCTION_INDEX.yaml"
             index = read_yaml(index_path)
             index["items"] = [
@@ -47,7 +47,7 @@ class ReproductionIndexValidationTests(unittest.TestCase):  # noqa: F405
     def test_invalid_reproduction_status_and_evidence_level_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             index_path = research_dir / "V0" / "reproduction" / "REPRODUCTION_INDEX.yaml"
             index = read_yaml(index_path)
             index["items"] = [

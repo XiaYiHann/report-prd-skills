@@ -18,7 +18,7 @@ class ReproductionAuditBoundaryTests(unittest.TestCase):  # noqa: F405
     def test_literature_only_reproduction_cannot_support_allowed_paper_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch_dir = research_dir / "V0"
             index_path = epoch_dir / "reproduction" / "REPRODUCTION_INDEX.yaml"
             index = read_yaml(index_path)
@@ -55,7 +55,7 @@ class ReproductionAuditBoundaryTests(unittest.TestCase):  # noqa: F405
     def test_reproduction_without_passed_audit_cannot_support_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch_dir = research_dir / "V0"
             index_path = epoch_dir / "reproduction" / "REPRODUCTION_INDEX.yaml"
             index = read_yaml(index_path)

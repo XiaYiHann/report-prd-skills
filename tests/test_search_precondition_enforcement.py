@@ -25,7 +25,7 @@ class SearchPreconditionEnforcementTests(unittest.TestCase):  # noqa: F405
     def test_update_state_rejects_completed_search_task_without_search_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            init_workspace(repo)
+            init_workspace_fast(repo)
 
             result = run_cmd(
                 [
@@ -51,7 +51,7 @@ class SearchPreconditionEnforcementTests(unittest.TestCase):  # noqa: F405
     def test_update_state_allows_completed_search_task_with_required_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch_dir = research_dir / "V0"
             write_search_evidence(epoch_dir)
 

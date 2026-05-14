@@ -10,7 +10,7 @@ class EpochLegacyBoundaryTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_defaults_to_epoch_contract_when_epoch_workspace_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             legacy_state = research_dir / "state.yaml"
             if legacy_state.exists():
                 legacy_state.unlink()

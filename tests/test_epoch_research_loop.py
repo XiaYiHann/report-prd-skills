@@ -12,7 +12,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
     def test_epoch_init_creates_direction_current_agent_docs_and_v0(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
 
             self.assertTrue((research_dir / "RESEARCH_DIRECTION.md").exists())
             self.assertEqual((research_dir / "CURRENT").read_text(encoding="utf-8").strip(), "V0")
@@ -59,7 +59,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_epoch_current_and_status_version_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             current = (research_dir / "CURRENT").read_text(encoding="utf-8").strip()
             status = read_yaml(research_dir / current / "STATUS.yaml")
 
@@ -69,7 +69,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_direction_ready_requires_human_approved_or_frozen_direction(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
 
             draft = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "direction-ready"])
             self.assertNotEqual(draft.returncode, 0)
@@ -81,7 +81,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_epoch_ready_requires_current_epoch_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             (research_dir / "V0" / "PRD.md").unlink()
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
@@ -91,7 +91,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_loop_ready_requires_single_active_task_and_matching_next_action(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
             queue = read_yaml(queue_path)
             queue["tasks"].append({**queue["tasks"][0], "id": "TASK_002", "status": "active"})
@@ -106,7 +106,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_loop_ready_requires_test_commands_for_code_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
             queue = read_yaml(queue_path)
             queue["tasks"][0]["phase"] = "implementation"
@@ -121,7 +121,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_git_memory_templates_are_initialized(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             task = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")["tasks"][0]
             closeout = (research_dir / "V0" / "closeout.md").read_text(encoding="utf-8")
             binding = (research_dir / "V0" / "PAPER_BINDING_DECISION.md").read_text(encoding="utf-8")
@@ -136,7 +136,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_explore_templates_are_initialized_without_bare_todo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             for path in (research_dir / "explore").rglob("*.md"):
                 text = path.read_text(encoding="utf-8")
                 self.assertNotIn("TODO", text, path)
@@ -146,7 +146,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_epoch_ready_blocks_v1_before_v0_closeout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             (research_dir / "V1").mkdir()
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
@@ -156,7 +156,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_closeout_ready_requires_complete_wiki_and_closeout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
 
             initial = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "closeout-ready"])
             self.assertNotEqual(initial.returncode, 0)
@@ -168,8 +168,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_paper_binding_ready_requires_stable_status_and_real_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
-            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            research_dir = init_workspace_closed_fast(Path(tmp))
 
             initial = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
             self.assertNotEqual(initial.returncode, 0)
@@ -181,8 +180,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_paper_binding_rejects_prompt_only_scaffold_as_result_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
-            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            research_dir = init_workspace_closed_fast(Path(tmp))
             make_paper_binding_decision(research_dir, artifact_path="prompt_only_scaffold")
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
@@ -192,8 +190,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_paper_binding_requires_real_data_model_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
-            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            research_dir = init_workspace_closed_fast(Path(tmp))
             make_paper_binding_decision(research_dir)
             decision = research_dir / "V0" / "PAPER_BINDING_DECISION.md"
             text = decision.read_text(encoding="utf-8")
@@ -211,8 +208,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_old_version_artifact_requires_current_carry_forward(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
-            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            research_dir = init_workspace_closed_fast(Path(tmp))
             make_paper_binding_decision(research_dir, artifact_path="docs/research/V0/artifacts/run_001.json")
             v1 = research_dir / "V1"
             shutil.copytree(research_dir / "V0", v1)
@@ -228,6 +224,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             queue = read_yaml(v1 / "TASK_QUEUE.yaml")
             queue["version"] = "V1"
             write_yaml(v1 / "TASK_QUEUE.yaml", queue)
+            spine = read_yaml(v1 / "RESEARCH_SPINE.yaml")
+            spine["version"] = "V1"
+            write_yaml(v1 / "RESEARCH_SPINE.yaml", spine)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
             self.assertNotEqual(result.returncode, 0)
@@ -242,7 +241,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_initialized_epoch_templates_do_not_contain_bare_todo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             for path in research_dir.rglob("*"):
                 if path.is_file() and path.suffix in {".md", ".yaml", ".yml", ".txt", ""}:
                     text = path.read_text(encoding="utf-8", errors="ignore")
@@ -269,13 +268,13 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            init_workspace(repo)
+            init_workspace_fast(repo)
             self.assertIn("docs/research/CURRENT", (repo / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertNotIn("NEXT_ACTION.md", (repo / "CLAUDE.md").read_text(encoding="utf-8"))
 
     def test_subagent_and_literature_policies_include_required_roles_and_search_points(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             subagent = (research_dir / "agent" / "SUBAGENT_POLICY.md").read_text(encoding="utf-8")
             literature = (research_dir / "agent" / "LITERATURE_POLICY.md").read_text(encoding="utf-8")
 
@@ -296,7 +295,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_new_validator_modes_are_runnable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             for mode in [
                 "direction-ready",
                 "epoch-ready",
@@ -312,7 +311,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
     def test_format_ready_detects_missing_epoch_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             (research_dir / "CURRENT").unlink()
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "format-ready"])
@@ -324,7 +323,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             run_cmd(["git", "init"], cwd=repo)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             (research_dir / "V0" / "GIT_STATE.yaml").unlink()
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "git-ready"])

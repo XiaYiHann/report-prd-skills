@@ -49,7 +49,7 @@ def main() -> int:
     if (research_dir / "CURRENT").exists():
         epoch_dir = current_epoch_dir(research_dir)
         if epoch_dir.exists():
-            audit_mode = args.mode if args.mode in {"full", "epoch", "evidence", "paper-binding"} else "full"
+            audit_mode = args.mode if args.mode in {"full", "epoch", "format", "git", "evidence", "paper-binding"} else "full"
             results = run_epoch_audit_checks(research_dir, audit_mode)
             epoch_audit_dir = epoch_dir / "audits" / f"{args.date}-audit"
             epoch_audit_dir.mkdir(parents=True, exist_ok=True)

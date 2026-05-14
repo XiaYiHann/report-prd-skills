@@ -25,7 +25,7 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
     def test_completed_task_activates_next_task_without_passing_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             write_search_evidence(research_dir / "V0")
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
 
@@ -60,7 +60,7 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
     def test_gate_enters_audit_required_after_all_tasks_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             write_search_evidence(research_dir / "V0")
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
             queue = read_yaml(queue_path)
@@ -100,7 +100,7 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
     def test_failed_execution_does_not_falsify_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
 
             result = run_cmd(
                 [

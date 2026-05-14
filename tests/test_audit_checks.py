@@ -22,7 +22,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_evidence_audit_rejects_done_task_without_run_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
             queue["tasks"][0]["status"] = "done"
             write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
@@ -38,7 +38,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_evidence_audit_rejects_done_report_without_exit_code_and_artifact_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
             queue["tasks"][0]["status"] = "done"
             write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
@@ -64,7 +64,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_generate_research_audit_writes_machine_readable_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
 
             result = run_cmd(
                 [
@@ -91,7 +91,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_audit_ready_fails_when_evidence_hard_gate_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
             queue["tasks"][0]["status"] = "done"
             write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
@@ -104,7 +104,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_init_workspace_writes_audit_and_review_state_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             self.assertTrue((epoch / "AUDIT_QUEUE.yaml").exists())
             self.assertTrue((epoch / "HUMAN_REVIEW_REQUESTS.yaml").exists())
@@ -114,7 +114,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_audit_fails_completed_task_without_run_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             queue = read_yaml(epoch / "TASK_QUEUE.yaml")
             queue["tasks"][0]["status"] = "completed"
@@ -128,7 +128,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_audit_fails_mock_backed_paper_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             write_yaml(
                 epoch / "PAPER_CLAIM_LEDGER.yaml",
@@ -161,7 +161,7 @@ class AuditChecksTests(unittest.TestCase):  # noqa: F405
     def test_audit_fails_smoke_only_reproduction_backed_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             index = read_yaml(epoch / "reproduction" / "REPRODUCTION_INDEX.yaml")
             index["items"] = [

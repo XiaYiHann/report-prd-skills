@@ -10,7 +10,7 @@ class UpdateStateEvidenceTests(unittest.TestCase):  # noqa: F405
     def test_update_state_records_executor_commands_exit_code_and_artifact_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             runs = research_dir / "V0" / "runs"
             artifacts = research_dir / "V0" / "artifacts"
             runs.mkdir(parents=True, exist_ok=True)
@@ -78,7 +78,7 @@ class UpdateStateEvidenceTests(unittest.TestCase):  # noqa: F405
     def test_update_state_rejects_unknown_executor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            init_workspace(repo)
+            init_workspace_fast(repo)
 
             result = run_cmd(
                 [
@@ -102,7 +102,7 @@ class UpdateStateEvidenceTests(unittest.TestCase):  # noqa: F405
     def test_update_state_rejects_malformed_artifact_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            init_workspace(repo)
+            init_workspace_fast(repo)
 
             result = run_cmd(
                 [

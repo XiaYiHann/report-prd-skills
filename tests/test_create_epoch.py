@@ -10,7 +10,7 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
     def test_create_epoch_rejects_next_version_before_closeout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            init_workspace(repo)
+            init_workspace_fast(repo)
 
             result = run_cmd(
                 [
@@ -32,8 +32,7 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
     def test_create_epoch_from_closed_v0_creates_manifest_complete_v1(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
-            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            research_dir = init_workspace_closed_fast(repo)
 
             result = run_cmd(
                 [
@@ -51,19 +50,20 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
             current = (research_dir / "CURRENT").read_text(encoding="utf-8").strip()
             v1_prd_exists = (research_dir / "V1" / "PRD.md").exists()
+            v1_spine_exists = (research_dir / "V1" / "RESEARCH_SPINE.yaml").exists()
             v1_binding_exists = (research_dir / "V1" / "PAPER_BINDING_DECISION.md").exists()
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
         self.assertEqual(current, "V1")
         self.assertTrue(v1_prd_exists)
+        self.assertTrue(v1_spine_exists)
         self.assertTrue(v1_binding_exists)
 
     def test_create_epoch_does_not_copy_completed_queue_runs_or_binding_decision(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
-            make_epoch_closeout_complete(research_dir, final_status="closed_stable")
+            research_dir = init_workspace_closed_fast(repo)
             write_yaml(
                 research_dir / "V0" / "runs" / "TASK_999_report.yaml",
                 {"task": {"version": "V0", "task_id": "TASK_999", "status": "done"}},
