@@ -29,10 +29,16 @@ Closeout 负责进入下一轮或论文绑定
 
 ## 安装
 
-一行在线安装（默认安装 Claude Code skills + 项目 subagents）：
+一行在线安装（默认安装 Claude Code skills + 项目 subagents，**已存在则 skip**）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash
+```
+
+**强制更新到最新版本（覆盖已有文件）：**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/XiaYiHann/research-loop/main/install.sh | bash -s -- --force
 ```
 
 从本地 checkout 安装：
@@ -44,10 +50,11 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh
 常用选项：
 
 ```bash
-./install.sh --init-workspace   # 同时创建 docs/research/ epoch 工作区
-./install.sh --no-agents        # 只安装 skills
-./install.sh --force            # 覆盖已有目标文件
-./install.sh --dry-run          # 只打印计划，不写文件
+./install.sh                     # 默认安装 skills + agents（已存在则 skip）
+./install.sh --force             # 强制覆盖已有文件（更新到最新版本）
+./install.sh --init-workspace    # 同时创建 docs/research/ epoch 工作区
+./install.sh --no-agents         # 只安装 skills
+./install.sh --dry-run           # 只打印计划，不写文件
 ```
 
 安装后文件布局：
@@ -115,6 +122,7 @@ docs/research/
   INDEX.md
   V0/
     PRD.md
+    goal.md
     RESEARCH_SPINE.yaml
     SPEC.yaml
     PLAN.md
@@ -123,6 +131,10 @@ docs/research/
 
     LOOP_LOG.md
     GIT_STATE.yaml
+    git_log.md
+    AUDIT_QUEUE.yaml
+    HUMAN_REVIEW_REQUESTS.yaml
+    PAPER_CLAIM_LEDGER.yaml
     plans/
     runs/
       TASK_XXX_report.yaml    # 机器可读 YAML 运行报告
@@ -145,6 +157,15 @@ docs/research/
     research-audit.md
 ```
 
+关键 epoch 文件：
+
+| 文件 | 作用 |
+|------|------|
+| `Vn/goal.md` | 当前 epoch 的执行目标锚点：由 controller 在每次 loop 开始时读取，作为单步决策的上下文边界 |
+| `Vn/RESEARCH_SPINE.yaml` | 证据链绑定合同：`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section` 的硬约束映射 |
+| `Vn/PAPER_CLAIM_LEDGER.yaml` | 论文主张台账：记录每个 claim 的绑定状态（unbound / bound / audited / ready）和 evidence trace |
+| `Vn/HUMAN_REVIEW_REQUESTS.yaml` | 人类审查请求队列：文档撰写阶段遇到歧义时记录 blocker，等待用户决策 |
+
 关键执行工具：
 
 | 文件 | 作用 |
@@ -162,11 +183,12 @@ docs/research/
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
-5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-6. `docs/research/{CURRENT}/PRD.md`
-7. `docs/research/{CURRENT}/SPEC.yaml`
-8. `docs/research/{CURRENT}/PLAN.md`
+4. `docs/research/{CURRENT}/goal.md`
+5. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+6. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+7. `docs/research/{CURRENT}/PRD.md`
+8. `docs/research/{CURRENT}/SPEC.yaml`
+9. `docs/research/{CURRENT}/PLAN.md`
 
 ## 三阶段工作流
 
@@ -239,6 +261,12 @@ Terminology:
 - Harness: 验证 Task 的命令、输入、输出、artifact 和判定器。
 - Audit: Gate 或关键 Task 后的对抗性审查，P0/P1 失败会阻断推进。
 - Insight: 从运行、阻断、失败、异常或负结果中沉淀的证据化知识。
+
+### 文档撰写 vs 执行自治边界
+
+Agent 在**撰写文档阶段**（编写或修改 PRD、SPEC、PLAN、RESEARCH_SPINE、ai_loop_prompt.md、goal.md、CODEX_GOAL_TEMPLATE.md）遇到用户意图不明、要求自相矛盾、或需要做出影响研究方向/核心假设/基准选择的决定时，**必须停止并请求用户确认**，不得自行推断。
+
+Agent 在**执行阶段**（运行实验、编写代码、执行 harness、收集 artifact、运行测试、复现 baseline）遇到同样情况时，**不得停止询问用户偏好**，应自主推进，并仅对确实缺失的必需信息（dataset、seed、command、artifact 路径）记录 blocker。
 
 Gate-aware 状态枚举：
 
@@ -432,7 +460,9 @@ Explore
 
 - `direction-ready`
 - `epoch-ready`
+- `spine-ready`
 - `loop-ready`
+- `loop-prompt-ready`
 - `closeout-ready`
 - `paper-binding-ready`
 - `format-ready`
@@ -789,6 +819,8 @@ python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignm
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode format-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode migration-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode git-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode spine-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode loop-prompt-ready
 ```
 
 readiness mode 必须硬失败。scaffold 可以存在 blocker，但不能被当成 execution-ready。
