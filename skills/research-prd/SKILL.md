@@ -48,6 +48,28 @@ Do not include a visible `Reader Model and Usage` section. Treat that as an inte
 - Do not fabricate empirical findings, dataset details, baseline performance, metric values, or claim evidence.
 - **The PRD is the current best research hypothesis, not an immutable truth.** The agent may propose pivots based on execution evidence, but core RQ and claim changes require human approval.
 
+## Human Clarification Rules (PRD Writing)
+
+When writing or revising the PRD, the agent MUST stop and request human review before proceeding if any of the following conditions are met:
+
+1. **Ambiguous research question**: The user's stated goal can be interpreted as more than one distinct research question.
+2. **Contradictory constraints**: RESEARCH_DIRECTION.md, prior PRD sections, Paper, or Spec contain mutually exclusive requirements with no explicit priority rule.
+3. **Missing evidence boundary**: The user requests a claim but does not define what evidence would support or refute it.
+4. **Methodology divergence**: The proposed method deviates from the user's stated approach by more than a 15-degree pivot.
+5. **Scope expansion**: Adding a new section, benchmark, baseline, or experiment would exceed the current epoch's stated goal or RESEARCH_DIRECTION.md boundary.
+6. **Spine Matrix inconsistency**: A Claim ID lacks a bound Experiment ID and the agent cannot infer a reasonable default from PRD context.
+
+Do NOT silently resolve ambiguity by choosing the most convenient interpretation. Record the ambiguity as a blocker in `HUMAN_REVIEW_REQUESTS.yaml` or the PRD gap report, then stop and ask.
+
+## Epoch PRD (`Vn/PRD.md`)
+
+For the active epoch, `Vn/PRD.md` is a lightweight 11-section contract. It must include:
+
+- **Research Spine Matrix** as Section 2: a markdown table mapping `RQ ID -> Claim ID -> Experiment ID -> Evidence -> Figure/Table -> Paper Section` with a `Status` column (`planned` / `running` / `supported` / `missing` / `blocked`).
+- Every claim in the Spine Matrix must have at least one bound experiment before the PRD is considered `prd_locked`.
+- The Spine Matrix is the agent-facing execution contract; narrative sections (Core Question, Core Hypothesis, etc.) serve the matrix.
+- **RQ boundary rule**: Every `RQ ID` declared in the Spine Matrix must fall within the scope defined by `RESEARCH_DIRECTION.md`. If an RQ would expand beyond the research corridor, stop and request human review before adding it to the matrix.
+
 ## Validation
 
 ```bash

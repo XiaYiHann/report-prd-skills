@@ -7,7 +7,7 @@ description: "Use when a dated research execution run needs a bounded plan, AI l
 
 ## Overview
 
-Create bounded execution plans for the current epoch. New default outputs are `docs/research/{CURRENT}/PLAN.md` and `TASK_QUEUE.yaml`; legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `Vn/SPEC.yaml`; Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
+Create bounded execution plans for the current epoch. New default outputs are `docs/research/{CURRENT}/PLAN.md` and `TASK_QUEUE.yaml`; legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `Vn/SPEC.yaml` and bound by `Vn/RESEARCH_SPINE.yaml` (RQ → Claim → Experiment → Evidence); Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
 
 Plan prose, AI loop prompts, and run logs must be Chinese. `plan.yaml` keeps English keys and stable IDs, but explanatory values such as `purpose`, `forbidden_actions`, and `completion_condition` should be Chinese.
 
@@ -131,6 +131,8 @@ Git protocol:
 - 更新 current state、blocker、decision、run、final summary，并在 epoch workspace 中交给 `research-insight` 更新 `Vn/wiki/*`；
 - 禁止将 mock / planning 值当作已验证结果写入证据或论文结论；
 - required information 缺失时停止并记录 blocker；
+- 文档撰写阶段（编写或修改 PRD、SPEC、PLAN、RESEARCH_SPINE、ai_loop_prompt.md、goal.md、CODEX_GOAL_TEMPLATE.md）遇到用户意图不明、要求自相矛盾、或需要做出影响研究方向/核心假设/基准选择的决定时，必须停止并请求用户确认，不得自行推断；
+- 执行阶段（运行实验、编写代码、执行 harness、收集 artifact、运行测试）遇到同样情况时，不得停止询问用户偏好，应自主推进并仅对确实缺失的必需信息（dataset、seed、command、artifact 路径）记录 blocker；
 - 包含 `## Subagent Dispatch`，在需要专业 worker 时委派 Claude Code project-level subagent：
   - mathematical formulation or proof issue → `research-math`
   - literature / benchmark selection → `research-literature`

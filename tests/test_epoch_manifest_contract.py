@@ -42,6 +42,8 @@ class EpochManifestContractTests(unittest.TestCase):
             required,
             [
                 "PRD.md",
+                "goal.md",
+                "RESEARCH_SPINE.yaml",
                 "SPEC.yaml",
                 "PLAN.md",
                 "STATUS.yaml",

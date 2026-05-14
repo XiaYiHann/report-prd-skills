@@ -12,7 +12,7 @@
 阶段 2：自动执行      → AI 按 Gate 顺序自动执行所有 task，遇阻断才停，直到 closed_* 或 Paper Binding
 ```
 
-核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源（由 AI 在用户指导下生成）；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml` 只从 Spec 派生；`update_state.py` 在每次任务完成后原子更新 6 个状态文件；Git 记录真实工程变化；Paper 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
+核心原则：`RESEARCH_DIRECTION.md` 控制探索边界；`/research explore` 负责纯探索；当前 `Vn/PRD.md` 是当前 epoch 的研究真源（由 AI 在用户指导下生成）；`Vn/RESEARCH_SPINE.yaml` 是证据链绑定合同（RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section）；`Vn/SPEC.yaml` 是执行合同；`Vn/PLAN.md`、`Vn/TASK_QUEUE.yaml` 只从 Spec 派生；`update_state.py` 在每次任务完成后原子更新 6 个状态文件；Git 记录真实工程变化；Paper 只是表达层，不能反推实验、数据集、基线、指标、seed、任务、harness 或结果。
 
 系统名是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -115,6 +115,7 @@ docs/research/
   INDEX.md
   V0/
     PRD.md
+    RESEARCH_SPINE.yaml
     SPEC.yaml
     PLAN.md
     STATUS.yaml
@@ -161,7 +162,7 @@ docs/research/
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-
+4. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 6. `docs/research/{CURRENT}/PRD.md`
 7. `docs/research/{CURRENT}/SPEC.yaml`

@@ -57,6 +57,7 @@ The command creates the new default structure:
 - `docs/research/explore/proposals/*`
 - `docs/research/V0/goal.md`
 - `docs/research/V0/PRD.md`
+- `docs/research/V0/RESEARCH_SPINE.yaml`
 - `docs/research/V0/SPEC.yaml`
 - `docs/research/V0/PLAN.md`
 - `docs/research/V0/STATUS.yaml`

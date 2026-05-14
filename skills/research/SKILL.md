@@ -22,6 +22,7 @@ It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and rep
 `RESEARCH_DIRECTION.md` constrains exploration.  
 `CURRENT` resolves the active epoch.  
 `Vn/PRD.md` defines the current research truth.  
+`Vn/RESEARCH_SPINE.yaml` binds the evidence chain (RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section).  
 `Vn/SPEC.yaml` constrains execution.  
 `Vn/PLAN.md` schedules execution.  
 `Vn/TASK_QUEUE.yaml` defines available work.  
@@ -35,18 +36,18 @@ Closeout controls next version or Paper Binding.
 Authority chain:
 
 ```text
-RESEARCH_DIRECTION.md
+RESEARCH_DIRECTION.md (研究走廊边界，所有 RQ 必须落在其范围内)
   -> CURRENT
   -> Vn/goal.md
   -> Vn/PRD.md
-  -> Vn/SPEC.yaml
-  -> Vn/PLAN.md
-  -> Vn/TASK_QUEUE.yaml
-  -> Vn/TASK_QUEUE.yaml
-  -> Vn/runs + Vn/artifacts
-  -> Vn/audits
-  -> research-insight
-  -> Vn/wiki
+    -> Vn/RESEARCH_SPINE.yaml (RQ 必须绑定 direction_ref 到 RESEARCH_DIRECTION.md)
+      -> Vn/SPEC.yaml
+      -> Vn/PLAN.md
+      -> Vn/TASK_QUEUE.yaml
+      -> Vn/runs + Vn/artifacts
+      -> Vn/audits
+      -> research-insight
+      -> Vn/wiki
   -> Vn/closeout.md
   -> Vn+1/PRD.md 或 paper binding
 ```
@@ -57,6 +58,7 @@ Every `/research` run must first read:
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
 4. `docs/research/{CURRENT}/goal.md`
+5. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
 6. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 7. `docs/research/{CURRENT}/PRD.md`
 8. `docs/research/{CURRENT}/SPEC.yaml`
@@ -116,6 +118,9 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - Do not treat `failed_execution` or `failed_harness` as research falsification. Classify failures using `docs/research/agent/FAILURE_TRIAGE_POLICY.md`.
 - If spec is incomplete but PRD is clear, repair spec and regenerate the plan.
 - If PRD is ambiguous or a research hypothesis is challenged, stop and request human review.
+- **Document-writing vs Execution autonomy boundary**:
+  - When writing, editing, or compiling research documents (PRD, SPEC, PLAN, RESEARCH_SPINE, ai_loop_prompt.md, goal.md, CODEX_GOAL_TEMPLATE.md), if user intent is unclear, contradictory, or a decision would change the research direction, core hypothesis, baseline selection, metric choice, or evidence boundary: **stop and ask the user before proceeding**. Do not choose the most convenient interpretation.
+  - When executing the active task (running experiments, writing implementation code, running harnesses, collecting artifacts, running tests, reproducing baselines): **do not stop to ask for preference clarification**. Proceed autonomously. Record blockers only for missing required information (dataset paths, commands, seeds, artifacts), not for ambiguous design choices.
 
 ## Ralph Loop Integration
 
@@ -213,8 +218,9 @@ Conflict resolution: If `STATUS.yaml` and `PAPER_BINDING_DECISION.md` disagree, 
 - `docs/research/Vn/wiki/*`
 - `docs/research/Vn/closeout.md`
 - `docs/research/Vn/PAPER_BINDING_DECISION.md`
-- `docs/research/state.yaml`
-- `docs/research/plans/plan_queue.yaml`
+- `docs/research/Vn/STATUS.yaml` (per-epoch state; legacy `state.yaml` is fallback only)
+- `docs/research/Vn/TASK_QUEUE.yaml`
+- `docs/research/plans/plan_queue.yaml` (legacy)
 - dated plans under `docs/research/plans/YYYY-MM-DD-purpose/`
 - audit reports under `docs/research/audits/YYYY-MM-DD-audit/`
 - legacy insight logs under `docs/research/insights/`
@@ -257,7 +263,7 @@ Codex / Claude Code are the supported agent executors. They read the active task
 
 Terms used across the research skill family with precise operational definitions:
 
-- **Research Corridor** — The scope declared in `RESEARCH_DIRECTION.md` plus the current epoch's `Vn/PRD.md`. If those files are absent, the agent must stop and request human clarification rather than guessing the boundary.
+- **Research Corridor** — The scope declared in `RESEARCH_DIRECTION.md` plus the current epoch's `Vn/PRD.md` and `Vn/RESEARCH_SPINE.yaml`. If those files are absent, the agent must stop and request human clarification rather than guessing the boundary.
 - **backend** — An independent resident execution environment (e.g., a daemon, server, or persistent compute layer) that runs experiments, harnesses, or generates empirical evidence. The `research` skill does not provide such a backend; Codex / Claude Code are the agent executors.
 - **Charter-bounded** — The epoch loop is constrained by a human-approved research charter (`RESEARCH_DIRECTION.md`). Agents may not modify the charter or explore outside its scope without explicit human instruction.
 - **工程问题 (engineering issue)** — Bug fixes, path corrections, reruns, minor spec field fixes, paper placeholder fixes, or stale-plan regeneration. These stay in the current version.

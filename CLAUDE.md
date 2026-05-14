@@ -2,6 +2,7 @@
 
 - Always read `docs/research/RESEARCH_DIRECTION.md`.
 - Resolve current epoch from `docs/research/CURRENT`.
+- Read `docs/research/{CURRENT}/RESEARCH_SPINE.yaml` to understand the evidence-bound research spine (RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section).
 - Execute only the active task from `docs/research/{CURRENT}/TASK_QUEUE.yaml` unless user explicitly overrides.
 - Keep all exploration inside Research Corridor.
 - Never fabricate execution, artifact, benchmark, or paper result.

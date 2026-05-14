@@ -5,7 +5,8 @@ Codex 每次工作先读：
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+4. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 
 任务风格：
 

@@ -7,7 +7,7 @@ description: "Use when docs/research/spec needs execution contracts, manifests, 
 
 ## Overview
 
-Compile the active epoch PRD into `docs/research/{CURRENT}/SPEC.yaml`. Legacy `docs/research/spec/` remains supported, but the default contract now lives inside the current `Vn`. The spec is the only source for executable experiments, tasks, gates, harnesses, artifacts, and evidence contracts.
+Compile the active epoch PRD into `docs/research/{CURRENT}/SPEC.yaml`, bound by `RESEARCH_SPINE.yaml`. Legacy `docs/research/spec/` remains supported, but the default contract now lives inside the current `Vn`. The spec is the only source for executable experiments, tasks, gates, harnesses, artifacts, and evidence contracts.
 
 Use English YAML keys and stable IDs for parser compatibility, but write explanatory values in Chinese: `title`, `description`, `purpose`, `notes`, `blockers`, `acceptance_criteria`, `repair`, gap reports, and policy explanations.
 
@@ -23,6 +23,7 @@ Build the chain:
 RESEARCH_DIRECTION.md
   -> CURRENT
   -> Vn/PRD.md
+  -> Vn/RESEARCH_SPINE.yaml
   -> Vn/SPEC.yaml
   -> Vn/PLAN.md
   -> Vn/TASK_QUEUE.yaml
@@ -40,6 +41,18 @@ The authority chain now explicitly includes the **Insight Feedback Loop**. Exper
 Do not infer experiments from the paper. Paper placeholders can be checked against the spec, but they cannot create executable work.
 
 When the PRD lacks required details, record the missing contract in a Chinese gap report or blocker. Do not invent datasets, baselines, metrics, seeds, commands, artifact paths, reproduction modes, or empirical results.
+
+## Human Clarification Rules (Spec Compilation)
+
+When compiling `SPEC.yaml` from PRD, the agent MUST stop and request human review if:
+
+1. **PRD ambiguity**: The PRD contains conflicting or underspecified experiment designs, dataset choices, baseline definitions, metric selections, or seed protocols.
+2. **Spine Matrix gap**: A Claim ID in the Spine Matrix lacks a bound Experiment ID and the agent cannot infer a reasonable default from PRD context.
+3. **Scope uncertainty**: Compiling the spec would require adding a new gate, harness, or experiment that is not explicitly implied by the PRD.
+4. **Policy contradiction**: The PRD's stated anti-mock policy or evidence rules contradict the default spec template, requiring a human-priority decision.
+5. **Reproduction mode ambiguity**: The PRD references a baseline but does not specify `official_code_reuse`, `official_code_adaptation`, or `paper_based_reimplementation`.
+
+Do NOT invent datasets, baselines, metrics, seeds, commands, artifact paths, reproduction modes, or harness parameters to fill gaps. Record the gap in `spec/reproduction_gap_report.md` or `HUMAN_REVIEW_REQUESTS.yaml`, then stop and ask.
 
 ## Required Layout
 

@@ -26,6 +26,8 @@ Gate-aware audit must distinguish execution failure from research falsification.
 
 Reproduction audit uses `docs/research/agent/REPRODUCTION_POLICY.md` as the authoritative source for reproduction types, status values, and evidence levels. It uses `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md` as the execution standard for gatekeeper output format and claim support rules. Both skills must keep these two files aligned. It must inspect `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
 
+**PAPER_CLAIM_LEDGER.yaml vs RESEARCH_SPINE.yaml**: `RESEARCH_SPINE.yaml` is the planning spine (RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section). `PAPER_CLAIM_LEDGER.yaml` is the binding gate: it records which claims are `allowed` to enter the paper, their reproduction evidence compatibility, and audit status. Audit must verify that every `allowed` claim in the Ledger has a corresponding entry in the Spine and meets reproduction evidence requirements.
+
 ## Skill Invocation Contract
 
 Conceptual command forms:
@@ -45,13 +47,13 @@ Conceptual command forms:
 
 ## Audit Modes
 
-- `format` — checks epoch_v1 files, template metadata, agent docs, `AGENTS.md`, `CLAUDE.md`. **(planned — not yet implemented in `generate_research_audit.py`; falls back to `full`)**
-- `migration` — detects legacy flat layout and writes migration guidance.
+- `format` — checks epoch_v1 file structure, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`. Returns PASS/WARN/FAIL with P0/P1 severity.
+- `migration` — detects workspace type (`unknown`, `legacy_flat`, `mixed`, `epoch_v1`) and writes detailed `MIGRATION_AUDIT.md` + `MIGRATION_PLAN.md` with phase-by-phase guidance, including how to bind `direction_ref` and populate the Spine Matrix. Does not default to moving old artifacts or rewriting research claims.
 - `epoch` — checks current `Vn` authority chain, task queue, next action, wiki, closeout.
-- `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits. **(planned — not yet implemented in `generate_research_audit.py`; falls back to `full`)**
+- `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits.
 - `evidence` — checks artifact/evidence eligibility and anti-mock rules.
 - `paper-binding` — checks Paper Binding gates.
-- `full` — runs all relevant audit families.
+- `full` — runs all relevant audit families (epoch schema + format + evidence).
 
 CLI scaffold:
 
@@ -75,10 +77,15 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Was `Vn+1` created before current `Vn/closeout.md` and closed status?
 - PRD updated but paper not updated?
 - PRD updated but spec not updated?
+- PRD updated but `RESEARCH_SPINE.yaml` is stale (source_prd_hash mismatch)?
 - Spec updated but existing plan is stale?
 - Paper has an experiment not in spec?
 - Plan has a task or harness not in spec?
 - Spec has an experiment not in PRD?
+- Does `RESEARCH_SPINE.yaml` set `direction_ref` to a valid `RESEARCH_DIRECTION.md`?
+- Does `RESEARCH_SPINE.yaml` have broken RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section links?
+- Does every RQ in `RESEARCH_SPINE.yaml` fall within the scope declared in `RESEARCH_DIRECTION.md`?
+- Does every claim in `RESEARCH_SPINE.yaml` trace to at least one experiment and one evidence artifact?
 - Do full experiments declare and verify real dataset provenance, real model/code provenance, frozen split, and non-smoke execution?
 - Does any claim-supporting reproduction rely only on smoke, mock, toy, synthetic, stub, cached, or proxy output?
 - Are there current-epoch insights in `Vn/wiki/*` not reflected in Spec, Plan, closeout, or Paper Binding decisions?

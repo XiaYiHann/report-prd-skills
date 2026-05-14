@@ -35,10 +35,12 @@ Paper Binding can happen only when all conditions hold:
 - `Vn/closeout.md` exists;
 - `Vn/PAPER_BINDING_DECISION.md` sets `paper_binding_ready: true`;
 - paper claim does not exceed `Vn/closeout.md`;
+- every paper claim must trace forward to a Figure/Table and backward to Evidence via `Vn/RESEARCH_SPINE.yaml`;
 - exploratory insight is used only for motivation / discussion, not main result;
 - prompt-only scaffold is not used as experiment result;
 - no unresolved negative result undermines the claim;
 - artifact, run record, metric, baseline, seed protocol, audit status, real data check, real model/code check, and non-smoke full-run check support the claim.
+- `PAPER_CLAIM_LEDGER.yaml` is the authoritative gate for which claims may enter the paper. It is distinct from `RESEARCH_SPINE.yaml` (planning/discovery spine): the Ledger tracks claim status (`allowed`, `blocked`, `pending_audit`) and reproduction evidence compatibility. Paper binding must not exceed the Ledger.
 - `PAPER_BINDING_DECISION.md` records `real_data_check`, `real_model_check`, and `non_smoke_full_run` for every allowed claim.
 - `PAPER_BINDING_DECISION.md` records source commit, paper binding commit, and paper binding tag when Git is enabled.
 - working tree is clean unless an explicit dirty-tree blocker/justification is recorded.

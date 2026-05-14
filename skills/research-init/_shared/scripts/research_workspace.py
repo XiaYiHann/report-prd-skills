@@ -2023,41 +2023,53 @@ def epoch_prd_template(version: str, title: str, purpose: str) -> str:
 - source_direction: `../RESEARCH_DIRECTION.md`
 - epoch_goal: `{purpose}`
 
-## 2. Core Question
+## 2. Research Spine Matrix
+
+> 本表是 PRD 的 agent-facing 执行合同。每个 RQ 必须产生 Claim；每个 Claim 必须绑定 Experiment；每个 Experiment 必须产出 Evidence；Evidence 必须进入 Figure/Table；Figure/Table 必须支撑 Paper Section。
+
+| RQ ID | Research Question | Claim ID | Claim | Experiment ID | Evidence Required | Figure/Table | Paper Section | Status |
+|---|---|---|---|---|---|---|---|---|
+| RQ1 | `【待填写】` | C1 | `【待填写】` | E1 | `【待填写】` | Fig. 1 | Sec. 3.1 | planned |
+
+- status 枚举: `planned` / `running` / `supported` / `missing` / `blocked`
+- 任何 claim 没有绑定 experiment 时，系统视为 `blocked`
+- 任何 experiment 没有产出 evidence 时，系统视为 `missing`
+
+## 3. Core Question
 
 `【待填写：本轮核心问题是什么】`
 
-## 3. Core Hypothesis
+## 4. Core Hypothesis
 
 `【待填写：本轮核心假设是什么】`
 
-## 4. Validation Target
+## 5. Validation Target
 
 `【待填写：本轮要验证什么】`
 
-## 5. Minimal Experiment
+## 6. Minimal Experiment
 
 `【待填写：本轮最小实验是什么】`
 
-## 6. Success Conditions
+## 7. Success Conditions
 
 - `【待填写：本轮成功条件】`
 
-## 7. Failure Conditions
+## 8. Failure Conditions
 
 - `【待填写：本轮失败条件】`
 
-## 8. Non-goals
+## 9. Non-goals
 
 - `【待填写：本轮不做什么】`
 
-## 9. Stop / Next / Paper Binding Decision
+## 10. Stop / Next / Paper Binding Decision
 
 - stop_condition: `【待填写：何时停止项目】`
 - next_version_condition: `【待填写：何时创建下一版本】`
 - paper_binding_condition: `【待填写：何时允许 Paper Binding】`
 
-## 10. Carry Forward From Older Versions
+## 11. Carry Forward From Older Versions
 
 - carry_forward: []
 - rule: 旧版本 artifact 不能直接支持当前版本 claim，除非本节或 `SPEC.yaml` 显式登记。
@@ -2174,6 +2186,21 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
     }
 
 
+def epoch_spine_payload(version: str) -> dict[str, Any]:
+    return {
+        **template_metadata(),
+        "version": version,
+        "direction_ref": "../RESEARCH_DIRECTION.md",
+        "source_prd_hash": None,
+        "research_questions": [],
+        "claims": [],
+        "experiments": [],
+        "evidence": [],
+        "figures_tables": [],
+        "paper_sections": [],
+    }
+
+
 def default_reproduction_contract(version: str) -> dict[str, Any]:
     return {
         "required": True,
@@ -2238,6 +2265,7 @@ loop_rules:
   - "If no active task exists, generate one from PLAN.md or close version."
   - "Do not start a new version unless current version is closed."
   - "Stay inside RESEARCH_DIRECTION.md."
+  - "文档撰写阶段遇到用户意图不明或要求自相矛盾时，必须停止并请求用户确认；执行阶段不得停止询问，应自主推进并仅对确实缺失的必需信息记录 blocker。"
 codex_goal_rules:
   - "Codex goal must name one concrete deliverable."
   - "Codex must run tests when code changes."
@@ -2282,6 +2310,48 @@ subagent_triggers:
 ## Execution Phases
 
 Frame -> Contract -> Plan -> Execute -> Gate -> Interpret -> Wiki -> Closeout -> Next Version or Paper Binding
+"""
+
+
+def epoch_goal_template(version: str, title: str, purpose: str) -> str:
+    return f"""---
+version: {version}
+language: zh-CN
+style: formal_academic
+evidence_rule: no_fabrication
+gate_strategy: sequential_only
+commit_policy: per_gate_or_blocker
+---
+
+# {version} Goal — {title}
+
+> **本文件是版本总纲（version-level anchor），不是当前任务（task-level）文件。**
+> 它定义整个 `{version}` 的总体使命、全局约束和成功标准。只有在版本核心问题或范围发生偏移时才修改。
+
+## 工作目录
+在 `{{repo_path}}` 工作。
+
+## 全局约束
+- 全程中文、正式学术风格。
+- 遵守 AGENTS.md：TDD、最小实现、证据分层。
+- 禁止伪造实验、stdout、artifact、hash。
+- 禁止把 design intent 写成 repo-observed fact。
+- 不要手改 generated artifacts。
+
+## 版本目标（Overall Mission for {version}）
+{purpose}
+
+**核心研究问题**：【待填写：用一句可证伪命题表达。这是整个 {version} 要回答的问题，不是当前任务。】
+
+**预期交付物**：【待填写：方法、基准、系统、理论或分析贡献】
+
+**版本成功标准**：【待填写：什么条件下 {version} 可以 closeout】
+
+## 总规则
+- 每次只推进最早未完成 gate，不跳 gate。
+- 每个 gate 流程：preflight → execution → audit → wiki/state update → commit。
+- 失败要分类为 blocked / failed_execution / failed_harness / diagnostic。
+- 不要直接说研究假设被证伪，除非有完整 harness 与审计。
 """
 
 
@@ -6801,11 +6871,100 @@ def validate_alignment(research_dir: Path) -> Validation:
     return validation
 
 
+def validate_spine(research_dir: Path) -> Validation:
+    validation = Validation()
+    epoch_dir = current_epoch_dir(research_dir)
+    if not epoch_dir:
+        validation.error("no current epoch")
+        return validation
+    spine_path = epoch_dir / "RESEARCH_SPINE.yaml"
+    if not validation.require_file(spine_path, "RESEARCH_SPINE.yaml"):
+        return validation
+    spine = load_yaml(spine_path)
+    if not isinstance(spine, dict):
+        validation.error("RESEARCH_SPINE.yaml must be a YAML mapping")
+        return validation
+    version = epoch_dir.name
+    if spine.get("version") != version:
+        validation.error(f"RESEARCH_SPINE.yaml version {spine.get('version')} does not match epoch {version}")
+    direction_ref = spine.get("direction_ref")
+    if not direction_ref:
+        validation.error("RESEARCH_SPINE.yaml missing required field: direction_ref")
+    else:
+        direction_path = epoch_dir / str(direction_ref)
+        if not direction_path.exists():
+            validation.error(f"RESEARCH_SPINE.yaml direction_ref points to non-existent file: {direction_ref}")
+    for list_key in ["research_questions", "claims", "experiments", "evidence", "figures_tables", "paper_sections"]:
+        if list_key not in spine:
+            validation.error(f"RESEARCH_SPINE.yaml missing required field: {list_key}")
+        elif not isinstance(spine.get(list_key), list):
+            validation.error(f"RESEARCH_SPINE.yaml field {list_key} must be a list")
+
+    rqs = {str(r.get("id")) for r in as_list(spine.get("research_questions")) if isinstance(r, dict) and r.get("id")}
+    claims = {str(c.get("id")) for c in as_list(spine.get("claims")) if isinstance(c, dict) and c.get("id")}
+    experiments = {str(e.get("id")) for e in as_list(spine.get("experiments")) if isinstance(e, dict) and e.get("id")}
+    evidence = {str(ev.get("id")) for ev in as_list(spine.get("evidence")) if isinstance(ev, dict) and ev.get("id")}
+    figures = {str(f.get("id")) for f in as_list(spine.get("figures_tables")) if isinstance(f, dict) and f.get("id")}
+
+    for claim in as_list(spine.get("claims")):
+        if not isinstance(claim, dict):
+            continue
+        rq_id = str(claim.get("rq_id") or "")
+        if rq_id and rq_id not in rqs:
+            validation.error(f"spine claim {claim.get('id')} references unknown rq_id: {rq_id}")
+
+    for exp in as_list(spine.get("experiments")):
+        if not isinstance(exp, dict):
+            continue
+        for cid in as_list(exp.get("claim_ids")):
+            if str(cid) not in claims:
+                validation.error(f"spine experiment {exp.get('id')} references unknown claim_id: {cid}")
+
+    for ev in as_list(spine.get("evidence")):
+        if not isinstance(ev, dict):
+            continue
+        eid = str(ev.get("experiment_id") or "")
+        if eid and eid not in experiments:
+            validation.error(f"spine evidence {ev.get('id')} references unknown experiment_id: {eid}")
+
+    for fig in as_list(spine.get("figures_tables")):
+        if not isinstance(fig, dict):
+            continue
+        for eid in as_list(fig.get("evidence_ids")):
+            if str(eid) not in evidence:
+                validation.error(f"spine figure/table {fig.get('id')} references unknown evidence_id: {eid}")
+
+    for sec in as_list(spine.get("paper_sections")):
+        if not isinstance(sec, dict):
+            continue
+        for cid in as_list(sec.get("claims")):
+            if str(cid) not in claims:
+                validation.error(f"spine paper_section {sec.get('id')} references unknown claim_id: {cid}")
+        for fid in as_list(sec.get("figures_tables")):
+            if str(fid) not in figures:
+                validation.error(f"spine paper_section {sec.get('id')} references unknown figure/table_id: {fid}")
+
+    spec_path = epoch_dir / "SPEC.yaml"
+    if spec_path.exists():
+        spec = load_yaml(spec_path)
+        spec_experiments = {str(e.get("id")) for e in as_list(spec.get("experiments")) if isinstance(e, dict) and e.get("id")}
+        for eid in experiments:
+            if eid not in spec_experiments:
+                validation.error(f"spine experiment {eid} missing from SPEC.yaml experiments")
+        for seid in spec_experiments:
+            if seid not in experiments:
+                validation.warn(f"SPEC.yaml experiment {seid} not declared in RESEARCH_SPINE.yaml")
+
+    return validation
+
+
 def validate_research(research_dir: Path, mode: str) -> Validation:
     validators = {
         "direction-ready": validate_direction_ready,
         "epoch-ready": validate_epoch_ready,
         "loop-ready": validate_loop_ready,
+        "spine-ready": validate_spine,
+        "loop-prompt-ready": validate_loop_prompt_ready,
         "closeout-ready": validate_closeout_ready,
         "paper-binding-ready": validate_paper_binding_ready,
         "format-ready": validate_format_ready,

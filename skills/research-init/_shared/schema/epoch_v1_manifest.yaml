@@ -2,6 +2,8 @@ schema_version: epoch_v1
 epoch_dir_pattern: 'V\d+'
 required_files:
   - PRD.md
+  - goal.md
+  - RESEARCH_SPINE.yaml
   - SPEC.yaml
   - PLAN.md
   - STATUS.yaml
@@ -44,6 +46,16 @@ required_wiki_files:
   - next_version_seed.md
   - insight_index.yaml
 yaml_required_fields:
+  RESEARCH_SPINE.yaml:
+    - template_version
+    - version
+    - direction_ref
+    - research_questions
+    - claims
+    - experiments
+    - evidence
+    - figures_tables
+    - paper_sections
   STATUS.yaml:
     - template_version
     - version

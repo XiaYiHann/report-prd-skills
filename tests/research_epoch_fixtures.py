@@ -3,7 +3,13 @@
 
 from __future__ import annotations
 
+import atexit
+import shutil
+import tempfile
+from pathlib import Path
+
 from research_workflow_common import *  # noqa: F403
+from research_workflow_common import _get_plain_template  # noqa: F401
 
 
 def approve_research_direction(research_dir: Path) -> None:
@@ -179,3 +185,24 @@ Each allowed claim is bound above.
 """,
         encoding="utf-8",
     )
+
+
+_closed_template: Path | None = None
+
+
+def _get_closed_template() -> Path:
+    global _closed_template
+    if _closed_template is None:
+        plain = _get_plain_template()
+        tmp = Path(tempfile.mkdtemp(prefix="research_closed_template_"))
+        shutil.copytree(plain, tmp, dirs_exist_ok=True)
+        make_epoch_closeout_complete(tmp / "docs" / "research", final_status="closed_stable")
+        _closed_template = tmp
+        atexit.register(shutil.rmtree, str(tmp), ignore_errors=True)
+    return _closed_template
+
+
+def init_workspace_closed_fast(repo: Path) -> Path:
+    template = _get_closed_template()
+    shutil.copytree(template, repo, dirs_exist_ok=True)
+    return repo / "docs" / "research"
