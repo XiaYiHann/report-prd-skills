@@ -9,7 +9,7 @@ from research_workflow_helpers import *  # noqa: F403
 class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
     def test_spec_ready_accepts_real_data_model_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "spec-ready"])
@@ -18,7 +18,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_valid_paper_placeholders_pass_paper_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             make_valid_paper(research_dir)
 
@@ -29,7 +29,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_invalid_paper_fake_results_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             make_valid_paper(research_dir)
             paper = research_dir / "paper" / "planned_paper.md"
@@ -42,7 +42,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_invalid_paper_unbound_placeholder_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             make_valid_paper(research_dir)
             paper = research_dir / "paper" / "planned_paper.md"
@@ -55,7 +55,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_spec_ready_rejects_missing_experiment_harness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             harness_path = research_dir / "spec" / "experiments" / "experiment_harness.yaml"
             harness_payload = read_yaml(harness_path)
@@ -69,7 +69,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_spec_ready_rejects_mock_dataset_for_full_experiment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             dataset_path = research_dir / "spec" / "shared" / "dataset_manifest.yaml"
             payload = read_yaml(dataset_path)
@@ -85,7 +85,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_spec_ready_rejects_mock_model_for_full_experiment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             model_path = research_dir / "spec" / "shared" / "model_manifest.yaml"
             payload = read_yaml(model_path)
@@ -101,7 +101,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_spec_ready_rejects_full_experiment_without_real_data_model_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             harness_path = research_dir / "spec" / "experiments" / "experiment_harness.yaml"
             payload = read_yaml(harness_path)
@@ -123,7 +123,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_spec_ready_rejects_claim_supporting_reproduction_without_full_real_harness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             reproduction_path = research_dir / "spec" / "reproduction" / "reproduction_manifest.yaml"
             reproduction = read_yaml(reproduction_path)
@@ -140,7 +140,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
     def test_plan_ready_rejects_stale_spec_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             make_execution_ready_spec(research_dir)
             make_valid_paper(research_dir)
             result = run_cmd(
@@ -159,8 +159,12 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
                 cwd=repo,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            spec = research_dir / "spec" / "global_spec.yaml"
-            spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+            epoch_spec = research_dir / "V0" / "SPEC.yaml"
+            if epoch_spec.exists():
+                epoch_spec.write_text(epoch_spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+            else:
+                spec = research_dir / "spec" / "global_spec.yaml"
+                spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
 
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "plan-ready"])
 
@@ -169,7 +173,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_insight_ready_validates_insight_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
 
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "insight-ready"])
@@ -183,7 +187,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
 
     def test_audit_generation_produces_required_alignment_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             make_execution_ready_spec(research_dir)
             make_valid_paper(research_dir)
             result = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--date", "2026-05-09"])
@@ -207,13 +211,14 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             self.assertIn("Research Direction completeness", repair)
             self.assertIn("Insight opportunity", repair)
 
+            approve_research_direction(research_dir)
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "audit-ready"])
 
             self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
 
     def test_audit_reports_missing_direction_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             approve_research_direction(research_dir)
             direction = research_dir / "RESEARCH_DIRECTION.md"
             text = direction.read_text(encoding="utf-8")

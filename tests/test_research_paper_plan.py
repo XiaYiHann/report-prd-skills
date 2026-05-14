@@ -10,7 +10,7 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
     def test_research_paper_script_uses_full_template_and_spec_bound_placeholders(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             make_execution_ready_spec(research_dir)
 
             result = run_cmd(["python3", str(PAPER_SCRIPT), "--research-dir", str(research_dir), "--force"], cwd=repo)
@@ -35,7 +35,7 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
     def test_research_paper_demo_generates_placeholder_complete_manuscript(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
 
             result = run_cmd(
                 ["python3", str(PAPER_SCRIPT), "--research-dir", str(research_dir), "--demo", "--force"],
@@ -74,7 +74,7 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
     def test_research_plan_outputs_chinese_executor_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             make_execution_ready_spec(research_dir)
 
             result = run_cmd(
@@ -94,7 +94,7 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-            plan_dir = research_dir / "plans" / "2026-05-09-reproduce-b01"
+            plan_dir = plan_dir_for(research_dir, "2026-05-09-reproduce-b01")
             plan_yaml = read_yaml(plan_dir / "plan.yaml")
             plan_md = (plan_dir / "plan.md").read_text(encoding="utf-8")
             prompt = (plan_dir / "ai_loop_prompt.md").read_text(encoding="utf-8")
@@ -124,7 +124,7 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
     def test_research_plan_accepts_insight_feedback_track(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             make_execution_ready_spec(research_dir)
 
             result = run_cmd(
@@ -144,4 +144,4 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
             )
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertTrue((research_dir / "plans" / "2026-05-09-review-negative-result" / "plan.yaml").exists())
+            self.assertTrue((plan_dir_for(research_dir, "2026-05-09-review-negative-result") / "plan.yaml").exists())

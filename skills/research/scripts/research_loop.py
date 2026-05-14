@@ -30,6 +30,7 @@ sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 from research_workspace import (  # noqa: E402
     PRD_SECTIONS,
     SPEC_FILES,
+    current_epoch_name,
     generate_audit,
     generate_paper,
     generate_plan,
@@ -318,10 +319,16 @@ class ResearchLoop:
         return result
 
     def plan_dirs(self) -> list[Path]:
-        plans_dir = self.research_dir / "plans"
-        if not plans_dir.exists():
-            return []
-        return sorted(path for path in plans_dir.iterdir() if path.is_dir() and (path / "plan.yaml").exists())
+        dirs: list[Path] = []
+        legacy_plans = self.research_dir / "plans"
+        if legacy_plans.exists():
+            dirs.extend(path for path in legacy_plans.iterdir() if path.is_dir() and (path / "plan.yaml").exists())
+        version = current_epoch_name(self.research_dir)
+        if version:
+            epoch_plans = self.research_dir / version / "plans"
+            if epoch_plans.exists():
+                dirs.extend(path for path in epoch_plans.iterdir() if path.is_dir() and (path / "plan.yaml").exists())
+        return sorted(dirs, key=lambda p: p.name)
 
     def detect_plan(self) -> PlanStatus:
         state = load_yaml(self.research_dir / "state.yaml")
@@ -329,9 +336,10 @@ class ResearchLoop:
         active_name = state_plans.get("active") if isinstance(state_plans.get("active"), str) else None
         plan_dirs = self.plan_dirs()
         if active_name:
-            active_dir = self.research_dir / "plans" / active_name
-            if (active_dir / "plan.yaml").exists():
-                return self.inspect_plan(active_dir)
+            for prefix in [self.research_dir / "plans", self.research_dir / current_epoch_name(self.research_dir) / "plans"]:
+                active_dir = prefix / active_name
+                if (active_dir / "plan.yaml").exists():
+                    return self.inspect_plan(active_dir)
         for plan_dir in reversed(plan_dirs):
             status = self.inspect_plan(plan_dir)
             if status.status in {"active", "blocked", "complete", "stale"}:
@@ -363,8 +371,9 @@ class ResearchLoop:
     def plan_stale_findings(self, plan_dir: Path, payload: dict[str, Any]) -> list[str]:
         versions = payload.get("source_versions", {}) if isinstance(payload.get("source_versions"), dict) else {}
         findings = []
-        current_spec_hash = hash_path(self.research_dir / "spec")
-        current_prd_hash = hash_path(self.research_dir / "prd")
+        version = (self.research_dir / "CURRENT").read_text(encoding="utf-8").strip() if (self.research_dir / "CURRENT").exists() else ""
+        current_spec_hash = hash_path(self.research_dir / version / "SPEC.yaml") if version else hash_path(self.research_dir / "spec")
+        current_prd_hash = hash_path(self.research_dir / version / "PRD.md") if version else hash_path(self.research_dir / "prd")
         current_paper_hash = hash_path(self.research_dir / "paper")
         if versions.get("spec_hash") and versions.get("spec_hash") != current_spec_hash:
             findings.append(f"active plan {plan_dir.name} has stale spec hash")

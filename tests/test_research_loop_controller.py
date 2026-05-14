@@ -45,7 +45,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_prd_not_approved_stops_before_spec_automation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
 
             result = run_cmd(
                 ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
@@ -62,7 +62,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_prd_ready_spec_missing_generates_spec_scaffold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             mark_prd_human_approved(research_dir)
             shutil.rmtree(research_dir / "spec")
 
@@ -81,7 +81,8 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_spec_ready_no_plan_generates_queue_and_next_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
+            approve_research_direction(research_dir)
             mark_prd_human_approved(research_dir)
             make_execution_ready_spec(research_dir)
 
@@ -96,13 +97,14 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             state = read_yaml(research_dir / "state.yaml")
             active_plan = state["plans"]["active"]
             self.assertIsNotNone(active_plan)
-            self.assertTrue((research_dir / "plans" / active_plan / "plan.yaml").exists())
+            self.assertTrue((plan_dir_for(research_dir, active_plan) / "plan.yaml").exists())
             self.assertEqual(state["project_status"]["current_stage"], "S4_EXECUTING_PLAN")
 
     def test_research_loop_active_plan_complete_writes_feedback_insight_and_audit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
+            approve_research_direction(research_dir)
             mark_prd_human_approved(research_dir)
             make_execution_ready_spec(research_dir)
             plan_result = run_cmd(
@@ -121,7 +123,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
                 cwd=repo,
             )
             self.assertEqual(plan_result.returncode, 0, plan_result.stdout + plan_result.stderr)
-            plan_dir = research_dir / "plans" / "2026-05-10-reproduce-b01"
+            plan_dir = plan_dir_for(research_dir, "2026-05-10-reproduce-b01")
             plan_yaml = read_yaml(plan_dir / "plan.yaml")
             plan_yaml["status"] = "complete"
             write_yaml(plan_dir / "plan.yaml", plan_yaml)
@@ -150,7 +152,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_prd_ambiguity_writes_human_review_request(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             mark_prd_human_approved(research_dir, ambiguity=True)
             shutil.rmtree(research_dir / "spec")
 
@@ -170,7 +172,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_open_pivot_blocks_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             mark_prd_human_approved(research_dir)
             make_execution_ready_spec(research_dir)
             pivot = research_dir / "insights" / "pivot_proposals" / "p01.md"
@@ -190,7 +192,7 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
     def test_research_loop_stale_plan_blocks_execution_with_audit_repair(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             mark_prd_human_approved(research_dir)
             make_execution_ready_spec(research_dir)
             plan_result = run_cmd(
@@ -209,8 +211,12 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
                 cwd=repo,
             )
             self.assertEqual(plan_result.returncode, 0, plan_result.stdout + plan_result.stderr)
-            spec = research_dir / "spec" / "global_spec.yaml"
-            spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+            epoch_spec = research_dir / "V0" / "SPEC.yaml"
+            if epoch_spec.exists():
+                epoch_spec.write_text(epoch_spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+            else:
+                spec = research_dir / "spec" / "global_spec.yaml"
+                spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
 
             result = run_cmd(
                 ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],

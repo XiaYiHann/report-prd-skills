@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import atexit
 import os
 import shutil
 import subprocess
@@ -82,6 +83,51 @@ def init_workspace(repo: Path) -> Path:
     )
     if result.returncode != 0:
         raise AssertionError(result.stderr or result.stdout)
+    return repo / "docs" / "research"
+
+
+_plain_template: Path | None = None
+
+
+def _get_plain_template() -> Path:
+    global _plain_template
+    if _plain_template is None:
+        tmp = Path(tempfile.mkdtemp(prefix="research_plain_template_"))
+        result = subprocess.run(
+            [
+                "python3",
+                str(INIT_SCRIPT),
+                "--repo",
+                str(tmp),
+                "--title",
+                "Test Research",
+                "--purpose",
+                "minimal-regression",
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(result.stderr or result.stdout)
+        _plain_template = tmp
+        atexit.register(shutil.rmtree, str(tmp), ignore_errors=True)
+    return _plain_template
+
+
+def plan_dir_for(research_dir: Path, plan_id: str) -> Path:
+    current = research_dir / "CURRENT"
+    version = current.read_text(encoding="utf-8").strip() if current.exists() else ""
+    if version and (research_dir / version / "plans" / plan_id / "plan.yaml").exists():
+        return research_dir / version / "plans" / plan_id
+    return research_dir / "plans" / plan_id
+
+
+def init_workspace_fast(repo: Path) -> Path:
+    template = _get_plain_template()
+    shutil.copytree(template, repo, dirs_exist_ok=True)
     return repo / "docs" / "research"
 
 

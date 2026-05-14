@@ -21,7 +21,7 @@ class StaleHashDetectionTests(unittest.TestCase):  # noqa: F405
     def test_prd_drift_marks_spec_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             spec = read_yaml(epoch / "SPEC.yaml")
             spec["source_prd_hash"] = "stale"
@@ -34,7 +34,7 @@ class StaleHashDetectionTests(unittest.TestCase):  # noqa: F405
     def test_spec_drift_marks_plan_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             plan = epoch / "PLAN.md"
             plan.write_text("---\nsource_spec_hash: stale\n---\n# Plan\n", encoding="utf-8")
@@ -46,7 +46,7 @@ class StaleHashDetectionTests(unittest.TestCase):  # noqa: F405
     def test_plan_drift_marks_task_queue_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            research_dir = init_workspace(repo)
+            research_dir = init_workspace_fast(repo)
             epoch = research_dir / "V0"
             queue = read_yaml(epoch / "TASK_QUEUE.yaml")
             queue["source_plan_hash"] = "stale"
@@ -55,4 +55,17 @@ class StaleHashDetectionTests(unittest.TestCase):  # noqa: F405
             findings = detect_epoch_stale_hashes(epoch)
 
         self.assertIn("TASK_QUEUE_STALE", [finding.code for finding in findings])
+
+    def test_prd_drift_marks_spine_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_fast(repo)
+            epoch = research_dir / "V0"
+            spine = read_yaml(epoch / "RESEARCH_SPINE.yaml")
+            spine["source_prd_hash"] = "stale"
+            write_yaml(epoch / "RESEARCH_SPINE.yaml", spine)
+
+            findings = detect_epoch_stale_hashes(epoch)
+
+        self.assertIn("SPINE_STALE", [finding.code for finding in findings])
 

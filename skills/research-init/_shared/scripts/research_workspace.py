@@ -3517,7 +3517,7 @@ while STATUS.yaml.status not in (closed_*, gate_blocked):
 | 论文更新 | research-paper |
 | 跨文件一致性检查 | research-audit |
 
-主 agent 始终负责：状态推进、gate 判定、NEXT_ACTION 执行、wiki/closeout。
+主 agent 始终负责：状态推进、gate 判定、active task 执行、wiki/closeout。
 
 ---
 
@@ -3543,6 +3543,7 @@ Codex / Claude Code 每次工作：
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
+4. `docs/research/{CURRENT}/goal.md`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
 6. `docs/research/{CURRENT}/PRD.md`
 7. `docs/research/{CURRENT}/SPEC.yaml`
@@ -3613,7 +3614,9 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
+    write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
+    write_yaml(epoch_dir / "RESEARCH_SPINE.yaml", epoch_spine_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
@@ -3702,7 +3705,9 @@ def create_epoch(
     write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
+    write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
+    write_yaml(epoch_dir / "RESEARCH_SPINE.yaml", epoch_spine_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
@@ -4469,7 +4474,29 @@ def git_commit(repo: Path) -> str:
 
 
 def collect_spec_ids(research_dir: Path) -> dict[str, set[str]]:
-    ids = {"experiments": set(), "harnesses": set(), "tasks": set(), "gates": set()}
+    ids: dict[str, set[str]] = {"experiments": set(), "harnesses": set(), "tasks": set(), "gates": set()}
+    version = current_epoch_name(research_dir)
+    epoch_spec = research_dir / version / "SPEC.yaml" if version else None
+    if epoch_spec and epoch_spec.exists():
+        spec = load_yaml(epoch_spec)
+        for experiment in as_list(spec.get("experiments")):
+            if isinstance(experiment, dict) and experiment.get("experiment_id"):
+                ids["experiments"].add(str(experiment["experiment_id"]))
+        for harness in as_list(spec.get("harnesses")):
+            if isinstance(harness, dict) and harness.get("harness_id"):
+                ids["harnesses"].add(str(harness["harness_id"]))
+        for gate in as_list(spec.get("gates")):
+            if isinstance(gate, dict) and gate.get("gate_id"):
+                ids["gates"].add(str(gate["gate_id"]))
+        queue = load_yaml(research_dir / version / "TASK_QUEUE.yaml")
+        for task in as_list(queue.get("tasks")):
+            if isinstance(task, dict) and task.get("task_id"):
+                ids["tasks"].add(str(task["task_id"]))
+        for gate in as_list(queue.get("gates")):
+            if isinstance(gate, dict) and gate.get("gate_id"):
+                ids["gates"].add(str(gate["gate_id"]))
+        return ids
+    # Fallback to legacy flat spec paths
     exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
     for experiment in as_list(exp_manifest.get("experiments")):
         if isinstance(experiment, dict) and experiment.get("experiment_id"):
@@ -4513,7 +4540,11 @@ def generate_plan(
     force: bool = False,
 ) -> Path:
     plan_id = f"{date}-{slugify(purpose)}"
-    plan_dir = research_dir / "plans" / plan_id
+    version = current_epoch_name(research_dir)
+    if version:
+        plan_dir = research_dir / version / "plans" / plan_id
+    else:
+        plan_dir = research_dir / "plans" / plan_id
     plan_dir.mkdir(parents=True, exist_ok=True)
     ids = collect_spec_ids(research_dir)
     selected_gates = [gate] if gate else sorted(ids["gates"])
@@ -4521,28 +4552,30 @@ def generate_plan(
     repo = research_dir.parents[1] if research_dir.name == "research" and research_dir.parent.name == "docs" else research_dir.parent
     payload = {
         "plan_id": plan_id,
-        "version": (read_text(research_dir / "CURRENT").strip() if (research_dir / "CURRENT").exists() else "legacy"),
+        "version": (version or "legacy"),
         "created_at": date,
         "purpose": f"执行目标：{purpose}",
         "loop_target": "paper_binding",
         "loop_mode": {"claude_code": "ralph_loop", "codex": "goal_driven"},
         "active_task_source": "TASK_QUEUE.yaml",
         "source_versions": {
-            "prd_hash": hash_path(research_dir / "prd"),
+            "prd_hash": hash_path(research_dir / version / "PRD.md") if version else hash_path(research_dir / "prd"),
             "paper_hash": hash_path(research_dir / "paper"),
-            "spec_hash": hash_path(research_dir / "spec"),
+            "spec_hash": hash_path(research_dir / version / "SPEC.yaml" if version else research_dir / "spec"),
             "git_commit": git_commit(repo),
         },
         "track": track,
         "target": target,
-        "source_spec": [
-            "docs/research/spec/reproduction/reproduction_manifest.yaml",
-            "docs/research/spec/reproduction/reproduction_harness.yaml",
-            "docs/research/spec/experiments/experiment_manifest.yaml",
-            "docs/research/spec/experiments/experiment_harness.yaml",
-        ],
+        "source_spec": (
+            [f"docs/research/{version}/SPEC.yaml"] if version else [
+                "docs/research/spec/reproduction/reproduction_manifest.yaml",
+                "docs/research/spec/reproduction/reproduction_harness.yaml",
+                "docs/research/spec/experiments/experiment_manifest.yaml",
+                "docs/research/spec/experiments/experiment_harness.yaml",
+            ]
+        ),
         "allowed_scope": [
-            f"docs/research/plans/{plan_id}/**",
+            f"docs/research/{version}/plans/{plan_id}/**" if version else f"docs/research/plans/{plan_id}/**",
             "artifacts/**",
             "scripts/reproduction/**" if track == "reproduction" else "src/**",
         ],
@@ -4586,11 +4619,19 @@ def generate_plan(
         },
         "insight_loop": {
             "required": True,
-            "output_file": f"docs/research/plans/{plan_id}/insight_log.md",
+            "output_file": f"docs/research/{version}/plans/{plan_id}/insight_log.md" if version else f"docs/research/plans/{plan_id}/insight_log.md",
             "epoch_output": "docs/research/{CURRENT}/wiki/* via research-insight",
             "legacy_status": "compatibility_only",
             "auto_classify": ["execution_failure", "spec_gap"],
-            "human_review": ["research_failure", "pivot_proposal", "anomaly"],
+            "human_review": [
+                "research_failure",
+                "pivot_proposal",
+                "anomaly",
+                "ambiguous_user_intent",
+                "contradictory_requirements",
+                "scope_decision_required",
+                "methodology_divergence",
+            ],
         },
         "completion_condition": [
             "所有选定 gate 通过，或阻塞原因已写入 blocker_log.md",
@@ -4639,6 +4680,8 @@ def generate_plan(
                 "若存在 CURRENT/Vn，正式 insight promotion 交给 research-insight 写入当前 Vn/wiki/*。",
                 "禁止将 mock / planning 值当作已验证结果写入证据或论文结论。",
                 "当 required information 缺失时，停止执行并记录 blocker，不得补造。",
+                "文档撰写阶段（编写或修改 PRD、SPEC、PLAN、RESEARCH_SPINE、ai_loop_prompt.md、goal.md）遇到用户意图不明、要求自相矛盾、或需要做出影响研究方向/核心假设/基准选择的决定时，必须停止并请求用户确认，不得自行推断。",
+                "执行阶段（运行实验、编写代码、执行 harness、收集 artifact、运行测试）遇到同样情况时，不得停止询问用户偏好，应自主推进并仅对确实缺失的必需信息（dataset、seed、command、artifact 路径）记录 blocker。",
                 "",
                 "## Subagent Dispatch",
                 "",
@@ -4768,15 +4811,29 @@ def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
 
 
 def generate_paper(research_dir: Path, force: bool = False) -> Path:
-    exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
+    version = current_epoch_name(research_dir)
+    epoch_spec = research_dir / version / "SPEC.yaml" if version else None
+    if epoch_spec and epoch_spec.exists():
+        exp_manifest = load_yaml(epoch_spec)
+        source_label = f"`docs/research/{version}/SPEC.yaml`"
+    else:
+        exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
+        source_label = "`docs/research/spec/experiments/experiment_manifest.yaml`"
     experiments = [item for item in as_list(exp_manifest.get("experiments")) if isinstance(item, dict)]
+    if not experiments and epoch_spec and epoch_spec.exists():
+        # Fallback to legacy spec if epoch spec experiments are empty
+        exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
+        experiments = [item for item in as_list(exp_manifest.get("experiments")) if isinstance(item, dict)]
+        if experiments:
+            source_label = "`docs/research/spec/experiments/experiment_manifest.yaml` (epoch spec empty, legacy fallback)"
+
     placeholders = []
     paper = planned_paper_markdown("Planned Research Paper")
     bound_lines = [
         "",
         "## Bound Placeholder Map (Generated From Spec)",
         "",
-        "This section is generated from `docs/research/spec/experiments/experiment_manifest.yaml`. It reserves result locations only; it does not report empirical findings.",
+        f"This section is generated from {source_label}. It reserves result locations only; it does not report empirical findings.",
         "",
         "| Placeholder | Experiment | Method | Metric | Source after execution |",
         "| --- | --- | --- | --- | --- |",
