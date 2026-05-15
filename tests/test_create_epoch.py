@@ -49,7 +49,8 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
             )
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
             current = (research_dir / "CURRENT").read_text(encoding="utf-8").strip()
-            v1_prd_exists = (research_dir / "V1" / "PRD.md").exists()
+            v1_prd_exists = (research_dir / "V1" / "PRD.tex").exists()
+            v1_prd_summary_exists = (research_dir / "V1" / "PRD_SUMMARY.md").exists()
             v1_spine_exists = (research_dir / "V1" / "RESEARCH_SPINE.yaml").exists()
             v1_binding_exists = (research_dir / "V1" / "PAPER_BINDING_DECISION.md").exists()
 
@@ -57,6 +58,7 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
         self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
         self.assertEqual(current, "V1")
         self.assertTrue(v1_prd_exists)
+        self.assertTrue(v1_prd_summary_exists)
         self.assertTrue(v1_spine_exists)
         self.assertTrue(v1_binding_exists)
 

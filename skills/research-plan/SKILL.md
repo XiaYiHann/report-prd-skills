@@ -7,7 +7,7 @@ description: "Use when a dated research execution run needs a bounded plan, AI l
 
 ## Overview
 
-Create bounded execution plans for the current epoch. New default outputs are `docs/research/{CURRENT}/PLAN.md` and `TASK_QUEUE.yaml`; legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. A plan is a bounded run contract for Codex or Claude Code. Its **executable contracts** are derived from `Vn/SPEC.yaml` and bound by `Vn/RESEARCH_SPINE.yaml` (RQ → Claim → Experiment → Evidence); Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
+Create bounded execution plans for the current epoch and, by default, for a concrete RQ. New RQ-local outputs are `docs/research/{CURRENT}/rqs/RQxx/PLAN.md` and `TASKS.yaml`; `docs/research/{CURRENT}/PLAN.md` remains an epoch orchestration summary and `TASK_QUEUE.yaml` remains the global scheduler. Legacy dated plans under `docs/research/plans/YYYY-MM-DD-purpose/` remain supported. Executable contracts are derived from `Vn/rqs/RQxx/SPEC.yaml` and bound by `Vn/RESEARCH_SPINE.yaml` (RQ → Claim → Experiment → Evidence); Paper provides context only after paper binding is allowed. When Paper and Spec conflict, Spec wins.
 
 Plan prose, AI loop prompts, and run logs must be Chinese. `plan.yaml` keeps English keys and stable IDs, but explanatory values such as `purpose`, `forbidden_actions`, and `completion_condition` should be Chinese.
 
@@ -21,6 +21,7 @@ Plan prose, AI loop prompts, and run logs must be Chinese. `plan.yaml` keeps Eng
 
 Supported selectors:
 
+- `--rq RQ_ID`
 - `--gate G_ID`
 - `--target codex`
 - `--target ralph-loop`
@@ -29,6 +30,8 @@ Supported selectors:
 
 - `docs/research/{CURRENT}/PLAN.md`
 - `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+- `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+- `docs/research/{CURRENT}/rqs/RQxx/TASKS.yaml`
 - `plan.md`
 - `plan.yaml`
 - `ai_loop_prompt.md`
@@ -52,6 +55,7 @@ python3 ~/.claude/skills/research-plan/scripts/generate_research_plan.py \
   --date 2026-05-09 \
   --purpose reproduce-b01 \
   --track reproduction \
+  --rq RQ01 \
   --target codex
 ```
 
@@ -79,7 +83,7 @@ single_step_file: TASK_QUEUE.yaml
 
 Plan generation must first read `Vn/goal.md` and inject its global constraints (language, style, evidence rules, gate strategy, commit policy) into `PLAN.md` and `ai_loop_prompt.md`. The goal.md constraints are the ceiling; PLAN.md must not contradict them.
 
-**Distinction**: `goal.md` is the version-level anchor that defines the overall mission for the entire `Vn`. `PLAN.md` is the concrete execution schedule derived from it. 
+**Distinction**: `goal.md` is the version-level anchor that defines the overall mission for the entire `Vn`. `Vn/rqs/RQxx/PLAN.md` is the concrete RQ evidence-generation schedule derived from `RQxx/SPEC.yaml`; `Vn/PLAN.md` is only the global orchestration summary.
 
 `TASK_QUEUE.yaml` generation must write a `research_binding` block for every task:
 

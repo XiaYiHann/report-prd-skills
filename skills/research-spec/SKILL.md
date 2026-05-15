@@ -7,7 +7,7 @@ description: "Use when docs/research/spec needs execution contracts, manifests, 
 
 ## Overview
 
-Compile the active epoch PRD into `docs/research/{CURRENT}/SPEC.yaml`, bound by `RESEARCH_SPINE.yaml`. Legacy `docs/research/spec/` remains supported, but the default contract now lives inside the current `Vn`. The spec is the only source for executable experiments, tasks, gates, harnesses, artifacts, and evidence contracts.
+Compile the active epoch `PRD.tex` into RQ-local contracts under `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`, bound by `RESEARCH_SPINE.yaml`. `docs/research/{CURRENT}/SPEC.yaml` remains as an epoch-level aggregate index (`rq_specs`, shared constraints, compatibility fields). Legacy `docs/research/spec/` remains supported. RQ-local specs are the default source for executable experiments, tasks, gates, harnesses, artifacts, and evidence contracts.
 
 Use English YAML keys and stable IDs for parser compatibility, but write explanatory values in Chinese: `title`, `description`, `purpose`, `notes`, `blockers`, `acceptance_criteria`, `repair`, gap reports, and policy explanations.
 
@@ -22,10 +22,12 @@ Build the chain:
 ```text
 RESEARCH_DIRECTION.md
   -> CURRENT
-  -> Vn/PRD.md
+  -> Vn/PRD.tex
+  -> Vn/PRD_SUMMARY.md (agent context only)
   -> Vn/RESEARCH_SPINE.yaml
-  -> Vn/SPEC.yaml
-  -> Vn/PLAN.md
+  -> Vn/rqs/RQxx/SPEC.yaml
+  -> Vn/rqs/RQxx/PLAN.md
+  -> Vn/SPEC.yaml / Vn/PLAN.md aggregate indexes
   -> Vn/TASK_QUEUE.yaml
   -> Vn/TASK_QUEUE.yaml
   -> Vn/runs + Vn/artifacts
@@ -33,7 +35,7 @@ RESEARCH_DIRECTION.md
   -> research-insight
   -> Vn/wiki
   -> Vn/closeout.md
-  -> Vn+1/PRD.md 或 paper binding
+  -> Vn+1/PRD.tex 或 paper binding
 ```
 
 The authority chain now explicitly includes the **Insight Feedback Loop**. Experiments produce not only evidence but also observations that may refine the hypothesis. In epoch_v1, `research-insight` performs the interpretation step and writes durable insight to `Vn/wiki/*`; legacy `docs/research/insights/` is compatibility storage.
@@ -56,11 +58,24 @@ Do NOT invent datasets, baselines, metrics, seeds, commands, artifact paths, rep
 
 ## Required Layout
 
-For the current epoch, `research-spec` owns `docs/research/{CURRENT}/SPEC.yaml` with:
+For the current epoch, `research-spec` owns each `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml` with:
+
+- `version`
+- `rq_id`
+- `source_prd`
+- `research_question`
+- `claim_contract`
+- `reproduction_contract`
+- `experiment_contract`
+- `evidence_contract`
+- `failure_taxonomy`
+
+`docs/research/{CURRENT}/SPEC.yaml` remains the epoch aggregate index with:
 
 - `version`
 - `direction_ref`
 - `prd_ref`
+- `rq_specs`
 - `experiments`
 - `datasets`
 - `models`

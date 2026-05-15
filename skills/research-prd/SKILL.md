@@ -7,7 +7,7 @@ description: "Use when docs/research/prd needs a professional Research PRD for a
 
 ## Overview
 
-Maintain `docs/research/prd/research_prd.tex` and `research_prd.md` as the human research source of truth. The LaTeX file is canonical; the Markdown file is a Chinese companion artifact for review and agent context.
+Maintain `docs/research/{CURRENT}/PRD.tex` as the active epoch human research source of truth. `PRD.pdf` is the review artifact rendered from the LaTeX source. `PRD_SUMMARY.md` is only a Chinese companion artifact for agent context and must not overwrite or expand the canonical PRD. Legacy `docs/research/prd/research_prd.tex` and `research_prd.md` remain supported for migration.
 
 The PRD must be verbose, pedagogical, technically rigorous, and execution-oriented for capable master students who may lack full background. It should read like a professional research execution document, not a short paper outline.
 
@@ -61,13 +61,15 @@ When writing or revising the PRD, the agent MUST stop and request human review b
 
 Do NOT silently resolve ambiguity by choosing the most convenient interpretation. Record the ambiguity as a blocker in `HUMAN_REVIEW_REQUESTS.yaml` or the PRD gap report, then stop and ask.
 
-## Epoch PRD (`Vn/PRD.md`)
+## Epoch PRD (`Vn/PRD.tex`)
 
-For the active epoch, `Vn/PRD.md` is a lightweight 11-section contract. It must include:
+For the active epoch, `Vn/PRD.tex` is a detailed 16-chapter research execution document. It must include:
 
-- **Research Spine Matrix** as Section 2: a markdown table mapping `RQ ID -> Claim ID -> Experiment ID -> Evidence -> Figure/Table -> Paper Section` with a `Status` column (`planned` / `running` / `supported` / `missing` / `blocked`).
+- **Research Spine Matrix**: a table mapping `RQ ID -> Claim ID -> Experiment ID -> Evidence -> Figure/Table -> Paper Section` with a `Status` column (`planned` / `running` / `supported` / `missing` / `blocked`).
+- **RQ-local Spec/Plan policy**: every RQ declared in the spine must have `Vn/rqs/RQxx/SPEC.yaml` and `Vn/rqs/RQxx/PLAN.md`.
+- **Reproduction prerequisite policy**: RQ-local innovation / experiment / analysis tasks may not run until `rqs/RQxx/reproduction/VERIFICATION.yaml` is `verified`.
 - Every claim in the Spine Matrix must have at least one bound experiment before the PRD is considered `prd_locked`.
-- The Spine Matrix is the agent-facing execution contract; narrative sections (Core Question, Core Hypothesis, etc.) serve the matrix.
+- The Spine Matrix is the agent-facing execution contract; narrative chapters serve the matrix.
 - **RQ boundary rule**: Every `RQ ID` declared in the Spine Matrix must fall within the scope defined by `RESEARCH_DIRECTION.md`. If an RQ would expand beyond the research corridor, stop and request human review before adding it to the matrix.
 
 ## Validation

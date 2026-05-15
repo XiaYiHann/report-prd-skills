@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         choices=["reproduction", "implementation", "experiment", "paper-update", "insight-feedback"],
     )
+    parser.add_argument("--rq", default="", help="Target RQ id for RQ-local PLAN.md and TASKS.yaml generation.")
     parser.add_argument("--gate", default="", help="Optional target gate id.")
     parser.add_argument("--target", default="codex", choices=["codex", "ralph-loop"], help="Executor target.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing plan files.")
@@ -41,6 +42,7 @@ def main() -> int:
         track=args.track,
         gate=args.gate or None,
         target=args.target,
+        rq_id=args.rq or None,
         force=args.force,
     )
     print(f"[OK] wrote research plan: {plan_dir}")

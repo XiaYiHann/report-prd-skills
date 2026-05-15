@@ -1,7 +1,8 @@
 schema_version: epoch_v1
 epoch_dir_pattern: 'V\d+'
 required_files:
-  - PRD.md
+  - PRD.tex
+  - PRD_SUMMARY.md
   - goal.md
   - RESEARCH_SPINE.yaml
   - SPEC.yaml
@@ -23,6 +24,7 @@ required_dirs:
   - audits
   - search
   - reproduction
+  - rqs
   - wiki
 required_search_files:
   - search_report.md
@@ -85,6 +87,7 @@ yaml_required_fields:
     - runtime_contract
     - reproduction_contract
     - filesystem_contract
+    - rq_specs
     - carry_forward
   TASK_QUEUE.yaml:
     - template_version
