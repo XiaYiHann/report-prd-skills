@@ -18,7 +18,10 @@ class SearchReproductionScaffoldTests(unittest.TestCase):  # noqa: F405
                 epoch_dir / "search" / "web_search_log.yaml",
                 epoch_dir / "search" / "repo_search_log.yaml",
                 epoch_dir / "search" / "candidate_baselines.yaml",
+                epoch_dir / "search" / "dataset_candidates.yaml",
+                epoch_dir / "search" / "paper_experiment_designs.yaml",
                 epoch_dir / "search" / "candidate_reproductions.yaml",
+                epoch_dir / "BASELINE_LOCK.yaml",
                 epoch_dir / "reproduction" / "REPRODUCTION_INDEX.yaml",
                 epoch_dir / "reproduction" / "REPRODUCTION_PLAN.md",
                 epoch_dir / "reproduction" / "REPRODUCTION_DELTA.yaml",
@@ -44,6 +47,9 @@ class SearchReproductionScaffoldTests(unittest.TestCase):  # noqa: F405
         self.assertLess(gate_ids.index("G0_SEARCH_LOCK"), gate_ids.index("G1_REPRODUCTION_LOCK"))
         self.assertEqual(queue["gates"][0]["status"], "active")
         self.assertEqual(queue["gates"][1]["status"], "pending")
+        baseline_task = next(task for task in queue["tasks"] if task["task_id"] == "T_G0_003")
+        self.assertEqual(baseline_task["phase"], "baseline_lock")
+        self.assertIn("BASELINE_LOCK.yaml", baseline_task["output_refs"])
 
     def test_default_spec_declares_reproduction_and_filesystem_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -53,7 +59,9 @@ class SearchReproductionScaffoldTests(unittest.TestCase):  # noqa: F405
 
         self.assertTrue(spec["reproduction_contract"]["required"])
         self.assertTrue(spec["reproduction_contract"]["search_required_before_reproduction"])
+        self.assertEqual(spec["baseline_lock_ref"], "BASELINE_LOCK.yaml")
         self.assertEqual(spec["filesystem_contract"]["state_root"], "docs/research/V0")
+        self.assertEqual(spec["filesystem_contract"]["baseline_lock_ref"], "docs/research/V0/BASELINE_LOCK.yaml")
         self.assertEqual(spec["filesystem_contract"]["reproduction_workspace_root"], "reproduction/V0")
         self.assertEqual(spec["filesystem_contract"]["rq_contract_root"], "docs/research/V0/rqs")
         self.assertEqual(spec["rq_specs"][0]["spec_ref"], "rqs/RQ01/SPEC.yaml")

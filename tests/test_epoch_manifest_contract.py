@@ -43,6 +43,7 @@ class EpochManifestContractTests(unittest.TestCase):
             [
                 "PRD.tex",
                 "PRD_SUMMARY.md",
+                "BASELINE_LOCK.yaml",
                 "goal.md",
                 "RESEARCH_SPINE.yaml",
                 "SPEC.yaml",
@@ -88,6 +89,8 @@ class EpochManifestContractTests(unittest.TestCase):
                 "web_search_log.yaml",
                 "repo_search_log.yaml",
                 "candidate_baselines.yaml",
+                "dataset_candidates.yaml",
+                "paper_experiment_designs.yaml",
                 "candidate_reproductions.yaml",
             ],
         )

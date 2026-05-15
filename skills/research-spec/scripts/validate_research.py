@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
             "paper-binding-ready",
             "format-ready",
             "rq-driven-ready",
+            "baseline-lock-ready",
             "migration-ready",
             "git-ready",
             "prd-ready",

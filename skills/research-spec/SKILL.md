@@ -172,6 +172,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode paper-binding-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode format-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode rq-driven-ready
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode baseline-lock-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode migration-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode git-ready
 ```
@@ -190,6 +191,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 | `paper-binding-ready` | Paper can bind claims | `research-paper` / `research-audit` | `closeout-ready` passes and `PAPER_BINDING_DECISION.md` approves |
 | `format-ready` | File format compliance | `research-audit` | Workspace initialized |
 | `rq-driven-ready` | Standard RQ-driven epoch contract check | `research-audit` | `CURRENT` resolves to an active `Vn` |
+| `baseline-lock-ready` | Version-level baseline, dataset, metric, and experiment-design lock check | `research-audit` / `research-plan` | `BASELINE_LOCK.yaml` exists |
 | `migration-ready` | Legacy to RQ-driven epoch migration check | `research-audit` | Legacy or non-standard layout detected |
 | `git-ready` | Git state compliance | `research-audit` | Git available |
 | `loop-prompt-ready` | `ai_loop_prompt.md` contains all required clauses | `research-plan` | `plan-ready` passes |

@@ -3,6 +3,7 @@ epoch_dir_pattern: 'V\d+'
 required_files:
   - PRD.tex
   - PRD_SUMMARY.md
+  - BASELINE_LOCK.yaml
   - goal.md
   - RESEARCH_SPINE.yaml
   - SPEC.yaml
@@ -31,6 +32,8 @@ required_search_files:
   - web_search_log.yaml
   - repo_search_log.yaml
   - candidate_baselines.yaml
+  - dataset_candidates.yaml
+  - paper_experiment_designs.yaml
   - candidate_reproductions.yaml
 required_reproduction_files:
   - REPRODUCTION_INDEX.yaml
@@ -86,6 +89,7 @@ yaml_required_fields:
     - anti_mock_policy
     - runtime_contract
     - reproduction_contract
+    - baseline_lock_ref
     - filesystem_contract
     - rq_specs
     - carry_forward
@@ -97,6 +101,18 @@ yaml_required_fields:
     - current_task
     - gates
     - tasks
+  BASELINE_LOCK.yaml:
+    - schema_version
+    - version
+    - status
+    - allowed_status
+    - source_search
+    - task_definition
+    - selected_baselines
+    - selected_datasets
+    - borrowed_experiment_designs
+    - carry_forward_policy
+    - audit
   AUDIT_QUEUE.yaml:
     - schema_version
     - epoch

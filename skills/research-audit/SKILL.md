@@ -24,7 +24,7 @@ Audit is a hard gate, not only a scaffold generator. In epoch workspaces it must
 
 Gate-aware audit must distinguish execution failure from research falsification. `failed_execution` means code, environment, dependency, timeout, or process failure; `failed_harness` means the verification predicate or artifact schema failed. Neither status can be interpreted as a falsified research hypothesis. A Gate may be marked `falsified` only after a `research_falsification_candidate` has valid harness outputs and adversarial audit rules out code, data, metric, harness, environment, PRD, and SPEC defects.
 
-Reproduction audit uses `docs/research/agent/REPRODUCTION_POLICY.md` as the authoritative source for reproduction types, status values, and evidence levels. It uses `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md` as the execution standard for gatekeeper output format and claim support rules. Both skills must keep these two files aligned. It must inspect `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
+Reproduction audit uses `docs/research/agent/REPRODUCTION_POLICY.md` as the authoritative source for reproduction types, status values, and evidence levels. It uses `docs/research/agent/REPRODUCTION_AUDIT_POLICY.md` as the execution standard for gatekeeper output format and claim support rules. Both skills must keep these two files aligned. It must inspect `BASELINE_LOCK.yaml`, `REPRODUCTION_INDEX.yaml`, `PAPER_CLAIM_LEDGER.yaml`, search logs, run reports, and artifact hashes. Allowed paper claims require a compatible reproduction `claim_support_level`; `literature_only`, `official_smoke_only`, `failed_but_informative`, missing audit, or `claim_support_level: sanity_only | none` cannot support allowed paper claims.
 
 **PAPER_CLAIM_LEDGER.yaml vs RESEARCH_SPINE.yaml**: `RESEARCH_SPINE.yaml` is the planning spine (RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section). `PAPER_CLAIM_LEDGER.yaml` is the binding gate: it records which claims are `allowed` to enter the paper, their reproduction evidence compatibility, and audit status. Audit must verify that every `allowed` claim in the Ledger has a corresponding entry in the Spine and meets reproduction evidence requirements.
 
@@ -47,7 +47,7 @@ Conceptual command forms:
 
 ## Audit Modes
 
-- `format` — checks epoch_v1 file structure, standard RQ-driven layout, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`, and the `## Research Agent Behavior Contract` / `## 研究智能体行为契约` section with all 10 required rules. Returns PASS/WARN/FAIL with severity.
+- `format` — checks epoch_v1 file structure, standard RQ-driven layout, version-level `BASELINE_LOCK.yaml`, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`, and the `## Research Agent Behavior Contract` / `## 研究智能体行为契约` section with all 10 required rules. Returns PASS/WARN/FAIL with severity.
 - `migration` — detects workspace type (`unknown`, `legacy_flat`, `mixed`, `epoch_v1`) and RQ-driven status (`standard`, `migration_recommended`, `migration_required`), then writes detailed `MIGRATION_AUDIT.md` + `MIGRATION_PLAN.md` with phase-by-phase guidance, including how to bind `direction_ref`, create `Vn/rqs/RQxx/`, split legacy Spec/Plan into RQ-local contracts, and populate the Spine Matrix. Does not default to moving old artifacts or rewriting research claims.
 - `epoch` — checks current `Vn` authority chain, task queue, next action, wiki, closeout.
 - `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits.
@@ -106,6 +106,7 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Is closeout or paper binding attempted with a dirty tree?
 - Does the workspace look `epoch_v1`, `legacy_flat`, `mixed`, or `unknown`?
 - Does the current workspace use the standard RQ-driven layout: `Vn/PRD.tex`, `Vn/RESEARCH_SPINE.yaml`, epoch aggregate `Vn/SPEC.yaml`, and one `Vn/rqs/RQxx/` contract set per declared RQ?
+- Does the current `Vn/BASELINE_LOCK.yaml` freeze the version-level baseline, dataset, metric, and borrowed experiment-design coordinate system before reproduction or innovation begins?
 - If the workspace is not standard RQ-driven, does audit clearly tell the user to migrate and provide a migration plan without rewriting claims?
 
 ## Outputs

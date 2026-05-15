@@ -250,6 +250,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             spec = read_yaml(v1 / "SPEC.yaml")
             spec["version"] = "V1"
             write_yaml(v1 / "SPEC.yaml", spec)
+            baseline_lock = read_yaml(v1 / "BASELINE_LOCK.yaml")
+            baseline_lock["version"] = "V1"
+            write_yaml(v1 / "BASELINE_LOCK.yaml", baseline_lock)
             rq_spec = read_yaml(v1 / "rqs" / "RQ01" / "SPEC.yaml")
             rq_spec["version"] = "V1"
             write_yaml(v1 / "rqs" / "RQ01" / "SPEC.yaml", rq_spec)
@@ -336,6 +339,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "paper-binding-ready",
                 "format-ready",
                 "rq-driven-ready",
+                "baseline-lock-ready",
                 "migration-ready",
                 "git-ready",
             ]:

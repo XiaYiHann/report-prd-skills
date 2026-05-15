@@ -341,9 +341,11 @@ Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML fr
 
 ## Search and Evidence Acquisition Policy
 
-Search is a hard evidence-acquisition step, not a writing aid. 新 epoch 默认先执行 `G0_SEARCH_LOCK`，再执行 `G1_REPRODUCTION_LOCK`；proposed-method experiment 不能在这两个 early gates resolved 之前成为 active task，除非存在明确 human waiver 和 audit 记录。
+Search is a hard evidence-acquisition step, not a writing aid. 新 epoch 默认先执行 `G0_SEARCH_LOCK`，在该 gate 内完成 version-level `BASELINE_LOCK.yaml`，再执行 `G1_REPRODUCTION_LOCK`；proposed-method experiment 不能在 search、baseline lock 和 reproduction early gates resolved 之前成为 active task，除非存在明确 human waiver 和 audit 记录。
 
 Search 必须覆盖 literature、official code、third-party implementations、datasets、model checkpoints、known issues / forks / reproduction notes，以及 current local repository state。要求在 project start、version start、baseline lock、reproduction task、dataset/model/metric selection、unexpected strong/negative result、pivot proposal、before paper binding 检索。修 bug、补 artifact path、跑测试、更新 wiki、执行已锁定 Plan、小工程重构不需要检索。无网络时写 search blocker，不编造文献、代码仓库、数据集、指标或模型能力。
+
+`BASELINE_LOCK.yaml` 是版本级研究坐标系：它从 web search 与 repo search 中冻结本版本采用的 strongest / official / simple-control baselines、dataset、split、metric 和可复用实验设计。RQ-local reproduction 必须继承该 lock；未 locked 时不得进入 reproduction、innovation、experiment 或 analysis task。
 
 Reproduction failure 必须分类，不能静默忽略，也不能当作 hypothesis falsification。`blocked_missing_code`、`blocked_missing_data`、`blocked_stale_dependency`、`blocked_ambiguous_algorithm`、`failed_metric_mismatch`、`failed_unexplained` 都需要进入 `REPRODUCTION_INDEX.yaml` 和 audit；只有 valid harness output 加 adversarial audit 才能支撑研究解释。
 
@@ -437,6 +439,7 @@ TASK_XXX_report / LOOP_LOG / runs / artifacts / explore session
 
 - `format-ready`：检查 epoch_v1 必备文件、模板版本、agent docs、`AGENTS.md` / `CLAUDE.md`。
 - `rq-driven-ready`：检查当前 workspace 是否采用标准 RQ-driven 结构：`Vn/PRD.tex`、`Vn/RESEARCH_SPINE.yaml`、epoch aggregate `Vn/SPEC.yaml`、以及每个 RQ 对应的 `Vn/rqs/RQxx/` Spec/Plan/Task/Reproduction contract。
+- `baseline-lock-ready`：检查当前 `Vn/BASELINE_LOCK.yaml` 是否已锁定版本级 baseline、dataset、metric 和实验设计坐标系。
 - `migration-ready`：识别 `epoch_v1`、`legacy_flat`、`mixed`、`unknown`，并报告 `standard`、`migration_recommended` 或 `migration_required`。
 - `git-ready`：检查 `GIT_STATE.yaml`、task git policy、done task commit hash、closeout/paper-binding git 记录、dirty tree。
 
@@ -482,6 +485,7 @@ Explore
 - `paper-binding-ready`
 - `format-ready`
 - `rq-driven-ready`
+- `baseline-lock-ready`
 - `migration-ready`
 - `git-ready`
 
@@ -764,7 +768,7 @@ RQ
 -> Paper placeholder
 ```
 
-新默认是 RQ-local：`research-spec --rq RQ01` 写入 `Vn/rqs/RQ01/SPEC.yaml`，`Vn/SPEC.yaml` 只保留 `rq_specs` 聚合索引、shared constraints 与兼容字段。`research-spec` 只能从 `PRD.tex` 编译，不能从 Paper 或 `PRD_SUMMARY.md` 推断实验。PRD 缺失的执行细节必须进入 gap report 或 blocker，不能由 agent 发明。
+新默认是 RQ-local + Version Baseline Lock：`research-spec --rq RQ01` 写入 `Vn/rqs/RQ01/SPEC.yaml`，`Vn/SPEC.yaml` 只保留 `rq_specs` 聚合索引、shared constraints、`baseline_lock_ref` 与兼容字段。`research-spec` 只能从 `PRD.tex` 与已锁定的 `BASELINE_LOCK.yaml` 编译执行合同，不能从 Paper 或 `PRD_SUMMARY.md` 推断实验。PRD 缺失的执行细节必须进入 gap report 或 blocker，不能由 agent 发明。
 
 Spec 采用“英文键、中文值”策略：YAML key、ID、schema 字段保持英文，`title`、`description`、`purpose`、`blockers`、`acceptance_criteria`、`notes`、gap report 和 policy 说明使用中文。
 
@@ -836,6 +840,7 @@ python3 skills/research-spec/scripts/validate_research.py --repo . --mode insigh
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignment-check
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode format-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode rq-driven-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode baseline-lock-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode migration-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode git-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode spine-ready

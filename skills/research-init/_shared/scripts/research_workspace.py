@@ -2155,6 +2155,7 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             "block_if_missing_for": ["new_method_claim", "baseline_superiority_claim", "related_work_section"],
         },
         "reproduction_contract": default_reproduction_contract(version),
+        "baseline_lock_ref": "BASELINE_LOCK.yaml",
         "filesystem_contract": default_filesystem_contract(version),
         "subagent_policy": {
             "allow_subagents": True,
@@ -2482,11 +2483,48 @@ def default_reproduction_contract(version: str) -> dict[str, Any]:
     }
 
 
+def default_baseline_lock_payload(version: str) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "version": version,
+        "status": "pending",
+        "allowed_status": ["pending", "locked", "blocked", "needs_human_review"],
+        "source_search": {
+            "web_search_log": "search/web_search_log.yaml",
+            "repo_search_log": "search/repo_search_log.yaml",
+            "candidate_baselines": "search/candidate_baselines.yaml",
+            "dataset_candidates": "search/dataset_candidates.yaml",
+            "paper_experiment_designs": "search/paper_experiment_designs.yaml",
+        },
+        "task_definition": {
+            "target_task": "【待填写：当前版本要解决的任务】",
+            "target_input_output": "【待填写：输入、输出与评测对象】",
+            "excluded_problem_settings": [],
+        },
+        "selected_baselines": [],
+        "selected_datasets": [],
+        "borrowed_experiment_designs": [],
+        "carry_forward_policy": {
+            "from_previous_version_allowed": True,
+            "requires_delta_search": True,
+            "requires_same_task_definition": True,
+            "requires_dataset_metric_compatibility": True,
+            "requires_human_review_on_strongest_baseline_change": True,
+        },
+        "audit": {
+            "required_before_reproduction": True,
+            "required_before_innovation": True,
+            "paper_claim_support_allowed": False,
+        },
+    }
+
+
 def default_filesystem_contract(version: str) -> dict[str, Any]:
     return {
         "state_root": f"docs/research/{version}",
         "search_metadata_root": f"docs/research/{version}/search",
         "reproduction_metadata_root": f"docs/research/{version}/reproduction",
+        "baseline_lock_ref": f"docs/research/{version}/BASELINE_LOCK.yaml",
         "rq_contract_root": f"docs/research/{version}/rqs",
         "reproduction_workspace_root": f"reproduction/{version}",
         "experiment_root": f"experiments/{version}",
@@ -2653,6 +2691,16 @@ def default_search_metadata(version: str) -> dict[str, dict[str, Any] | str]:
             "epoch": version,
             "candidates": [],
         },
+        "dataset_candidates.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "candidates": [],
+        },
+        "paper_experiment_designs.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "designs": [],
+        },
         "candidate_reproductions.yaml": {
             "schema_version": 1,
             "epoch": version,
@@ -2774,6 +2822,8 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/search/web_search_log.yaml",
                     f"docs/research/{version}/search/repo_search_log.yaml",
                     f"docs/research/{version}/search/candidate_baselines.yaml",
+                    f"docs/research/{version}/search/dataset_candidates.yaml",
+                    f"docs/research/{version}/search/paper_experiment_designs.yaml",
                     f"docs/research/{version}/search/candidate_reproductions.yaml",
                     f"docs/research/{version}/LOOP_LOG.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
@@ -2785,6 +2835,8 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     "search/web_search_log.yaml",
                     "search/repo_search_log.yaml",
                     "search/candidate_baselines.yaml",
+                    "search/dataset_candidates.yaml",
+                    "search/paper_experiment_designs.yaml",
                     "search/candidate_reproductions.yaml",
                 ],
                 "success_criteria": [
@@ -2846,30 +2898,45 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "id": "T_G0_003",
                 "task_id": "T_G0_003",
                 "gate_id": "G0_SEARCH_LOCK",
-                "phase": "reproduction_planning",
-                "title": "Lock candidate reproduction set",
+                "phase": "baseline_lock",
+                "title": "Lock version baseline, dataset, metric, and experiment design",
                 "status": "pending",
-                "type": "reproduction_planning",
+                "type": "baseline_lock",
                 "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": False},
                 "allowed_files": [
+                    f"docs/research/{version}/BASELINE_LOCK.yaml",
+                    f"docs/research/{version}/search/candidate_baselines.yaml",
+                    f"docs/research/{version}/search/dataset_candidates.yaml",
+                    f"docs/research/{version}/search/paper_experiment_designs.yaml",
                     f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
                     f"docs/research/{version}/reproduction/REPRODUCTION_PLAN.md",
+                    f"docs/research/{version}/wiki/baseline_landscape.md",
+                    f"docs/research/{version}/wiki/literature_notes.md",
                     f"docs/research/{version}/LOOP_LOG.md",
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
-                "input_refs": ["search/candidate_reproductions.yaml", "search/candidate_baselines.yaml"],
-                "output_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
-                "success_criteria": ["Candidate reproduction set is locked or blocker is recorded."],
+                "input_refs": [
+                    "search/candidate_baselines.yaml",
+                    "search/dataset_candidates.yaml",
+                    "search/paper_experiment_designs.yaml",
+                    "search/candidate_reproductions.yaml",
+                ],
+                "output_refs": ["BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
+                "success_criteria": [
+                    "BASELINE_LOCK.yaml records selected strongest/simple/control baselines or a blocker.",
+                    "Dataset, split, metric, and borrowed experiment design decisions are recorded.",
+                    "Candidate reproduction set is derived from the version baseline lock or blocker is recorded.",
+                ],
                 "test_commands": [],
                 "harness": {
                     "command": "",
                     "timeout_sec": 0,
-                    "success_predicate": "REPRODUCTION_INDEX.yaml exists",
-                    "artifact_paths": ["reproduction/REPRODUCTION_INDEX.yaml"],
+                    "success_predicate": "BASELINE_LOCK.yaml status is locked, blocked, or needs_human_review",
+                    "artifact_paths": ["BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml"],
                 },
-                "evidence_required": ["reproduction_index"],
+                "evidence_required": ["baseline_lock", "reproduction_index"],
             },
             {
                 "id": "T_G1_001",
@@ -2890,9 +2957,9 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
-                "input_refs": ["reproduction/REPRODUCTION_INDEX.yaml"],
+                "input_refs": ["BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml"],
                 "output_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
-                "success_criteria": ["Reproduction items are classified with status and evidence level."],
+                "success_criteria": ["BASELINE_LOCK.yaml is locked or explicitly blocked before reproduction items are classified."],
                 "test_commands": [],
                 "harness": {
                     "command": "",
@@ -2997,7 +3064,7 @@ def validate_gate_queue_shape(queue: dict[str, Any]) -> list[str]:
 
 RESEARCH_BINDING_MODES = {"direction_bootstrap", "spine_bound", "maintenance", "paper_binding"}
 DIRECTION_BOOTSTRAP_GATE_IDS = {"G0_SEARCH_LOCK", "G1_REPRODUCTION_LOCK"}
-DIRECTION_BOOTSTRAP_PHASES = {"search", "reproduction_planning", "reproduction", "audit"}
+DIRECTION_BOOTSTRAP_PHASES = {"search", "baseline_lock", "reproduction_planning", "reproduction", "audit"}
 MAINTENANCE_PHASES = {"maintenance", "format", "path_repair", "test_repair", "test", "repair", "artifact_repair"}
 PAPER_BINDING_PHASES = {"paper_binding", "paper", "binding"}
 EVIDENCE_BOUND_TASK_TYPES = {
@@ -4065,6 +4132,7 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(prd_tex, research_prd_tex(title, purpose), force)
     render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
     write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)
+    write_yaml(epoch_dir / "BASELINE_LOCK.yaml", default_baseline_lock_payload(version), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
@@ -4161,6 +4229,7 @@ def create_epoch(
     write_text(prd_tex, research_prd_tex(title, purpose), force)
     render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
     write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)
+    write_yaml(epoch_dir / "BASELINE_LOCK.yaml", default_baseline_lock_payload(version), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
@@ -6569,6 +6638,60 @@ def validate_epoch_search_reproduction_shape(epoch_dir: Path) -> list[str]:
     return issues
 
 
+BASELINE_LOCK_STATUSES = {"pending", "locked", "blocked", "needs_human_review"}
+BASELINE_ROLES = {"strongest", "official", "simple_control", "classical", "oracle", "ablation_anchor", "negative_control"}
+
+
+def baseline_lock_status(epoch_dir: Path) -> str:
+    payload = load_yaml(epoch_dir / "BASELINE_LOCK.yaml")
+    return str(payload.get("status") or "missing")
+
+
+def validate_baseline_lock_shape(epoch_dir: Path) -> list[str]:
+    issues: list[str] = []
+    path = epoch_dir / "BASELINE_LOCK.yaml"
+    if not path.exists():
+        return ["BASELINE_LOCK.yaml missing"]
+    payload = load_yaml(path)
+    status = str(payload.get("status") or "")
+    if status not in BASELINE_LOCK_STATUSES:
+        issues.append(f"BASELINE_LOCK.yaml invalid status: {status or '<missing>'}")
+    source_search = payload.get("source_search") if isinstance(payload.get("source_search"), dict) else {}
+    for key in ["web_search_log", "repo_search_log", "candidate_baselines", "dataset_candidates", "paper_experiment_designs"]:
+        ref = str(source_search.get(key) or "")
+        if not ref:
+            issues.append(f"BASELINE_LOCK.yaml source_search missing {key}")
+        elif not (epoch_dir / ref).exists():
+            issues.append(f"BASELINE_LOCK.yaml source_search {key} does not exist: {ref}")
+    if status == "locked":
+        baselines = [item for item in as_list(payload.get("selected_baselines")) if isinstance(item, dict)]
+        datasets = [item for item in as_list(payload.get("selected_datasets")) if isinstance(item, dict)]
+        designs = [item for item in as_list(payload.get("borrowed_experiment_designs")) if isinstance(item, dict)]
+        if not baselines:
+            issues.append("BASELINE_LOCK.yaml locked status requires selected_baselines")
+        if not datasets:
+            issues.append("BASELINE_LOCK.yaml locked status requires selected_datasets")
+        if not designs:
+            issues.append("BASELINE_LOCK.yaml locked status requires borrowed_experiment_designs")
+        roles = {str(item.get("role") or "") for item in baselines}
+        if roles and not roles <= BASELINE_ROLES:
+            invalid = sorted(role for role in roles if role not in BASELINE_ROLES)
+            issues.append(f"BASELINE_LOCK.yaml selected_baselines invalid roles: {', '.join(invalid)}")
+        if baselines and not roles.intersection({"strongest", "official"}):
+            issues.append("BASELINE_LOCK.yaml locked status requires at least one strongest or official baseline")
+        for item in baselines:
+            baseline_id = str(item.get("baseline_id") or "<missing>")
+            for field in ["baseline_id", "paper", "role", "reproduction_mode", "decision_rationale"]:
+                if not item.get(field):
+                    issues.append(f"BASELINE_LOCK.yaml baseline {baseline_id} missing {field}")
+        for item in datasets:
+            dataset_id = str(item.get("dataset_id") or "<missing>")
+            for field in ["dataset_id", "source_paper", "license", "split_protocol", "metric"]:
+                if not item.get(field):
+                    issues.append(f"BASELINE_LOCK.yaml dataset {dataset_id} missing {field}")
+    return issues
+
+
 RQ_REQUIRED_FILES = ["RQ.md", "SPEC.yaml", "PLAN.md", "TASKS.yaml"]
 RQ_REQUIRED_REPRODUCTION_FILES = [
     "SOURCE_LOCK.yaml",
@@ -6732,6 +6855,8 @@ def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[Epoch
         issues.extend(validate_epoch_search_reproduction_files(epoch_dir, manifest))
         for issue in validate_epoch_search_reproduction_shape(epoch_dir):
             issues.append(EpochSchemaIssue(f"{version}/reproduction/REPRODUCTION_INDEX.yaml", f"{version}/{issue}"))
+        for issue in validate_baseline_lock_shape(epoch_dir):
+            issues.append(EpochSchemaIssue(f"{version}/BASELINE_LOCK.yaml", f"{version}/{issue}"))
         issues.extend(validate_epoch_wiki_set(epoch_dir, manifest, strict=strict))
     return issues
 
@@ -6860,6 +6985,10 @@ def validate_loop_ready(research_dir: Path) -> Validation:
     for issue in validate_active_task_research_binding(active_task):
         validation.error(issue)
     phase = str(active_task.get("phase") or "")
+    if phase in {"reproduction", "reproduction_planning", "implementation", "experiment", "analysis", "result_analysis", "evaluation"}:
+        status = baseline_lock_status(epoch_dir)
+        if status != "locked":
+            validation.error(f"active task {active_task.get('id')} requires locked BASELINE_LOCK.yaml before {phase}; current status: {status}")
     if phase in {"implementation", "experiment", "analysis", "result_analysis", "evaluation"}:
         binding = active_task.get("research_binding") if isinstance(active_task.get("research_binding"), dict) else {}
         rq_id = str(active_task.get("rq_id") or binding.get("rq_id") or "")
@@ -7094,12 +7223,13 @@ def rq_driven_migration_actions(status: str) -> list[str]:
         return ["No migration required; keep RQ-local Spec, Plan, Task, and reproduction files synchronized."]
     return [
         "Run `python3 skills/research-audit/scripts/generate_research_audit.py --mode migration` to write `docs/research/audits/MIGRATION_AUDIT.md` and `docs/research/MIGRATION_PLAN.md`.",
-        "Create or repair the active epoch `docs/research/Vn/` with `PRD.tex`, `PRD_SUMMARY.md`, `RESEARCH_SPINE.yaml`, `SPEC.yaml`, `PLAN.md`, and `TASK_QUEUE.yaml`.",
+        "Create or repair the active epoch `docs/research/Vn/` with `PRD.tex`, `PRD_SUMMARY.md`, `BASELINE_LOCK.yaml`, `RESEARCH_SPINE.yaml`, `SPEC.yaml`, `PLAN.md`, and `TASK_QUEUE.yaml`.",
+        "Populate version-level baseline search artifacts: `search/candidate_baselines.yaml`, `search/dataset_candidates.yaml`, and `search/paper_experiment_designs.yaml`.",
         "For every declared RQ in `RESEARCH_SPINE.yaml`, create `docs/research/Vn/rqs/RQxx/RQ.md`, `SPEC.yaml`, `PLAN.md`, `TASKS.yaml`, and `reproduction/{SOURCE_LOCK.yaml,REPRODUCTION_SPEC.yaml,VERIFICATION.yaml,IMMUTABLE_BASE.yaml}`.",
         "Move executable contracts from legacy `docs/research/spec/` and `docs/research/plans/` into RQ-local `SPEC.yaml`, `PLAN.md`, and `TASKS.yaml`; keep unresolved fragments under migration blockers.",
         "Update epoch `SPEC.yaml.rq_specs` so each RQ points to `rqs/RQxx/SPEC.yaml` and `rqs/RQxx/PLAN.md`.",
         "Mark migrated artifacts as `carry_forward_candidates` only; do not promote legacy insight or old artifacts to paper evidence without hashes, commands, logs, and passed audit.",
-        "Run `validate_research.py --mode rq-driven-ready`, `--mode epoch-ready`, and `--mode spine-ready` after migration.",
+        "Run `validate_research.py --mode rq-driven-ready`, `--mode baseline-lock-ready`, `--mode epoch-ready`, and `--mode spine-ready` after migration.",
     ]
 
 
@@ -7259,9 +7389,10 @@ def migration_audit_text(research_dir: Path) -> str:
                 "### Phase 2 — Bootstrap First Epoch",
                 "",
                 "4. Create `V0/PRD.tex` and render `V0/PRD.pdf` or record `V0/render_blocker.md`.",
-                "5. Run `generate_research_spec.py --rq RQ01` to create `V0/SPEC.yaml` and `V0/rqs/RQ01/SPEC.yaml`.",
-                "6. Ensure `V0/RESEARCH_SPINE.yaml` sets `direction_ref: ../RESEARCH_DIRECTION.md` and defines at least one RQ.",
-                "7. Run `validate_research.py --mode rq-driven-ready` and `--mode format-ready` to verify structure.",
+                "5. Create `V0/BASELINE_LOCK.yaml` and fill baseline/dataset/metric/design decisions from websearch and repo search.",
+                "6. Run `generate_research_spec.py --rq RQ01` to create `V0/SPEC.yaml` and `V0/rqs/RQ01/SPEC.yaml`.",
+                "7. Ensure `V0/RESEARCH_SPINE.yaml` sets `direction_ref: ../RESEARCH_DIRECTION.md` and defines at least one RQ.",
+                "8. Run `validate_research.py --mode rq-driven-ready`, `--mode baseline-lock-ready`, and `--mode format-ready` to verify structure.",
                 "",
                 "## Human Review Required",
                 "",
@@ -7287,22 +7418,24 @@ def migration_audit_text(research_dir: Path) -> str:
                 "",
                 "3. Convert `prd/research_prd.md` / `prd/research_prd.tex` → `V0/PRD.tex`; render `V0/PRD.pdf` or record `V0/render_blocker.md`.",
                 "4. Create one `V0/rqs/RQxx/` directory for each RQ discovered in the legacy PRD or spec.",
-                "5. Split `spec/global_spec.yaml` into RQ-local `V0/rqs/RQxx/SPEC.yaml`; keep `V0/SPEC.yaml` as the epoch aggregate index.",
-                "6. Split `plans/plan_queue.yaml` into RQ-local `V0/rqs/RQxx/PLAN.md` and `TASKS.yaml`, then let `V0/TASK_QUEUE.yaml` reference `rq_id`, `rq_spec_ref`, and `rq_task_ref`.",
-                "7. Convert `insights/insight_log.md` → `V0/wiki/epoch_summary.md` and `V0/wiki/open_questions.md` as migration candidates, not claim evidence.",
+                "5. Extract baseline, dataset, metric, and reusable experiment-design candidates into `V0/BASELINE_LOCK.yaml`.",
+                "6. Split `spec/global_spec.yaml` into RQ-local `V0/rqs/RQxx/SPEC.yaml`; keep `V0/SPEC.yaml` as the epoch aggregate index.",
+                "7. Split `plans/plan_queue.yaml` into RQ-local `V0/rqs/RQxx/PLAN.md` and `TASKS.yaml`, then let `V0/TASK_QUEUE.yaml` reference `rq_id`, `rq_spec_ref`, and `rq_task_ref`.",
+                "8. Convert `insights/insight_log.md` → `V0/wiki/epoch_summary.md` and `V0/wiki/open_questions.md` as migration candidates, not claim evidence.",
                 "",
                 "### Phase 3 — Bind the Spine",
                 "",
-                "8. Create `V0/RESEARCH_SPINE.yaml` with `direction_ref: ../RESEARCH_DIRECTION.md`.",
-                "9. Map existing RQs from the legacy PRD into `research_questions`.",
-                "10. Map existing claims/experiments into the spine chain: `RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`.",
-                "11. Mark all migrated artifacts as `carry_forward_candidates`, not paper evidence.",
+                "9. Create `V0/RESEARCH_SPINE.yaml` with `direction_ref: ../RESEARCH_DIRECTION.md`.",
+                "10. Map existing RQs from the legacy PRD into `research_questions`.",
+                "11. Map existing claims/experiments into the spine chain: `RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`.",
+                "12. Mark all migrated artifacts as `carry_forward_candidates`, not paper evidence.",
                 "",
                 "### Phase 4 — Validate",
                 "",
-                "12. Run `validate_research.py --mode rq-driven-ready`.",
-                "13. Run `validate_research.py --mode epoch-ready`.",
-                "14. Run `validate_research.py --mode spine-ready`.",
+                "13. Run `validate_research.py --mode rq-driven-ready`.",
+                "14. Run `validate_research.py --mode baseline-lock-ready`.",
+                "15. Run `validate_research.py --mode epoch-ready`.",
+                "16. Run `validate_research.py --mode spine-ready`.",
                 "",
                 "## Human Review Required",
                 "",
@@ -7321,10 +7454,11 @@ def migration_audit_text(research_dir: Path) -> str:
                 "",
                 "1. Determine whether legacy files are superseded by current epoch files. If yes, archive legacy folders (do not delete without human confirmation).",
                 "2. If the epoch is missing `RESEARCH_SPINE.yaml`, create it from the current PRD and bind `direction_ref: ../RESEARCH_DIRECTION.md`.",
-                "3. Ensure every declared RQ has `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` and RQ-local reproduction metadata.",
-                "4. Populate `RESEARCH_SPINE.yaml` with the full evidence chain (`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`).",
-                "5. Run `validate_research.py --mode rq-driven-ready` to verify the RQ-driven filesystem contract.",
-                "6. Run `validate_research.py --mode spine-ready` and `--mode format-ready`.",
+                "3. Ensure `Vn/BASELINE_LOCK.yaml` captures the current version's baseline, dataset, metric, and borrowed experiment-design decisions.",
+                "4. Ensure every declared RQ has `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` and RQ-local reproduction metadata.",
+                "5. Populate `RESEARCH_SPINE.yaml` with the full evidence chain (`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`).",
+                "6. Run `validate_research.py --mode rq-driven-ready` and `--mode baseline-lock-ready` to verify the version/RQ filesystem contract.",
+                "7. Run `validate_research.py --mode spine-ready` and `--mode format-ready`.",
                 "",
                 "## Human Review Required",
                 "",
@@ -7367,10 +7501,11 @@ def migration_plan_text(research_dir: Path) -> str:
             "2. 撰写 `RESEARCH_DIRECTION.md`，包含 8 个必需章节。",
             "3. 设置 `CURRENT=V0`。",
             "4. 创建初始 PRD 并写入 `V0/PRD.tex`，同时生成 `V0/PRD.pdf` 或 `render_blocker.md`。",
-            "5. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
-            "6. 在 Spine 中定义第一个 RQ，并创建 `V0/rqs/RQ01/`。",
-            "7. 写入 `V0/rqs/RQ01/SPEC.yaml`、`PLAN.md`、`TASKS.yaml` 与 `reproduction/*`。",
-            "8. 运行 `rq-driven-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
+            "5. 创建 `V0/BASELINE_LOCK.yaml`，从 websearch / repo search 中锁定 baseline、dataset、metric 和实验设计。",
+            "6. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "7. 在 Spine 中定义第一个 RQ，并创建 `V0/rqs/RQ01/`。",
+            "8. 写入 `V0/rqs/RQ01/SPEC.yaml`、`PLAN.md`、`TASKS.yaml` 与 `reproduction/*`。",
+            "9. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
         ]
     elif workspace_type == "legacy_flat":
         steps = [
@@ -7378,29 +7513,32 @@ def migration_plan_text(research_dir: Path) -> str:
             "2. 设置 `CURRENT=V0`。",
             "3. 转换 `prd/research_prd.md` / `prd/research_prd.tex` → `V0/PRD.tex`。",
             "4. 从 legacy PRD/spec 中抽取 RQ 列表，并为每个 RQ 创建 `V0/rqs/RQxx/`。",
-            "5. 将 `spec/global_spec.yaml` 拆成 RQ-local `V0/rqs/RQxx/SPEC.yaml`；`V0/SPEC.yaml` 仅保留 epoch aggregate index 与 `rq_specs`。",
-            "6. 将 `plans/plan_queue.yaml` 拆成 RQ-local `PLAN.md` / `TASKS.yaml`，并让 `V0/TASK_QUEUE.yaml` 通过 `rq_id`、`rq_spec_ref`、`rq_task_ref` 引用它们。",
-            "7. 转换 `insights/insight_log.md` → `V0/wiki/epoch_summary.md` 和 `open_questions.md`，只作为迁移候选。",
-            "8. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
-            "9. 将 legacy 中的 RQ/Claim/Experiment 映射进 Spine Matrix。",
-            "10. 标记所有迁移 artifact 为 `carry_forward_candidates`，不作为论文证据。",
-            "11. 运行 `rq-driven-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
+            "5. 将 legacy baseline、dataset、metric 和实验设计候选写入 `V0/BASELINE_LOCK.yaml`。",
+            "6. 将 `spec/global_spec.yaml` 拆成 RQ-local `V0/rqs/RQxx/SPEC.yaml`；`V0/SPEC.yaml` 仅保留 epoch aggregate index 与 `rq_specs`。",
+            "7. 将 `plans/plan_queue.yaml` 拆成 RQ-local `PLAN.md` / `TASKS.yaml`，并让 `V0/TASK_QUEUE.yaml` 通过 `rq_id`、`rq_spec_ref`、`rq_task_ref` 引用它们。",
+            "8. 转换 `insights/insight_log.md` → `V0/wiki/epoch_summary.md` 和 `open_questions.md`，只作为迁移候选。",
+            "9. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "10. 将 legacy 中的 RQ/Claim/Experiment 映射进 Spine Matrix。",
+            "11. 标记所有迁移 artifact 为 `carry_forward_candidates`，不作为论文证据。",
+            "12. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
         ]
     elif workspace_type == "mixed":
         steps = [
             "1. 评估 legacy 文件是否被当前 epoch 文件取代；若已取代，归档 legacy 目录。",
             "2. 若 `Vn/RESEARCH_SPINE.yaml` 缺失，从当前 PRD 创建并设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
-            "3. 补齐每个 RQ 的 `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` 与 `reproduction/*`。",
-            "4. 补全 Spine Matrix（RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section）。",
-            "5. 对无法归属到 RQ 的 legacy spec/plan/insight 建立 migration blocker，不进入当前执行真源。",
-            "6. 运行 `rq-driven-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
+            "3. 补齐 `Vn/BASELINE_LOCK.yaml`，使版本级 baseline/dataset/metric/design 决策成为 RQ-local reproduction 的输入。",
+            "4. 补齐每个 RQ 的 `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` 与 `reproduction/*`。",
+            "5. 补全 Spine Matrix（RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section）。",
+            "6. 对无法归属到 RQ 的 legacy spec/plan/insight 建立 migration blocker，不进入当前执行真源。",
+            "7. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
         ]
     else:
         steps = [
             "1. 运行 `validate_research.py --mode rq-driven-ready` 检查 RQ-local contract。",
-            "2. 运行 `validate_research.py --mode format-ready` 检查现有 epoch 格式合规性。",
-            "3. 运行 `validate_research.py --mode spine-ready` 检查证据链完整性。",
-            "4. 修复所有 reported issues。",
+            "2. 运行 `validate_research.py --mode baseline-lock-ready` 检查版本级 baseline lock。",
+            "3. 运行 `validate_research.py --mode format-ready` 检查现有 epoch 格式合规性。",
+            "4. 运行 `validate_research.py --mode spine-ready` 检查证据链完整性。",
+            "5. 修复所有 reported issues。",
         ]
     return "\n".join(
         [
@@ -7413,6 +7551,7 @@ def migration_plan_text(research_dir: Path) -> str:
             "```",
             "RESEARCH_DIRECTION.md (研究走廊边界)",
             "  └─> Vn/RESEARCH_SPINE.yaml (direction_ref 必须指向它)",
+            "        └─> Vn/BASELINE_LOCK.yaml (version-level baseline / dataset / metric / design lock)",
             "        └─> RQ1, RQ2, ... (必须落在 RESEARCH_DIRECTION.md 范围内)",
             "              └─> Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml,reproduction/*}",
             "                    └─> Claim -> Experiment -> Evidence ...",
@@ -7461,6 +7600,19 @@ def validate_rq_driven_ready(research_dir: Path) -> Validation:
         "RQ-driven migration required: run `generate_research_audit.py --mode migration` "
         "and follow `docs/research/MIGRATION_PLAN.md`."
     )
+    return validation
+
+
+def validate_baseline_lock_ready(research_dir: Path) -> Validation:
+    validation = validate_epoch_ready(research_dir)
+    if not validation.ok:
+        return validation
+    epoch_dir = current_epoch_dir(research_dir)
+    for issue in validate_baseline_lock_shape(epoch_dir):
+        validation.error(issue)
+    status = baseline_lock_status(epoch_dir)
+    if status != "locked":
+        validation.error(f"BASELINE_LOCK.yaml must be locked before reproduction or innovation; current status: {status}")
     return validation
 
 
@@ -8342,6 +8494,7 @@ def validate_research(research_dir: Path, mode: str) -> Validation:
         "paper-binding-ready": validate_paper_binding_ready,
         "format-ready": validate_format_ready,
         "rq-driven-ready": validate_rq_driven_ready,
+        "baseline-lock-ready": validate_baseline_lock_ready,
         "migration-ready": validate_migration_ready,
         "git-ready": validate_git_ready,
         "prd-ready": validate_prd,

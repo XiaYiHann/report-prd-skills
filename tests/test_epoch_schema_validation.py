@@ -8,6 +8,50 @@ import shutil
 from research_workflow_helpers import *  # noqa: F403
 
 
+def lock_default_baseline(research_dir: Path) -> None:
+    baseline = read_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml")
+    baseline["status"] = "locked"
+    baseline["task_definition"] = {
+        "target_task": "minimal research-loop scaffold validation",
+        "target_input_output": "protocol state files -> validator outcomes",
+        "excluded_problem_settings": [],
+    }
+    baseline["selected_baselines"] = [
+        {
+            "baseline_id": "B_OFFICIAL",
+            "paper": "Protocol baseline paper",
+            "venue_year": "Test 2026",
+            "role": "official",
+            "official_code": "https://example.invalid/repo",
+            "dataset": "D_TEST",
+            "metric": "M_TEST",
+            "reproduction_mode": "official_code_reuse",
+            "rq_ids": ["RQ01"],
+            "decision_rationale": "official code is the closest reproducible baseline",
+        }
+    ]
+    baseline["selected_datasets"] = [
+        {
+            "dataset_id": "D_TEST",
+            "source_paper": "Protocol baseline paper",
+            "license": "research-use",
+            "split_protocol": "frozen public split",
+            "preprocessing": "none",
+            "metric": "M_TEST",
+            "known_pitfalls": [],
+        }
+    ]
+    baseline["borrowed_experiment_designs"] = [
+        {
+            "paper": "Protocol baseline paper",
+            "reusable_design": "baseline reproduction before innovation",
+            "adopted_as": "G0/G1 gate protocol",
+            "caveat": "template-only evidence is not paper evidence",
+        }
+    ]
+    write_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml", baseline)
+
+
 class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
     def test_rq_driven_ready_accepts_pure_epoch_rq_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -32,6 +76,25 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("V0/rqs/RQ01/SPEC.yaml", result.stdout)
         self.assertIn("RQ-driven migration required", result.stdout)
+
+    def test_baseline_lock_ready_requires_locked_version_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "baseline-lock-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("BASELINE_LOCK.yaml must be locked", result.stdout)
+
+    def test_baseline_lock_ready_accepts_locked_baseline_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            lock_default_baseline(research_dir)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "baseline-lock-ready"])
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("[OK] baseline-lock-ready", result.stdout)
 
     def test_epoch_ready_requires_rq_local_spec_for_declared_rq(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,6 +149,7 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
     def test_loop_ready_blocks_innovation_before_rq_reproduction_verified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
+            lock_default_baseline(research_dir)
             spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
             spine["claims"] = [{"id": "C1", "rq_id": "RQ01", "text": "c1"}]
             spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
@@ -118,6 +182,21 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("requires verified reproduction for RQ01", result.stdout)
+
+    def test_loop_ready_blocks_reproduction_before_version_baseline_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            queue["current_gate"] = "G1_REPRODUCTION_LOCK"
+            queue["current_task"] = "T_G1_001"
+            for task in queue["tasks"]:
+                task["status"] = "active" if task["task_id"] == "T_G1_001" else "pending"
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires locked BASELINE_LOCK.yaml before reproduction", result.stdout)
 
     def test_epoch_ready_rejects_task_missing_research_binding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
