@@ -27,7 +27,8 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             ]:
                 self.assertTrue((research_dir / "agent" / name).exists(), name)
             for name in [
-                "PRD.md",
+                "PRD.tex",
+                "PRD_SUMMARY.md",
                 "SPEC.yaml",
                 "PLAN.md",
                 "STATUS.yaml",
@@ -39,6 +40,12 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "PAPER_BINDING_DECISION.md",
             ]:
                 self.assertTrue((research_dir / "V0" / name).exists(), name)
+            summary = (research_dir / "V0" / "PRD_SUMMARY.md").read_text(encoding="utf-8")
+            self.assertIn("不是研究真源", summary)
+            self.assertTrue((research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml").exists())
+            self.assertTrue((research_dir / "V0" / "rqs" / "RQ01" / "PLAN.md").exists())
+            self.assertTrue((research_dir / "V0" / "rqs" / "RQ01" / "TASKS.yaml").exists())
+            self.assertTrue((research_dir / "V0" / "rqs" / "RQ01" / "reproduction" / "VERIFICATION.yaml").exists())
             for name in [
                 "epoch_summary.md",
                 "evidence_map.md",
@@ -82,12 +89,12 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
     def test_epoch_ready_requires_current_epoch_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
-            (research_dir / "V0" / "PRD.md").unlink()
+            (research_dir / "V0" / "PRD.tex").unlink()
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
 
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("V0/PRD.md", result.stdout)
+            self.assertIn("V0/PRD.tex", result.stdout)
 
     def test_loop_ready_requires_single_active_task_and_matching_next_action(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -109,8 +116,8 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             research_dir = init_workspace_fast(Path(tmp))
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
             spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
-            spine["research_questions"] = [{"id": "RQ1", "text": "q1"}]
-            spine["claims"] = [{"id": "C1", "rq_id": "RQ1", "text": "c1"}]
+            spine["research_questions"] = [{"id": "RQ01", "text": "q1"}]
+            spine["claims"] = [{"id": "C1", "rq_id": "RQ01", "text": "c1"}]
             spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
             spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
             write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
@@ -120,12 +127,20 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             queue["tasks"][0]["test_commands"] = []
             queue["tasks"][0]["research_binding"] = {
                 "mode": "spine_bound",
-                "rq_id": "RQ1",
+                "rq_id": "RQ01",
                 "claim_ids": ["C1"],
                 "experiment_ids": ["E1"],
                 "evidence_ids": ["EV1"],
                 "justification": "implementation task supporting a declared RQ; no result claim is produced before tests pass",
             }
+            queue["tasks"][0]["rq_id"] = "RQ01"
+            queue["tasks"][0]["rq_spec_ref"] = "rqs/RQ01/SPEC.yaml"
+            rq_tasks_path = research_dir / "V0" / "rqs" / "RQ01" / "TASKS.yaml"
+            rq_tasks = read_yaml(rq_tasks_path)
+            rq_tasks["tasks"][0]["task_id"] = "RQ01_T_IMPL"
+            rq_tasks["tasks"][0]["phase"] = "implementation"
+            write_yaml(rq_tasks_path, rq_tasks)
+            queue["tasks"][0]["rq_task_ref"] = "rqs/RQ01/TASKS.yaml#RQ01_T_IMPL"
             write_yaml(queue_path, queue)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
@@ -235,6 +250,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             spec = read_yaml(v1 / "SPEC.yaml")
             spec["version"] = "V1"
             write_yaml(v1 / "SPEC.yaml", spec)
+            rq_spec = read_yaml(v1 / "rqs" / "RQ01" / "SPEC.yaml")
+            rq_spec["version"] = "V1"
+            write_yaml(v1 / "rqs" / "RQ01" / "SPEC.yaml", rq_spec)
             queue = read_yaml(v1 / "TASK_QUEUE.yaml")
             queue["version"] = "V1"
             write_yaml(v1 / "TASK_QUEUE.yaml", queue)

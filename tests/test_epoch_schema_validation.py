@@ -9,6 +9,92 @@ from research_workflow_helpers import *  # noqa: F403
 
 
 class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
+    def test_epoch_ready_requires_rq_local_spec_for_declared_rq(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            (research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml").unlink()
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V0/rqs/RQ01/SPEC.yaml", result.stdout)
+
+    def test_epoch_ready_rejects_rq_spec_id_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            spec_path = research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml"
+            spec = read_yaml(spec_path)
+            spec["rq_id"] = "RQ_OTHER"
+            write_yaml(spec_path, spec)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("rq_id RQ_OTHER does not match directory RQ01", result.stdout)
+
+    def test_epoch_ready_rejects_global_task_missing_rq_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
+            spine["claims"] = [{"id": "C1", "rq_id": "RQ01", "text": "c1"}]
+            spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
+            spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
+            write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            task = queue["tasks"][0]
+            task["phase"] = "implementation"
+            task["research_binding"] = {
+                "mode": "spine_bound",
+                "rq_id": "RQ01",
+                "claim_ids": ["C1"],
+                "experiment_ids": ["E1"],
+                "evidence_ids": ["EV1"],
+                "justification": "implementation task supporting declared RQ contract",
+            }
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("task T_G0_001 missing rq_spec_ref", result.stdout)
+        self.assertIn("task T_G0_001 missing rq_task_ref", result.stdout)
+
+    def test_loop_ready_blocks_innovation_before_rq_reproduction_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
+            spine["claims"] = [{"id": "C1", "rq_id": "RQ01", "text": "c1"}]
+            spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
+            spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
+            write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
+            rq_tasks_path = research_dir / "V0" / "rqs" / "RQ01" / "TASKS.yaml"
+            rq_tasks = read_yaml(rq_tasks_path)
+            rq_tasks["tasks"][0]["task_id"] = "RQ01_T_IMPL"
+            rq_tasks["tasks"][0]["phase"] = "implementation"
+            write_yaml(rq_tasks_path, rq_tasks)
+            queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
+            task = queue["tasks"][0]
+            task["phase"] = "implementation"
+            task["allowed_files"] = ["src/module.py"]
+            task["test_commands"] = ["python3 -m pytest tests/test_epoch_schema_validation.py -q"]
+            task["rq_id"] = "RQ01"
+            task["rq_spec_ref"] = "rqs/RQ01/SPEC.yaml"
+            task["rq_task_ref"] = "rqs/RQ01/TASKS.yaml#RQ01_T_IMPL"
+            task["research_binding"] = {
+                "mode": "spine_bound",
+                "rq_id": "RQ01",
+                "claim_ids": ["C1"],
+                "experiment_ids": ["E1"],
+                "evidence_ids": ["EV1"],
+                "justification": "implementation task supporting declared RQ contract",
+            }
+            write_yaml(research_dir / "V0" / "TASK_QUEUE.yaml", queue)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires verified reproduction for RQ01", result.stdout)
+
     def test_epoch_ready_rejects_task_missing_research_binding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))

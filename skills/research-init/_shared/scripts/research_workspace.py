@@ -827,7 +827,9 @@ def research_prd_tex(title: str, purpose: str) -> str:
     escaped_title = latex_escape(title)
     escaped_purpose = latex_escape(purpose)
     placeholder_tex = r"\makecell[l]{\texttt{\{\{E01.OURS.}\\\texttt{primary\_metric\}\}}}"
-    return rf"""\documentclass[UTF8,11pt]{{ctexrep}}
+    return rf"""% template_family: {TEMPLATE_FAMILY}
+% template_version: {TEMPLATE_VERSION}
+\documentclass[UTF8,11pt]{{ctexrep}}
 \usepackage[a4paper,left=25mm,right=25mm,top=24mm,bottom=26mm]{{geometry}}
 \usepackage{{amsmath,amssymb}}
 \usepackage{{booktabs,tabularx,array,longtable}}
@@ -2091,7 +2093,10 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
         **template_metadata(),
         "version": version,
         "direction_ref": "../RESEARCH_DIRECTION.md",
-        "prd_ref": "PRD.md",
+        "prd_ref": "PRD.tex",
+        "prd_summary_ref": "PRD_SUMMARY.md",
+        "role": "epoch_aggregate_index",
+        "rq_specs": [{"rq_id": "RQ01", "spec_ref": "rqs/RQ01/SPEC.yaml", "plan_ref": "rqs/RQ01/PLAN.md"}],
         "experiments": [],
         "datasets": [],
         "models": [],
@@ -2202,13 +2207,248 @@ def epoch_spine_payload(version: str) -> dict[str, Any]:
         "version": version,
         "direction_ref": "../RESEARCH_DIRECTION.md",
         "source_prd_hash": None,
-        "research_questions": [],
+        "research_questions": [
+            {
+                "id": "RQ01",
+                "text": "【待填写：当前版本的第一个可证伪研究问题】",
+                "rq_dir": "rqs/RQ01",
+                "spec_ref": "rqs/RQ01/SPEC.yaml",
+                "plan_ref": "rqs/RQ01/PLAN.md",
+            }
+        ],
         "claims": [],
         "experiments": [],
         "evidence": [],
         "figures_tables": [],
         "paper_sections": [],
     }
+
+
+def epoch_prd_summary_template(version: str, title: str, purpose: str) -> str:
+    return f"""---
+template_family: {TEMPLATE_FAMILY}
+template_version: {TEMPLATE_VERSION}
+version: {version}
+source_prd: PRD.tex
+canonical: false
+---
+
+# {version} PRD Summary — Agent Context Only
+
+> 本文件不是研究真源，仅为 agent 快速读取 `PRD.tex` 的上下文摘要。
+> 不得从本文件反向覆盖、扩写或修正 `PRD.tex`。
+
+## Canonical Source
+
+- canonical_prd: `PRD.tex`
+- review_pdf: `PRD.pdf`
+- title: `{title}`
+- purpose: `{purpose}`
+
+## RQ Index
+
+| RQ ID | RQ Dir | Spec | Plan | Status |
+|---|---|---|---|---|
+| RQ01 | `rqs/RQ01` | `rqs/RQ01/SPEC.yaml` | `rqs/RQ01/PLAN.md` | planned |
+
+## Claim Boundary
+
+- 不得把本摘要中的占位符当作已验证 claim。
+- 所有 claim 必须回到 `PRD.tex`、`RESEARCH_SPINE.yaml` 与 RQ-local `SPEC.yaml` 校验。
+
+## Gate Summary
+
+- G0: Source / literature / repository search lock.
+- G1: Reproduction verification lock.
+- G2+: RQ-local implementation、experiment、analysis 与 audit。
+"""
+
+
+def rq_markdown_template(version: str, rq_id: str) -> str:
+    return f"""---
+template_family: {TEMPLATE_FAMILY}
+template_version: {TEMPLATE_VERSION}
+version: {version}
+rq_id: {rq_id}
+---
+
+# {rq_id} Research Question
+
+## Statement
+
+【待填写：用一句可证伪命题描述该 RQ】
+
+## Parent / Lineage
+
+- parent_version: none
+- parent_rq_id: none
+- relation: root
+
+## Boundary
+
+- allowed_claim_scope: 【待填写：该 RQ 允许支持的 claim 边界】
+- forbidden_claims:
+  - 【待填写：该 RQ 不允许支持的过强 claim】
+"""
+
+
+def rq_spec_payload(version: str, rq_id: str) -> dict[str, Any]:
+    return {
+        **template_metadata(),
+        "version": version,
+        "rq_id": rq_id,
+        "source_prd": "../../PRD.tex",
+        "source_prd_summary": "../../PRD_SUMMARY.md",
+        "research_question": {
+            "statement": "【待填写：当前 RQ 的可证伪问题陈述】",
+            "motivation": "【待填写：为什么该 RQ 对当前版本必要】",
+            "null_hypothesis": "【待填写：零假设】",
+            "alternative_hypothesis": "【待填写：备择假设】",
+            "falsification_condition": "【待填写：何种证据会反驳该 RQ】",
+        },
+        "claim_contract": {
+            "claim_ids": [],
+            "allowed_claim_scope": "【待填写：该 RQ 最多允许声称什么】",
+            "forbidden_claims": ["不得声称超出 PRD.tex 与本 RQ evidence contract 的结论。"],
+        },
+        "reproduction_contract": {
+            "required": True,
+            "source_lock_ref": "reproduction/SOURCE_LOCK.yaml",
+            "reproduction_spec_ref": "reproduction/REPRODUCTION_SPEC.yaml",
+            "verification_ref": "reproduction/VERIFICATION.yaml",
+            "immutable_base_ref": "reproduction/IMMUTABLE_BASE.yaml",
+            "pass_before_innovation": True,
+        },
+        "experiment_contract": {
+            "datasets": [],
+            "models": [],
+            "baselines": [],
+            "metrics": [],
+            "seeds": [],
+            "harnesses": [],
+        },
+        "evidence_contract": {
+            "required_artifacts": [],
+            "required_commands": [],
+            "artifact_hash_required": True,
+            "audit_required": True,
+            "paper_admissible_condition": "full run + artifact hash + audit passed + no mock evidence",
+        },
+        "failure_taxonomy": {
+            "reproduction_failed": "复现失败；不得进入 innovation，需记录 blocker 或负结果。",
+            "implementation_failed": "工程实现失败；不得解释为研究假设被证伪。",
+            "hypothesis_falsified": "只有在 full harness 与 audit 后才能标记。",
+            "inconclusive": "证据不足；保持 claim blocked。",
+        },
+    }
+
+
+def rq_plan_template(version: str, rq_id: str) -> str:
+    return f"""---
+template_family: {TEMPLATE_FAMILY}
+template_version: {TEMPLATE_VERSION}
+version: {version}
+rq_id: {rq_id}
+source_spec: SPEC.yaml
+---
+
+# {rq_id} Evidence-Generation Plan
+
+## Scientific Contract
+
+- RQ: 【待填写：从 SPEC.yaml 导入】
+- null_hypothesis: 【待填写】
+- claim_boundary: 【待填写】
+- reproduction_prerequisite: required
+- falsification_condition: 【待填写】
+
+## Evidence Gate Graph
+
+G0 Source Lock -> G1 Reproduction Verification -> G2 Innovation Implementation -> G3 Main Experiment -> G4 Analysis and Audit -> G5 RQ Closeout
+
+## Workflow Rules
+
+- coding task 使用 Red -> Green -> Refactor。
+- reproduction / experiment task 使用 Pre-register -> Smoke run -> Full run -> Artifact verify -> Analysis。
+- 未通过 reproduction verification 前，不得执行 innovation / experiment / analysis task。
+"""
+
+
+def rq_tasks_payload(version: str, rq_id: str) -> dict[str, Any]:
+    task_id = f"{rq_id}_T001"
+    return {
+        **template_metadata(),
+        "version": version,
+        "rq_id": rq_id,
+        "source_spec": "SPEC.yaml",
+        "tasks": [
+            {
+                "task_id": task_id,
+                "phase": "reproduction",
+                "status": "pending",
+                "title": "Lock and verify baseline reproduction prerequisite",
+                "preconditions": ["PRD.tex exists", "SPEC.yaml declares reproduction_contract.required=true"],
+                "commands": [],
+                "expected_artifacts": ["reproduction/VERIFICATION.yaml"],
+                "pass_criteria": ["VERIFICATION.yaml status is verified or blocker is explicit"],
+                "blocker_criteria": ["missing official code", "missing dataset", "metric mismatch"],
+                "evidence_level_on_pass": "reproduced",
+                "evidence_level_on_fail": "failed_but_informative",
+                "claim_support_allowed": False,
+            }
+        ],
+    }
+
+
+def rq_reproduction_payloads(version: str, rq_id: str) -> dict[str, dict[str, Any]]:
+    return {
+        "SOURCE_LOCK.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "version": version,
+            "rq_id": rq_id,
+            "status": "pending",
+            "sources": [],
+            "notes": "Lock paper/code/dataset/metric sources before reproduction.",
+        },
+        "REPRODUCTION_SPEC.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "version": version,
+            "rq_id": rq_id,
+            "mode": None,
+            "commands": [],
+            "expected_metrics": [],
+            "tolerance": None,
+        },
+        "VERIFICATION.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "version": version,
+            "rq_id": rq_id,
+            "status": "pending",
+            "allowed_status": ["pending", "verified", "blocked", "failed"],
+            "artifact_refs": [],
+            "audit_status": "pending",
+        },
+        "IMMUTABLE_BASE.yaml": {
+            "schema_version": SCHEMA_VERSION,
+            "version": version,
+            "rq_id": rq_id,
+            "status": "pending",
+            "base_refs": [],
+            "read_only_after_verified": True,
+        },
+    }
+
+
+def init_rq_scaffold(epoch_dir: Path, version: str, rq_id: str = "RQ01", force: bool = False) -> None:
+    rq_dir = epoch_dir / "rqs" / rq_id
+    for dirname in ["reproduction", "runs", "artifacts", "audits"]:
+        (rq_dir / dirname).mkdir(parents=True, exist_ok=True)
+    write_text(rq_dir / "RQ.md", markdown_template(rq_markdown_template(version, rq_id)), force)
+    write_yaml(rq_dir / "SPEC.yaml", rq_spec_payload(version, rq_id), force)
+    write_text(rq_dir / "PLAN.md", markdown_template(rq_plan_template(version, rq_id)), force)
+    write_yaml(rq_dir / "TASKS.yaml", rq_tasks_payload(version, rq_id), force)
+    for filename, payload in rq_reproduction_payloads(version, rq_id).items():
+        write_yaml(rq_dir / "reproduction" / filename, payload, force)
 
 
 def default_reproduction_contract(version: str) -> dict[str, Any]:
@@ -2246,6 +2486,7 @@ def default_filesystem_contract(version: str) -> dict[str, Any]:
         "state_root": f"docs/research/{version}",
         "search_metadata_root": f"docs/research/{version}/search",
         "reproduction_metadata_root": f"docs/research/{version}/reproduction",
+        "rq_contract_root": f"docs/research/{version}/rqs",
         "reproduction_workspace_root": f"reproduction/{version}",
         "experiment_root": f"experiments/{version}",
         "artifact_root": f"artifacts/{version}",
@@ -2387,7 +2628,8 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
             "paper_binding_ready",
         ],
         "direction_ref": "../RESEARCH_DIRECTION.md",
-        "current_prd": "PRD.md",
+        "current_prd": "PRD.tex",
+        "current_prd_summary": "PRD_SUMMARY.md",
         "current_spine": "RESEARCH_SPINE.yaml",
         "current_spec": "SPEC.yaml",
         "current_plan": "PLAN.md",
@@ -2536,7 +2778,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
-                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.md", "SPEC.yaml"],
+                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.tex", "PRD_SUMMARY.md", "SPEC.yaml"],
                 "output_refs": [
                     "search/search_report.md",
                     "search/web_search_log.yaml",
@@ -3816,9 +4058,12 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(agent_dir / "GIT_POLICY.md", markdown_template(git_policy_template()), force)
 
     epoch_dir = research_dir / version
-    for dirname in ["plans", "runs", "artifacts", "audits", "search", "reproduction", "wiki"]:
+    for dirname in ["plans", "runs", "artifacts", "audits", "search", "reproduction", "rqs", "wiki"]:
         (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
-    write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
+    prd_tex = epoch_dir / "PRD.tex"
+    write_text(prd_tex, research_prd_tex(title, purpose), force)
+    render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
+    write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
@@ -3831,6 +4076,7 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
     write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
     write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
+    init_rq_scaffold(epoch_dir, version, "RQ01", force)
     for filename, content in default_search_metadata(version).items():
         path = epoch_dir / "search" / filename
         if isinstance(content, str):
@@ -3857,6 +4103,7 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
         epoch_dir / "audits" / ".gitkeep",
         epoch_dir / "search" / ".gitkeep",
         epoch_dir / "reproduction" / ".gitkeep",
+        epoch_dir / "rqs" / ".gitkeep",
     ]:
         write_text(path, "", force)
 
@@ -3909,7 +4156,10 @@ def create_epoch(
 
     title = "Research Project"
     purpose = f"next-epoch-from-{source_version}"
-    write_text(epoch_dir / "PRD.md", markdown_template(epoch_prd_template(version, title, purpose)), force)
+    prd_tex = epoch_dir / "PRD.tex"
+    write_text(prd_tex, research_prd_tex(title, purpose), force)
+    render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
+    write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
     write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
@@ -3922,6 +4172,7 @@ def create_epoch(
     write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
     write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
     write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
+    init_rq_scaffold(epoch_dir, version, "RQ01", force)
     for filename, content in default_search_metadata(version).items():
         path = epoch_dir / "search" / filename
         if isinstance(content, str):
@@ -3946,6 +4197,7 @@ def create_epoch(
         epoch_dir / "audits" / ".gitkeep",
         epoch_dir / "search" / ".gitkeep",
         epoch_dir / "reproduction" / ".gitkeep",
+        epoch_dir / "rqs" / ".gitkeep",
     ]:
         write_text(path, "", force)
     write_text(research_dir / "CURRENT", version + "\n", force=True)
@@ -4609,6 +4861,56 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
     )
 
 
+def current_epoch_rq_ids(research_dir: Path) -> list[str]:
+    version = current_epoch_name(research_dir)
+    if not version:
+        return []
+    spine_path = research_dir / version / "RESEARCH_SPINE.yaml"
+    if spine_path.exists():
+        spine = load_yaml(spine_path)
+        ids = [
+            str(item.get("id"))
+            for item in as_list(spine.get("research_questions"))
+            if isinstance(item, dict) and item.get("id")
+        ]
+        if ids:
+            return ids
+    rqs_root = research_dir / version / "rqs"
+    ids = sorted(path.name for path in rqs_root.glob("RQ*") if path.is_dir()) if rqs_root.exists() else []
+    return ids or ["RQ01"]
+
+
+def sync_epoch_rq_spec_index(research_dir: Path, force: bool = True) -> None:
+    version = current_epoch_name(research_dir)
+    if not version:
+        return
+    epoch_dir = research_dir / version
+    spec_path = epoch_dir / "SPEC.yaml"
+    spec = load_yaml(spec_path) if spec_path.exists() else epoch_spec_payload(version)
+    spec["prd_ref"] = "PRD.tex"
+    spec["prd_summary_ref"] = "PRD_SUMMARY.md"
+    spec["role"] = "epoch_aggregate_index"
+    spec["rq_specs"] = [
+        {"rq_id": rq_id, "spec_ref": f"rqs/{rq_id}/SPEC.yaml", "plan_ref": f"rqs/{rq_id}/PLAN.md"}
+        for rq_id in current_epoch_rq_ids(research_dir)
+    ]
+    write_yaml(spec_path, spec, force=force)
+
+
+def init_rq_spec_scaffold(research_dir: Path, rq_id: str | None = None, all_rqs: bool = False, force: bool = False) -> list[Path]:
+    version = current_epoch_name(research_dir)
+    if not version:
+        return []
+    epoch_dir = research_dir / version
+    rq_ids = current_epoch_rq_ids(research_dir) if all_rqs else [rq_id or current_epoch_rq_ids(research_dir)[0]]
+    written: list[Path] = []
+    for rid in rq_ids:
+        init_rq_scaffold(epoch_dir, version, rid, force=force)
+        written.append(epoch_dir / "rqs" / rid / "SPEC.yaml")
+    sync_epoch_rq_spec_index(research_dir, force=True)
+    return written
+
+
 def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = False) -> Path:
     research_dir = repo / DEFAULT_RESEARCH_DIR
     for dirname in ["prd", "paper", "spec", "plans", "audits", "insights"]:
@@ -4663,6 +4965,13 @@ def hash_path(path: Path) -> str:
         digest.update(child.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def epoch_prd_source_path(epoch_dir: Path) -> Path:
+    tex = epoch_dir / "PRD.tex"
+    if tex.exists():
+        return tex
+    return epoch_dir / "PRD.md"
 
 
 def git_commit(repo: Path) -> str:
@@ -4744,6 +5053,7 @@ def generate_plan(
     track: str,
     gate: str | None = None,
     target: str = "codex",
+    rq_id: str | None = None,
     force: bool = False,
 ) -> Path:
     plan_id = f"{date}-{slugify(purpose)}"
@@ -4766,7 +5076,7 @@ def generate_plan(
         "loop_mode": {"claude_code": "ralph_loop", "codex": "goal_driven"},
         "active_task_source": "TASK_QUEUE.yaml",
         "source_versions": {
-            "prd_hash": hash_path(research_dir / version / "PRD.md") if version else hash_path(research_dir / "prd"),
+            "prd_hash": hash_path(epoch_prd_source_path(research_dir / version)) if version else hash_path(research_dir / "prd"),
             "paper_hash": hash_path(research_dir / "paper"),
             "spec_hash": hash_path(research_dir / version / "SPEC.yaml" if version else research_dir / "spec"),
             "git_commit": git_commit(repo),
@@ -4964,6 +5274,17 @@ low / medium / high
         else:
             content = f"# {title_text}\n\n【待填写：本文件由执行循环持续更新。】\n"
         write_text(plan_dir / name, content, force)
+    if version and rq_id:
+        epoch_dir = research_dir / version
+        init_rq_scaffold(epoch_dir, version, rq_id, force=False)
+        write_text(epoch_dir / "rqs" / rq_id / "PLAN.md", markdown_template(rq_plan_template(version, rq_id)), force=True)
+        tasks = rq_tasks_payload(version, rq_id)
+        task = tasks["tasks"][0]
+        task["task_id"] = f"{rq_id}_T_{slugify(track).upper().replace('-', '_')}"
+        task["phase"] = track
+        task["title"] = f"{track} task for {rq_id}"
+        write_yaml(epoch_dir / "rqs" / rq_id / "TASKS.yaml", tasks, force=True)
+        sync_epoch_rq_spec_index(research_dir, force=True)
     return plan_dir
 
 def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
@@ -5846,7 +6167,7 @@ def _append_stale_if_needed(
 
 def detect_epoch_stale_hashes(epoch_dir: Path) -> list[StaleFinding]:
     findings: list[StaleFinding] = []
-    prd = epoch_dir / "PRD.md"
+    prd = epoch_prd_source_path(epoch_dir)
     spine = epoch_dir / "RESEARCH_SPINE.yaml"
     spec = epoch_dir / "SPEC.yaml"
     plan = epoch_dir / "PLAN.md"
@@ -6181,6 +6502,140 @@ def validate_epoch_search_reproduction_shape(epoch_dir: Path) -> list[str]:
     return issues
 
 
+RQ_REQUIRED_FILES = ["RQ.md", "SPEC.yaml", "PLAN.md", "TASKS.yaml"]
+RQ_REQUIRED_REPRODUCTION_FILES = [
+    "SOURCE_LOCK.yaml",
+    "REPRODUCTION_SPEC.yaml",
+    "VERIFICATION.yaml",
+    "IMMUTABLE_BASE.yaml",
+]
+RQ_TASK_REQUIRED_FIELDS = [
+    "task_id",
+    "phase",
+    "status",
+    "preconditions",
+    "commands",
+    "expected_artifacts",
+    "pass_criteria",
+    "blocker_criteria",
+    "evidence_level_on_pass",
+]
+
+
+def validate_rq_task_shape(rq_id: str, tasks_doc: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(tasks_doc.get("tasks"), list):
+        return [f"{rq_id}/TASKS.yaml missing tasks list"]
+    for task in as_list(tasks_doc.get("tasks")):
+        if not isinstance(task, dict):
+            issues.append(f"{rq_id}/TASKS.yaml task must be a mapping")
+            continue
+        task_id = str(task.get("task_id") or "<missing>")
+        for field in RQ_TASK_REQUIRED_FIELDS:
+            if field not in task:
+                issues.append(f"{rq_id}/TASKS.yaml task {task_id} missing required field: {field}")
+    return issues
+
+
+def validate_rq_contracts(epoch_dir: Path, spine: dict[str, Any]) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    version = epoch_dir.name
+    rqs_root = epoch_dir / "rqs"
+    if not rqs_root.is_dir():
+        return [EpochSchemaIssue(f"{version}/rqs", f"missing {version}/rqs: {rqs_root.as_posix()}")]
+
+    declared = [
+        str(rq.get("id"))
+        for rq in as_list(spine.get("research_questions"))
+        if isinstance(rq, dict) and rq.get("id")
+    ]
+    if not declared and (rqs_root / "RQ01").exists():
+        declared = ["RQ01"]
+
+    for rq_id in declared:
+        rq_dir = rqs_root / rq_id
+        if not rq_dir.is_dir():
+            issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}", f"missing {version}/rqs/{rq_id}: {rq_dir.as_posix()}"))
+            continue
+        for filename in RQ_REQUIRED_FILES:
+            path = rq_dir / filename
+            if not path.exists():
+                issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/{filename}", f"missing {version}/rqs/{rq_id}/{filename}: {path.as_posix()}"))
+        for filename in RQ_REQUIRED_REPRODUCTION_FILES:
+            path = rq_dir / "reproduction" / filename
+            if not path.exists():
+                issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/reproduction/{filename}", f"missing {version}/rqs/{rq_id}/reproduction/{filename}: {path.as_posix()}"))
+
+        spec_path = rq_dir / "SPEC.yaml"
+        if spec_path.exists():
+            spec = load_yaml(spec_path)
+            if spec.get("version") != version:
+                issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/SPEC.yaml", f"{version}/rqs/{rq_id}/SPEC.yaml version {spec.get('version')} does not match epoch {version}"))
+            if spec.get("rq_id") != rq_id:
+                issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/SPEC.yaml", f"{version}/rqs/{rq_id}/SPEC.yaml rq_id {spec.get('rq_id')} does not match directory {rq_id}"))
+            for field in ["research_question", "claim_contract", "reproduction_contract", "experiment_contract", "evidence_contract", "failure_taxonomy"]:
+                if field not in spec:
+                    issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/SPEC.yaml", f"{version}/rqs/{rq_id}/SPEC.yaml missing required field: {field}"))
+
+        tasks_path = rq_dir / "TASKS.yaml"
+        if tasks_path.exists():
+            tasks_doc = load_yaml(tasks_path)
+            for issue in validate_rq_task_shape(rq_id, tasks_doc):
+                issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/TASKS.yaml", f"{version}/rqs/{issue}"))
+    return issues
+
+
+def _rq_task_by_ref(epoch_dir: Path, ref: str) -> dict[str, Any] | None:
+    if "#" not in ref:
+        return None
+    rel_path, task_id = ref.split("#", 1)
+    task_path = epoch_dir / rel_path
+    if not task_path.exists():
+        return None
+    payload = load_yaml(task_path)
+    for task in as_list(payload.get("tasks")):
+        if isinstance(task, dict) and str(task.get("task_id") or "") == task_id:
+            return task
+    return None
+
+
+def validate_global_task_rq_refs(epoch_dir: Path, queue: dict[str, Any]) -> list[EpochSchemaIssue]:
+    issues: list[EpochSchemaIssue] = []
+    version = epoch_dir.name
+    for task in [item for item in as_list(queue.get("tasks")) if isinstance(item, dict)]:
+        task_id = _task_identifier(task) or "<missing>"
+        binding = task.get("research_binding") if isinstance(task.get("research_binding"), dict) else {}
+        if binding.get("mode") == "direction_bootstrap":
+            continue
+        for field in ["rq_id", "rq_spec_ref", "rq_task_ref"]:
+            if not task.get(field):
+                issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/task {task_id} missing {field}"))
+        rq_spec_ref = str(task.get("rq_spec_ref") or "")
+        if rq_spec_ref and not (epoch_dir / rq_spec_ref).exists():
+            issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/task {task_id} rq_spec_ref does not exist: {rq_spec_ref}"))
+        rq_task_ref = str(task.get("rq_task_ref") or "")
+        if rq_task_ref:
+            rq_task = _rq_task_by_ref(epoch_dir, rq_task_ref)
+            if rq_task is None:
+                issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/task {task_id} rq_task_ref does not resolve: {rq_task_ref}"))
+            elif str(rq_task.get("phase") or "") != str(task.get("phase") or ""):
+                issues.append(
+                    EpochSchemaIssue(
+                        f"{version}/TASK_QUEUE.yaml",
+                        f"{version}/task {task_id} phase {task.get('phase')} does not match rq_task_ref phase {rq_task.get('phase')}",
+                    )
+                )
+    return issues
+
+
+def rq_reproduction_status(epoch_dir: Path, rq_id: str) -> str:
+    verification = epoch_dir / "rqs" / rq_id / "reproduction" / "VERIFICATION.yaml"
+    if not verification.exists():
+        return "missing"
+    payload = load_yaml(verification)
+    return str(payload.get("status") or "")
+
+
 def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[EpochSchemaIssue]:
     issues: list[EpochSchemaIssue] = []
     manifest = load_epoch_manifest()
@@ -6205,6 +6660,8 @@ def validate_epoch_schema(research_dir: Path, strict: bool = True) -> list[Epoch
             spine = load_yaml(epoch_dir / "RESEARCH_SPINE.yaml")
             for issue in validate_task_research_binding(epoch_dir, queue, spine):
                 issues.append(EpochSchemaIssue(f"{version}/TASK_QUEUE.yaml", f"{version}/{issue}"))
+            issues.extend(validate_global_task_rq_refs(epoch_dir, queue))
+            issues.extend(validate_rq_contracts(epoch_dir, spine))
         issues.extend(validate_epoch_search_reproduction_files(epoch_dir, manifest))
         for issue in validate_epoch_search_reproduction_shape(epoch_dir):
             issues.append(EpochSchemaIssue(f"{version}/reproduction/REPRODUCTION_INDEX.yaml", f"{version}/{issue}"))
@@ -6302,7 +6759,11 @@ def validate_epoch_ready(research_dir: Path) -> Validation:
         for line in non_placeholder_lines(out_of_scope_section)
         if line.startswith("-")
     ]
-    current_text = "\n".join(read_text(epoch_dir / name) for name in ["PRD.md", "PLAN.md"] if (epoch_dir / name).exists())
+    current_text = "\n".join(
+        read_text(path)
+        for path in [epoch_prd_source_path(epoch_dir), epoch_dir / "PLAN.md"]
+        if path.exists()
+    )
     for term in forbidden_terms:
         if term and term in current_text and "out-of-scope" not in current_text.lower():
             validation.error(f"current epoch may cross Research Direction out-of-scope term: {term}")
@@ -6331,6 +6792,14 @@ def validate_loop_ready(research_dir: Path) -> Validation:
         validation.error(f"code-changing active task {active_task.get('id')} must define test_commands")
     for issue in validate_active_task_research_binding(active_task):
         validation.error(issue)
+    phase = str(active_task.get("phase") or "")
+    if phase in {"implementation", "experiment", "analysis", "result_analysis", "evaluation"}:
+        binding = active_task.get("research_binding") if isinstance(active_task.get("research_binding"), dict) else {}
+        rq_id = str(active_task.get("rq_id") or binding.get("rq_id") or "")
+        if rq_id:
+            status = rq_reproduction_status(epoch_dir, rq_id)
+            if status != "verified":
+                validation.error(f"active task {active_task.get('id')} requires verified reproduction for {rq_id}; current status: {status}")
     return validation
 
 
@@ -6389,8 +6858,7 @@ def allowed_claim_blocks(text: str) -> list[str]:
 def current_has_carry_forward(research_dir: Path, old_version: str, artifact_path: str) -> bool:
     epoch_dir = current_epoch_dir(research_dir)
     haystack = ""
-    for name in ["PRD.md", "SPEC.yaml"]:
-        path = epoch_dir / name
+    for path in [epoch_prd_source_path(epoch_dir), epoch_dir / "SPEC.yaml"]:
         if path.exists():
             haystack += "\n" + read_text(path)
     if "carry_forward" not in haystack:
@@ -6479,7 +6947,8 @@ def validate_format_ready(research_dir: Path) -> Validation:
     key_template_files = [
         research_dir / "RESEARCH_DIRECTION.md",
         research_dir / "INDEX.md",
-        epoch_dir / "PRD.md",
+        epoch_dir / "PRD.tex",
+        epoch_dir / "PRD_SUMMARY.md",
         epoch_dir / "SPEC.yaml",
         epoch_dir / "PLAN.md",
         epoch_dir / "STATUS.yaml",
@@ -6843,15 +7312,36 @@ def validate_git_ready(research_dir: Path) -> Validation:
 
 def validate_prd(research_dir: Path) -> Validation:
     validation = Validation()
-    prd = research_dir / "prd" / "research_prd.md"
-    if not validation.require_file(prd, "Research PRD"):
+    epoch_dir = current_epoch_dir(research_dir) if (research_dir / "CURRENT").exists() else None
+    if epoch_dir and (epoch_dir / "PRD.tex").exists():
+        prd = epoch_dir / "PRD.tex"
+        prd_label = f"{epoch_dir.name}/PRD.tex"
+    else:
+        prd = research_dir / "prd" / "research_prd.md"
+        prd_label = "Research PRD"
+    if not validation.require_file(prd, prd_label):
         return validation
     text = read_text(prd)
     for section in PRD_SECTIONS:
-        if section not in text:
+        label = section.split(". ", 1)[1] if ". " in section else section.lstrip("# ")
+        if section not in text and label not in text:
             validation.error(f"missing PRD section: {section}")
-    epoch_dir = current_epoch_dir(research_dir)
-    if (epoch_dir / "STATUS.yaml").exists():
+    if prd.suffix == ".tex":
+        pdf = prd.with_suffix(".pdf")
+        blocker = prd.parent / "render_blocker.md"
+        if not pdf.exists():
+            if blocker.exists():
+                validation.error(f"PRD PDF render blocked: {blocker.as_posix()}")
+            else:
+                validation.error(f"missing PRD PDF generated from {prd_label}: {pdf.as_posix()}")
+        summary = prd.parent / "PRD_SUMMARY.md"
+        if validation.require_file(summary, f"{epoch_dir.name}/PRD_SUMMARY.md"):
+            summary_text = read_text(summary)
+            if "不是研究真源" not in summary_text and "not canonical" not in summary_text.lower():
+                validation.error("PRD_SUMMARY.md must state that it is not the canonical research source")
+            if re.search(r"canonical\s*:\s*true", summary_text, flags=re.IGNORECASE):
+                validation.error("PRD_SUMMARY.md must not declare itself canonical")
+    if epoch_dir and (epoch_dir / "STATUS.yaml").exists():
         state = load_yaml(epoch_dir / "STATUS.yaml")
     else:
         state = load_yaml(research_dir / "state.yaml")

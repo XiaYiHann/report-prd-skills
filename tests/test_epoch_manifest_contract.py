@@ -41,7 +41,8 @@ class EpochManifestContractTests(unittest.TestCase):
         self.assertEqual(
             required,
             [
-                "PRD.md",
+                "PRD.tex",
+                "PRD_SUMMARY.md",
                 "goal.md",
                 "RESEARCH_SPINE.yaml",
                 "SPEC.yaml",

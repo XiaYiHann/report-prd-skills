@@ -31,6 +31,7 @@ from research_workspace import (  # noqa: E402
     PRD_SECTIONS,
     SPEC_FILES,
     current_epoch_name,
+    epoch_prd_source_path,
     generate_audit,
     generate_paper,
     generate_plan,
@@ -373,7 +374,7 @@ class ResearchLoop:
         findings = []
         version = (self.research_dir / "CURRENT").read_text(encoding="utf-8").strip() if (self.research_dir / "CURRENT").exists() else ""
         current_spec_hash = hash_path(self.research_dir / version / "SPEC.yaml") if version else hash_path(self.research_dir / "spec")
-        current_prd_hash = hash_path(self.research_dir / version / "PRD.md") if version else hash_path(self.research_dir / "prd")
+        current_prd_hash = hash_path(epoch_prd_source_path(self.research_dir / version)) if version else hash_path(self.research_dir / "prd")
         current_paper_hash = hash_path(self.research_dir / "paper")
         if versions.get("spec_hash") and versions.get("spec_hash") != current_spec_hash:
             findings.append(f"active plan {plan_dir.name} has stale spec hash")

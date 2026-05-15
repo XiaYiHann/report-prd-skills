@@ -15,7 +15,7 @@ Definition:
 
 > Auto research is not automatic paper writing. It is a charter-bounded, epoch-based loop where each research version fully frames, contracts, executes, gates, distills evidence into a wiki, and either seeds the next sharper version or enters paper binding.
 
-The initializer must produce a serious research template, not an empty `TODO` skeleton. `research_prd.tex` is the canonical source and uses `ctex` + TikZ tables/figures; `research_prd.md` is the Chinese companion reading artifact.
+The initializer must produce a serious research template, not an empty `TODO` skeleton. For the active epoch, `V0/PRD.tex` is the canonical source and uses `ctex` + TikZ tables/figures; `V0/PRD.pdf` is the review artifact; `V0/PRD_SUMMARY.md` is agent context only. Legacy `prd/research_prd.tex` and `research_prd.md` are compatibility artifacts.
 
 The generated paper and spec are also real templates, not empty files:
 
@@ -56,12 +56,18 @@ The command creates the new default structure:
 - `docs/research/explore/syntheses/EXP_SYNTHESIS.md`
 - `docs/research/explore/proposals/*`
 - `docs/research/V0/goal.md`
-- `docs/research/V0/PRD.md`
+- `docs/research/V0/PRD.tex`
+- `docs/research/V0/PRD.pdf` or `docs/research/V0/render_blocker.md`
+- `docs/research/V0/PRD_SUMMARY.md`
 - `docs/research/V0/RESEARCH_SPINE.yaml`
 - `docs/research/V0/SPEC.yaml`
 - `docs/research/V0/PLAN.md`
 - `docs/research/V0/STATUS.yaml`
 - `docs/research/V0/TASK_QUEUE.yaml`
+- `docs/research/V0/rqs/RQ01/SPEC.yaml`
+- `docs/research/V0/rqs/RQ01/PLAN.md`
+- `docs/research/V0/rqs/RQ01/TASKS.yaml`
+- `docs/research/V0/rqs/RQ01/reproduction/*`
 - `docs/research/V0/LOOP_LOG.md`
 - `docs/research/V0/GIT_STATE.yaml`
 - `docs/research/V0/git_log.md`
@@ -87,10 +93,10 @@ If `latexmk` or `xelatex` is available, initialization renders a real PDF from t
 
 1. Resolve the repository root.
 2. Run the initializer.
-3. Inspect `docs/research/prd/research_prd.md` and fill the Research PRD before treating the spec as executable.
+3. Inspect and fill `docs/research/V0/PRD.tex`; rerender `PRD.pdf` before treating the spec as executable.
 4. Inspect `docs/research/RESEARCH_DIRECTION.md`, then fill and approve the Research Corridor before letting agents explore.
 5. Resolve current epoch through `docs/research/CURRENT`; default is `V0`.
-6. Fill `docs/research/V0/PRD.md`; this is the active epoch's research truth.
+6. Use `docs/research/V0/PRD_SUMMARY.md` only as agent context; do not let it override `PRD.tex`.
 7. Run `research-spec` only after the active PRD has concrete RQs, hypotheses, benchmarks, experiments, harnesses, and evidence boundaries.
 8. Run validation:
 
@@ -111,7 +117,8 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 - `CURRENT` defaults to `V0`.
 - `V0/STATUS.yaml` defaults to `status=initialized`.
 - `V0/goal.md` defaults to a scaffold with YAML frontmatter (`version`, `language`, `style`, `evidence_rule`, `gate_strategy`, `commit_policy`) and Chinese body sections: 工作目录, 全局约束, 版本目标, 总规则, Gate 序列, 测试要求, 提交要求, 最终回复格式. **It is the per-version high-level execution prompt and constraint anchor.** It defines the overall mission for the entire `V0`, not the current task. It changes only when the version's core question or scope shifts.
-- `V0/PRD.md` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.md`。
+- `V0/PRD.tex` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.tex`。
+- `V0/rqs/RQ01/` defaults to the first RQ-local contract scaffold; every declared RQ must have local `SPEC.yaml`, `PLAN.md`, `TASKS.yaml`, and reproduction verification files.
 - `V0/TASK_QUEUE.yaml` tasks include a Git policy block.
 - `V0/GIT_STATE.yaml` disables push by default and records commit/tag policies.
 - Do not delete legacy `prd/spec/plans/audits/insights`; mark them as legacy-compatible context.
