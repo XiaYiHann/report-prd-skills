@@ -417,7 +417,7 @@ TASK_XXX_report / LOOP_LOG / runs / artifacts / explore session
   -> Vn/wiki/next_version_seed.md
 ```
 
-`docs/research/insights/insight_log.md` 进入逐步退役状态：它仍作为 legacy workspace 的兼容读写目标和 migration source，但在存在 `CURRENT` 与 `Vn/wiki/` 时不再是默认 insight 真源。旧 insight 只能作为候选材料，不能直接支撑当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 `carry_forward`。
+`docs/research/insights/insight_log.md` 进入逐步退役状态：它仍作为 legacy workspace 的兼容读写目标和 migration source，但在存在 `CURRENT` 与 `Vn/wiki/` 时不再是默认 insight 真源。旧 insight 只能作为候选材料，不能直接支撑当前版本 claim，除非当前 `Vn/PRD.tex` 或 `Vn/SPEC.yaml` 显式 `carry_forward`。
 
 ## Audit Modernization
 
@@ -436,12 +436,13 @@ TASK_XXX_report / LOOP_LOG / runs / artifacts / explore session
 新增 validator：
 
 - `format-ready`：检查 epoch_v1 必备文件、模板版本、agent docs、`AGENTS.md` / `CLAUDE.md`。
-- `migration-ready`：识别 `epoch_v1`、`legacy_flat`、`mixed`、`unknown`。
+- `rq-driven-ready`：检查当前 workspace 是否采用标准 RQ-driven 结构：`Vn/PRD.tex`、`Vn/RESEARCH_SPINE.yaml`、epoch aggregate `Vn/SPEC.yaml`、以及每个 RQ 对应的 `Vn/rqs/RQxx/` Spec/Plan/Task/Reproduction contract。
+- `migration-ready`：识别 `epoch_v1`、`legacy_flat`、`mixed`、`unknown`，并报告 `standard`、`migration_recommended` 或 `migration_required`。
 - `git-ready`：检查 `GIT_STATE.yaml`、task git policy、done task commit hash、closeout/paper-binding git 记录、dirty tree。
 
 Audit 会显式检查 `RESEARCH_DIRECTION.md` 完整性：必备章节、Direction Status 字段、human-approved/frozen 状态、Research Corridor、Out-of-Scope、Autonomy Boundary 和 Global Stop Conditions。缺口会写入 `alignment_matrix.yaml` 的 `direction_completeness`、`drift_findings.yaml`、`audit_report.md` 和 `repair_plan.md`。
 
-Migration audit 可以生成 `docs/research/audits/MIGRATION_AUDIT.md` 和 `docs/research/MIGRATION_PLAN.md`，但不能默认改写研究主张，也不能把旧 insight 直接变成 paper evidence。
+Migration audit 可以生成 `docs/research/audits/MIGRATION_AUDIT.md` 和 `docs/research/MIGRATION_PLAN.md`。若不是标准 RQ-driven 结构，audit 必须提醒用户迁移并给出迁移方案；但不能默认改写研究主张，也不能把旧 insight 直接变成 paper evidence。
 
 ## Updated Full Loop
 
@@ -480,6 +481,7 @@ Explore
 - `closeout-ready`
 - `paper-binding-ready`
 - `format-ready`
+- `rq-driven-ready`
 - `migration-ready`
 - `git-ready`
 
@@ -833,6 +835,7 @@ python3 skills/research-spec/scripts/validate_research.py --repo . --mode audit-
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode insight-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode alignment-check
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode format-ready
+python3 skills/research-spec/scripts/validate_research.py --repo . --mode rq-driven-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode migration-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode git-ready
 python3 skills/research-spec/scripts/validate_research.py --repo . --mode spine-ready

@@ -335,6 +335,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "closeout-ready",
                 "paper-binding-ready",
                 "format-ready",
+                "rq-driven-ready",
                 "migration-ready",
                 "git-ready",
             ]:

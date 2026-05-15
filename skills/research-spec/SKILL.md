@@ -171,6 +171,7 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode closeout-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode paper-binding-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode format-ready
+python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode rq-driven-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode migration-ready
 python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /absolute/path/to/repo --mode git-ready
 ```
@@ -188,7 +189,8 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py --repo /abso
 | `closeout-ready` | Version can close | `research` / `research-audit` | All active tasks completed or blocked with evidence |
 | `paper-binding-ready` | Paper can bind claims | `research-paper` / `research-audit` | `closeout-ready` passes and `PAPER_BINDING_DECISION.md` approves |
 | `format-ready` | File format compliance | `research-audit` | Workspace initialized |
-| `migration-ready` | Legacy to epoch migration check | `research-audit` | Legacy layout detected |
+| `rq-driven-ready` | Standard RQ-driven epoch contract check | `research-audit` | `CURRENT` resolves to an active `Vn` |
+| `migration-ready` | Legacy to RQ-driven epoch migration check | `research-audit` | Legacy or non-standard layout detected |
 | `git-ready` | Git state compliance | `research-audit` | Git available |
 | `loop-prompt-ready` | `ai_loop_prompt.md` contains all required clauses | `research-plan` | `plan-ready` passes |
 

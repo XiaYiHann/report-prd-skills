@@ -18,7 +18,7 @@ Audit already-written files. This is not a paper review only; it is a cross-file
 - Plans
 - artifacts if present
 
-It is also the format gatekeeper, migration guide, Git checkpoint auditor, and Paper Binding guard for epoch_v1.
+It is also the RQ-driven format gatekeeper, migration guide, Git checkpoint auditor, and Paper Binding guard for epoch_v1.
 
 Audit is a hard gate, not only a scaffold generator. In epoch workspaces it must emit machine-readable PASS/WARN/FAIL checks, and P0/P1 failures block closeout promotion or Paper Binding. Codex / Claude Code remain the agent executors; audit verifies their submitted run reports, commands, artifact hashes, git evidence, and carry_forward declarations. It does not run an independent backend and must not treat prompt-only scaffold as result evidence.
 
@@ -47,8 +47,8 @@ Conceptual command forms:
 
 ## Audit Modes
 
-- `format` — checks epoch_v1 file structure, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`, and the `## Research Agent Behavior Contract` / `## 研究智能体行为契约` section with all 10 required rules. Returns PASS/WARN/FAIL with P0/P1 severity.
-- `migration` — detects workspace type (`unknown`, `legacy_flat`, `mixed`, `epoch_v1`) and writes detailed `MIGRATION_AUDIT.md` + `MIGRATION_PLAN.md` with phase-by-phase guidance, including how to bind `direction_ref` and populate the Spine Matrix. Does not default to moving old artifacts or rewriting research claims.
+- `format` — checks epoch_v1 file structure, standard RQ-driven layout, template metadata, `RESEARCH_DIRECTION.md` required sections, `RESEARCH_SPINE.yaml` chain integrity (`direction_ref`, RQ→Claim→Experiment→Evidence→Figure/Table→Paper Section), `ai_loop_prompt.md` required clauses, agent docs, `AGENTS.md`, `CLAUDE.md`, and the `## Research Agent Behavior Contract` / `## 研究智能体行为契约` section with all 10 required rules. Returns PASS/WARN/FAIL with severity.
+- `migration` — detects workspace type (`unknown`, `legacy_flat`, `mixed`, `epoch_v1`) and RQ-driven status (`standard`, `migration_recommended`, `migration_required`), then writes detailed `MIGRATION_AUDIT.md` + `MIGRATION_PLAN.md` with phase-by-phase guidance, including how to bind `direction_ref`, create `Vn/rqs/RQxx/`, split legacy Spec/Plan into RQ-local contracts, and populate the Spine Matrix. Does not default to moving old artifacts or rewriting research claims.
 - `epoch` — checks current `Vn` authority chain, task queue, next action, wiki, closeout.
 - `git` — checks `GIT_STATE.yaml`, task commit hashes, dirty tree, closeout/paper binding commits.
 - `evidence` — checks artifact/evidence eligibility and anti-mock rules.
@@ -105,6 +105,8 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Are done tasks missing commit hashes?
 - Is closeout or paper binding attempted with a dirty tree?
 - Does the workspace look `epoch_v1`, `legacy_flat`, `mixed`, or `unknown`?
+- Does the current workspace use the standard RQ-driven layout: `Vn/PRD.tex`, `Vn/RESEARCH_SPINE.yaml`, epoch aggregate `Vn/SPEC.yaml`, and one `Vn/rqs/RQxx/` contract set per declared RQ?
+- If the workspace is not standard RQ-driven, does audit clearly tell the user to migrate and provide a migration plan without rewriting claims?
 
 ## Outputs
 
@@ -156,6 +158,8 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 ## Migration Audit Rules
 
 Audit may detect, classify, generate `MIGRATION_AUDIT.md`, generate `MIGRATION_PLAN.md`, and point out blockers. It must not default to moving old artifacts, rewriting PRD research claims, treating old insight as paper evidence, or marking a legacy project epoch-ready.
+
+Audit must explicitly report RQ-driven status. Missing active epoch files or missing `Vn/rqs/RQxx/` contracts are `migration_required`. A valid active epoch with remaining legacy flat files is `migration_recommended` until those files are migrated, archived, or explicitly marked compatibility-only.
 
 Legacy migration should become an explicit task such as `TASK_MIGRATE_LEGACY_TO_V0`.
 

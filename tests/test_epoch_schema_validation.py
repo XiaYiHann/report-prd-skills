@@ -9,6 +9,30 @@ from research_workflow_helpers import *  # noqa: F403
 
 
 class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
+    def test_rq_driven_ready_accepts_pure_epoch_rq_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            for name in ["prd", "paper", "spec", "plans", "insights"]:
+                shutil.rmtree(research_dir / name)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "rq-driven-ready"])
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("[OK] rq-driven-ready", result.stdout)
+
+    def test_rq_driven_ready_rejects_missing_rq_contract_with_migration_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            for name in ["prd", "paper", "spec", "plans", "insights"]:
+                shutil.rmtree(research_dir / name)
+            (research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml").unlink()
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "rq-driven-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V0/rqs/RQ01/SPEC.yaml", result.stdout)
+        self.assertIn("RQ-driven migration required", result.stdout)
+
     def test_epoch_ready_requires_rq_local_spec_for_declared_rq(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))

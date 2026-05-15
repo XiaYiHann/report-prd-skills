@@ -264,5 +264,46 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             self.assertTrue((research_dir / "audits" / "MIGRATION_AUDIT.md").exists())
             self.assertTrue((research_dir / "MIGRATION_PLAN.md").exists())
             audit_text = (research_dir / "audits" / "MIGRATION_AUDIT.md").read_text(encoding="utf-8")
+            plan_text = (research_dir / "MIGRATION_PLAN.md").read_text(encoding="utf-8")
             self.assertIn("legacy_flat", audit_text)
+            self.assertIn("RQ-Driven Format Check", audit_text)
+            self.assertIn("rq_driven_status: `migration_required`", audit_text)
+            self.assertIn("V0/rqs/RQxx", audit_text)
             self.assertIn("carry_forward_candidates", audit_text)
+            self.assertIn("RQ-Driven Format Status", plan_text)
+            self.assertIn("V0/PRD.tex", plan_text)
+            self.assertIn("RQ-local", plan_text)
+
+    def test_migration_audit_warns_when_epoch_has_rq_contracts_but_legacy_overlay_remains(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+
+            check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "migration-ready"])
+            self.assertNotEqual(check.returncode, 0)
+            self.assertIn("rq_driven_status: migration_recommended", check.stdout)
+
+            audit = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--mode", "migration"])
+            self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+            audit_text = (research_dir / "audits" / "MIGRATION_AUDIT.md").read_text(encoding="utf-8")
+            plan_text = (research_dir / "MIGRATION_PLAN.md").read_text(encoding="utf-8")
+            self.assertIn("rq_driven_status: `migration_recommended`", audit_text)
+            self.assertIn("legacy flat research files are still present", audit_text)
+            self.assertIn("Vn/rqs/RQxx", plan_text)
+
+    def test_full_audit_records_rq_driven_format_dimension(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+
+            result = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--date", "2026-05-15", "--mode", "full"])
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+            audit_dir = research_dir / "audits" / "2026-05-15-audit"
+            matrix = read_yaml(audit_dir / "alignment_matrix.yaml")
+            self.assertIn("rq_driven_format", matrix["dimensions"])
+            self.assertEqual(matrix["dimensions"]["rq_driven_format"]["status"], "repair_required")
+            report = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+            self.assertIn("RQ-Driven Format", report)
+
+            epoch_results = read_yaml(research_dir / "V0" / "audits" / "2026-05-15-audit" / "audit_results.yaml")
+            checks = {item["check_id"]: item for item in epoch_results["checks"]}
+            self.assertEqual(checks["format.rq_driven_standard"]["status"], "WARN")
