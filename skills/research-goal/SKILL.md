@@ -34,10 +34,11 @@ Read in order:
 
 `goal.md` must state:
 
-- current Vn context and active gate/task;
-- all outstanding tasks across every declared RQ, including dependency edges and RQ-local Spec/Plan refs;
+- current Vn context and version-level objective, not merely a single-step action note;
+- every declared RQ's plan/task contract refs and all queue tasks that belong to that RQ;
+- the full version task dependency graph, including what each task does, dependency edges, waiting dependencies, blocked ancestors, unlocked descendants, runnable status, and RQ-local Spec/Plan refs;
 - `TASK_QUEUE.yaml` remains the single-step execution source;
-- blocked branch tasks do not stop independent runnable tasks whose `depends_on` edges are already satisfied;
+- orthogonal runnable tasks may continue, or run in parallel when executor support and file scopes allow, while blocked branch tasks freeze only their explicit descendants;
 - baseline decisions come from `BASELINE_LOCK.yaml` and `baselines/INDEX.yaml`;
 - no fabricated data, stdout/stderr, artifact, hash, citation, or paper result;
 - stop conditions for stale contracts, blocked gates, human review, closeout, and Paper Binding;

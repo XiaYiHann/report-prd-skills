@@ -250,7 +250,7 @@ docs/research/
 | `Vn/PRD.pdf` | 从 `PRD.tex` 真实编译出的审阅产物；无 LaTeX 或编译失败时必须写 blocker |
 | `Vn/PRD_SUMMARY.md` | agent 快速上下文摘要，不是真源，不得反向覆盖 `PRD.tex` |
 | `Vn/SCIENTIFIC_JUDGMENT.yaml` | judgment-file 初始化时的用户最小科学判断记录；它是输入 judgment，不是 observed evidence |
-| `Vn/goal.md` | 当前 epoch 的执行目标锚点：由 controller 在每次 loop 开始时读取，作为单步决策的上下文边界 |
+| `Vn/goal.md` | 当前 epoch 的版本级长程目标锚点：覆盖 `Vn` 目标、所有 RQ 的计划/任务绑定、task dependency graph、并行与 blocked-branch 规则；不是单步行动 note |
 | `Vn/GOAL_LOCK.yaml` | `goal.md` 的生成/刷新合同，记录 PRD、baseline、spine、RQ-local contracts、task queue、evidence gate 和 status 的 source hash |
 | `Vn/RESEARCH_SPINE.yaml` | 证据链绑定合同：`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section` 的硬约束映射 |
 | `Vn/EVIDENCE_GATE.yaml` | claim admission gate；只有真实 artifact、命令、hash、audit 与 source/baseline gate 满足后，draft claim 才能升级为 allowed claim |
@@ -334,11 +334,11 @@ while STATUS.yaml.status not in (closed_*, gate_blocked):
 
 **停止条件**：`gate_blocked`（报告 blocker 等待人工决策）、`closed_*`（报告 closeout 摘要）、实验证据反驳 PRD 核心假设（写 negative_result 请求 review）。
 
-若要在 Codex 或 Claude Code 中驱动自动执行，使用当前版本的 `docs/research/{CURRENT}/goal.md` 作为目标模式输入；每一轮仍必须从 `TASK_QUEUE.yaml` 读取唯一 active task。
+若要在 Codex 或 Claude Code 中驱动自动执行，使用当前版本的 `docs/research/{CURRENT}/goal.md` 作为目标模式输入；调度真源仍是 `TASK_QUEUE.yaml`，但 `goal.md` 必须暴露版本级 task dependency graph、可运行任务集合与 blocked-branch 传播规则。默认串行推进当前 active task；当执行器支持并行、`depends_on` 已满足且 `allowed_files` 不冲突时，可并行推进正交 runnable tasks。
 
 ## Goal Mode Usage
 
-Codex 使用 `docs/research/agent/CODEX_GOAL_TEMPLATE.md`：目标必须是完成当前 active task。若改代码，运行相关测试；若不能测试，写明 blocker。Codex 不修改 Research Direction，不在 closeout 前创建下一版本，不把未验证 artifact 写成 paper result。
+Codex 使用 `docs/research/agent/CODEX_GOAL_TEMPLATE.md`：目标必须是完成当前版本中可运行的 task 集合，并遵守 dependency graph。若改代码，运行相关测试；若不能测试，写明 blocker。Codex 不修改 Research Direction，不在 closeout 前创建下一版本，不把未验证 artifact 写成 paper result。
 
 ## Task Queue and Next Action
 
@@ -610,7 +610,7 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 
 ### Goal Mode 自动循环
 
-Codex 与 Claude Code 均以当前版本的 `goal.md` 作为长程目标输入，以 `GOAL_LOCK.yaml` 校验目标是否仍匹配当前 PRD、Spine、RQ-local contracts、Task Queue、Evidence Gate 与状态文件。目标模式不引入独立循环插件；每轮执行只推进 `TASK_QUEUE.yaml` 中的唯一 active task，遇到 blocker、stale lock、human review 或 closeout 即停止。
+Codex 与 Claude Code 均以当前版本的 `goal.md` 作为长程目标输入，以 `GOAL_LOCK.yaml` 校验目标是否仍匹配当前 PRD、Spine、RQ-local contracts、Task Queue、Evidence Gate 与状态文件。目标模式不引入独立循环插件；每轮执行以 `TASK_QUEUE.yaml` 为调度真源，默认串行推进当前 active task，但可在 `goal.md` 标出的 `runnable_parallel_set` 内并行推进正交且文件范围不冲突的任务。单个 blocker 只冻结显式依赖它的后继任务；不相关 runnable tasks 应继续执行，直到 stale lock、human review、gate_blocked、closeout 或无可运行任务。
 
 ### 执行 Backend / Agent Executor
 
@@ -882,7 +882,7 @@ Plan 现在是 `/research` 的内部 compiler pass，而不是常规用户 skill
 
 ## Research Goal
 
-`research-goal` 生成或刷新当前 `Vn/goal.md`，并写入 `Vn/GOAL_LOCK.yaml`。它读取 `RESEARCH_DIRECTION.md`、`PRD.tex`、`BASELINE_LOCK.yaml`、`baselines/INDEX.yaml`、`RESEARCH_SPINE.yaml`、`rqs/`、`TASK_QUEUE.yaml`、`EVIDENCE_GATE.yaml` 和 `STATUS.yaml`，把这些合同压缩成面向 Codex / Claude Code goal mode 的长程目标。`goal.md` 不是 task queue；单步执行真源仍然是 `TASK_QUEUE.yaml`。
+`research-goal` 生成或刷新当前 `Vn/goal.md`，并写入 `Vn/GOAL_LOCK.yaml`。它读取 `RESEARCH_DIRECTION.md`、`PRD.tex`、`BASELINE_LOCK.yaml`、`baselines/INDEX.yaml`、`RESEARCH_SPINE.yaml`、`rqs/`、`TASK_QUEUE.yaml`、`EVIDENCE_GATE.yaml` 和 `STATUS.yaml`，把这些合同压缩成面向 Codex / Claude Code goal mode 的长程目标。`goal.md` 不是单步行动 note，也不是 task queue；它必须覆盖每个 RQ 的计划/任务绑定、完整 task dependency graph、可并行分支和 blocked-branch 传播规则。单步执行真源仍然是 `TASK_QUEUE.yaml`。
 
 ```bash
 python3 skills/research-goal/scripts/generate_research_goal.py --repo . --target both

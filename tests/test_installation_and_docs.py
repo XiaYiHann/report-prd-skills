@@ -48,6 +48,30 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("## Baseline Lock", glossary)
         self.assertIn("## Evidence Gate", glossary)
 
+    def test_goal_mode_docs_are_version_graph_not_single_next_step(self) -> None:
+        docs = "\n".join(
+            [
+                (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
+                (REPO_ROOT / "skills" / "research" / "SKILL.md").read_text(encoding="utf-8"),
+                (REPO_ROOT / "skills" / "research-goal" / "SKILL.md").read_text(encoding="utf-8"),
+                (REPO_ROOT / "skills" / "research-init" / "SKILL.md").read_text(encoding="utf-8"),
+            ]
+        )
+
+        self.assertIn("task dependency graph", docs)
+        self.assertIn("runnable_parallel_set", docs)
+        self.assertIn("blocked-branch", docs)
+        self.assertIn("正交 runnable tasks", docs)
+        for forbidden in [
+            "当前下一步",
+            "current-next-step",
+            "唯一 active task",
+            "每轮只能执行",
+            "每轮执行只推进",
+            "目标必须是完成当前 active task",
+        ]:
+            self.assertNotIn(forbidden, docs)
+
     def test_spec_plan_paper_are_documented_as_internal_research_stages(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         research = (REPO_ROOT / "skills" / "research" / "SKILL.md").read_text(encoding="utf-8")

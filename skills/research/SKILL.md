@@ -105,8 +105,9 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 
   使用 docs/research/{CURRENT}/goal.md 作为目标输入。
 
-目标模式每轮只能执行 `TASK_QUEUE.yaml` 中的唯一 active task。
-遇到 blocker、stale lock、human review、gate_blocked 或 closed_* 时停止。
+目标模式以 `TASK_QUEUE.yaml` 为调度真源，并以 `goal.md` 中的 dependency graph 判断 runnable task set。
+默认串行推进当前 active task；若执行器支持并行、依赖已满足且文件范围不冲突，可并行推进正交 runnable tasks。
+遇到 blocker 时只冻结依赖该 blocker 的后继分支；遇到 stale lock、human review、gate_blocked、closed_* 或无可运行任务时停止。
 ```
 
 若当前已处于目标模式迭代中，则跳过此提示，直接进入执行流程。
