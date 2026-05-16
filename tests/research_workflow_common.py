@@ -21,6 +21,7 @@ PAPER_SCRIPT = REPO_ROOT / "skills" / "research-paper" / "scripts" / "generate_r
 PLAN_SCRIPT = REPO_ROOT / "skills" / "research-plan" / "scripts" / "generate_research_plan.py"
 GOAL_SCRIPT = REPO_ROOT / "skills" / "research-goal" / "scripts" / "generate_research_goal.py"
 STATUS_SCRIPT = REPO_ROOT / "skills" / "research-status" / "scripts" / "research_status.py"
+UPDATE_VERIFY_SCRIPT = REPO_ROOT / "skills" / "research-update" / "scripts" / "verify_research_update.py"
 AUDIT_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "generate_research_audit.py"
 RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop.py"
 CREATE_EPOCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "create_epoch.py"
@@ -32,6 +33,7 @@ SKILL_NAMES = [
     "research-explore",
     "research-insight",
     "research-status",
+    "research-update",
     "research-init",
     "research-goal",
     "research-audit",

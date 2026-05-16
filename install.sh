@@ -23,6 +23,7 @@ SKILLS=(
   research-explore
   research-insight
   research-status
+  research-update
   research-init
   research-goal
   research-audit

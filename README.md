@@ -111,6 +111,7 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
   research-explore/    # pure exploration
   research-insight/    # evidence-grounded interpretation
   research-status/     # read-only status snapshot
+  research-update/     # framework skill update and verification
   research-init/       # workspace initialization
   research-goal/       # Vn goal synthesis
   research-audit/      # cross-file consistency audit
@@ -616,6 +617,7 @@ prompt-only scaffold 不能作为实验结果或 paper binding 证据。
 | [`research-explore`](skills/research-explore/SKILL.md) | 纯探索入口：讨论 idea、文献、baseline、novelty、failure analysis、paper shape、next-version framing；可保存 EXP session，但不执行。 |
 | [`research-insight`](skills/research-insight/SKILL.md) | 显式解释入口：把 run、artifact、blocker、负结果、失败路径或 explore session 沉淀到当前 `Vn/wiki/*`，并把 legacy `insight_log.md` 逐步退役。 |
 | [`research-status`](skills/research-status/SKILL.md) | 只读实验进展入口：报告当前目标、Big RQ、当前 gate/active task、RQ-local 进展、证据缺口、blocker、可继续任务与 validator 状态；不推进任务。 |
+| [`research-update`](skills/research-update/SKILL.md) | 显式更新入口：更新或重装 research-loop skill family，清理 retired skill，验证 `~/.agents/skills` 真源和 `~/.claude/skills` symlink。 |
 | [`research-init`](skills/research-init/SKILL.md) | 初始化 `docs/research/`，创建中文 LaTeX 真源 Research PRD、paper、spec、plans、audits 和 epoch scaffold。 |
 | [`research-goal`](skills/research-goal/SKILL.md) | 生成或刷新当前 `Vn/goal.md` 与 `Vn/GOAL_LOCK.yaml`，作为长循环执行目标锚点。 |
 | [`research-audit`](skills/research-audit/SKILL.md) | 审计 PRD、Paper、Spec、Plans、artifacts、insight 之间的一致性与漂移。 |
