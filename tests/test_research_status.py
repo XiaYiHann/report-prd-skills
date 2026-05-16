@@ -32,6 +32,13 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertEqual(payload["baseline_lock_status"], "pending")
         self.assertEqual(payload["evidence_gate"]["next_required_gate"], "G0_SEARCH_LOCK")
         self.assertIn("RQ01", payload["declared_rqs"])
+        self.assertEqual(payload["research_goal"]["minimum_viable_purpose"], "minimal-regression")
+        self.assertEqual(payload["epoch_progress"]["task_counts"]["active"], 1)
+        self.assertEqual(payload["rq_progress"][0]["id"], "RQ01")
+        self.assertIn("statement", payload["rq_progress"][0])
+        self.assertEqual(payload["current_experiment"]["active_task"]["id"], "T_G0_001")
+        self.assertIn("success_criteria", payload["current_experiment"]["active_task"])
+        self.assertTrue(payload["next_actions"])
         self.assertIn("loop-ready", payload["validators"])
 
     def test_research_status_markdown_is_concise_and_read_only(self) -> None:
@@ -43,9 +50,12 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("# Research Status", result.stdout)
-        self.assertIn("current_version: `V0`", result.stdout)
-        self.assertIn("## Active Task", result.stdout)
+        self.assertIn("## Current Goal", result.stdout)
+        self.assertIn("## Experiment Progress", result.stdout)
+        self.assertIn("## RQ Progress", result.stdout)
+        self.assertIn("## Next Actions", result.stdout)
         self.assertIn("T_G0_001", result.stdout)
+        self.assertIn("Web search prior work and baselines", result.stdout)
 
 
 if __name__ == "__main__":

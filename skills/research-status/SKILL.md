@@ -7,11 +7,13 @@ description: "Use when the user asks for the current research-loop status, activ
 
 ## Purpose
 
-Report the current `docs/research/` state as a read-only status snapshot.
+Report the current `docs/research/` state as a read-only experiment progress
+report.
 
-This skill answers “where are we now?” It does not initialize a workspace, advance
-`TASK_QUEUE.yaml`, refresh `goal.md`, modify `RESEARCH_DIRECTION.md`, create
-`Vn+1`, run experiments, or admit claims.
+This skill answers “what are we trying to prove, where are we in the current
+experiment loop, what evidence is missing, and what can be done next?” It does
+not initialize a workspace, advance `TASK_QUEUE.yaml`, refresh `goal.md`, modify
+`RESEARCH_DIRECTION.md`, create `Vn+1`, run experiments, or admit claims.
 
 ## Read Order
 
@@ -23,6 +25,10 @@ This skill answers “where are we now?” It does not initialize a workspace, a
 6. `docs/research/{CURRENT}/BASELINE_LOCK.yaml`
 7. `docs/research/{CURRENT}/EVIDENCE_GATE.yaml`
 8. `docs/research/{CURRENT}/HUMAN_REVIEW_REQUESTS.yaml`
+9. `docs/research/{CURRENT}/PRD_SUMMARY.md`
+10. `docs/research/{CURRENT}/rqs/RQxx/RQ.md`
+11. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+12. `docs/research/{CURRENT}/rqs/RQxx/TASKS.yaml`
 
 ## Command
 
@@ -45,10 +51,18 @@ The report must distinguish:
 
 - workspace role: meta-framework, epoch workspace, legacy/mixed, or missing;
 - active version and `STATUS.yaml.status`;
-- current gate and active task from `TASK_QUEUE.yaml`;
-- declared RQs from `RESEARCH_SPINE.yaml`;
+- current research goal: PRD title/purpose, Big RQ, core hypothesis, MVR status;
+- current gate and active task from `TASK_QUEUE.yaml`, including success criteria,
+  required evidence, expected outputs, and harness predicate;
+- declared RQs from `RESEARCH_SPINE.yaml`, plus RQ-local approval status, task
+  progress, next RQ task, and experiment contract readiness;
+- gate/task progress across the current epoch, not just task counts;
 - baseline lock status;
-- evidence gate state: draft claims, allowed claims, next required gate;
+- evidence gate state: draft claims, allowed claims, next required gate, and
+  conditions still blocking paper-admissible claims;
+- blockers, human review requests, and dependency-free runnable tasks;
+- next actions: continue active task, run independent ready tasks, or resolve
+  blocker;
 - validators: `direction-ready`, `epoch-ready`, `rq-driven-ready`, `baseline-lock-ready`, `goal-ready`, `loop-ready`;
 - blockers and human review requests.
 
