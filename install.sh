@@ -6,6 +6,7 @@ REPO_REF="${RESEARCH_LOOP_REPO_REF:-${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PR
 CACHE_DIR="${RESEARCH_LOOP_CACHE_DIR:-${HOME}/.claude/research-loop}"
 SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${RESEARCH_LOOP_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}}"
 SKILLS_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${RESEARCH_LOOP_SKILLS_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}}"
+AGENTS_SKILLS_DIR="${RESEARCH_LOOP_AGENTS_SKILLS_DIR:-${AGENTS_SKILLS_DIR:-${HOME}/.agents/skills}}"
 PROJECT_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR:-${RESEARCH_LOOP_PROJECT_AGENTS_DIR:-.claude/agents}}"
 USER_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR:-${RESEARCH_LOOP_USER_AGENTS_DIR:-${HOME}/.claude/agents}}"
 
@@ -75,6 +76,7 @@ Environment:
   RESEARCH_LOOP_CACHE_DIR                   default: ~/.claude/research-loop
   RESEARCH_EXECUTION_SKILLS_SOURCE_DIR      install from local checkout
   RESEARCH_EXECUTION_SKILLS_TARGET_DIR      default: ~/.claude/skills
+  RESEARCH_LOOP_AGENTS_SKILLS_DIR           default: ~/.agents/skills compatibility links
   RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR default: ~/.claude/agents
   RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR   default: ./.claude/agents
 EOF
@@ -194,15 +196,103 @@ copy_internal_module() {
   fi
 }
 
+remove_managed_skill_path() {
+  local root="$1"
+  local skill="$2"
+  local path="$root/$skill"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would remove retired user-facing skill path $path if present"
+  elif [[ -e "$path" || -L "$path" ]]; then
+    rm -rf "$path"
+    log "$skill retired skill path removed from $root"
+  fi
+}
+
 remove_retired_skill_entry() {
   local skill="$1"
-  local stale_skill="$SKILLS_TARGET_DIR/$skill/SKILL.md"
+  remove_managed_skill_path "$SKILLS_TARGET_DIR" "$skill"
+}
+
+same_physical_dir() {
+  local left="$1"
+  local right="$2"
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY RUN: would remove retired user-facing skill entry $stale_skill if present"
-  elif [[ -f "$stale_skill" ]]; then
-    rm -f "$stale_skill"
-    log "$skill retired SKILL.md removed"
+    [[ "$left" == "$right" ]]
+    return
   fi
+  [[ -d "$left" && -d "$right" ]] || return 1
+  [[ "$(cd "$left" && pwd -P)" == "$(cd "$right" && pwd -P)" ]]
+}
+
+materialize_skills_target_if_agents_backed() {
+  if [[ "$DRY_RUN" == "true" || ! -L "$SKILLS_TARGET_DIR" ]]; then
+    return
+  fi
+
+  run_mkdir "$AGENTS_SKILLS_DIR"
+  local skills_real
+  local agents_real
+  skills_real="$(cd "$SKILLS_TARGET_DIR" && pwd -P)"
+  agents_real="$(cd "$AGENTS_SKILLS_DIR" && pwd -P)"
+  if [[ "$skills_real" != "$agents_real" ]]; then
+    return
+  fi
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d "${SKILLS_TARGET_DIR}.tmp.XXXXXX")"
+  cp -a "$SKILLS_TARGET_DIR/." "$tmp_dir/"
+  rm "$SKILLS_TARGET_DIR"
+  mv "$tmp_dir" "$SKILLS_TARGET_DIR"
+  log "Materialized $SKILLS_TARGET_DIR as canonical skills directory before .agents compatibility sync"
+}
+
+sync_agents_skill_link() {
+  local name="$1"
+  local source="$SKILLS_TARGET_DIR/$name"
+  local dest="$AGENTS_SKILLS_DIR/$name"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would link $dest -> $source"
+    return
+  fi
+
+  [[ -e "$source" || -L "$source" ]] || die "missing installed skill/module for compatibility link: $name"
+  rm -rf "$dest"
+  ln -s "$source" "$dest"
+  log "$name linked into $AGENTS_SKILLS_DIR"
+}
+
+sync_agents_skill_entries() {
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would synchronize research-loop entries in $AGENTS_SKILLS_DIR"
+    for skill in "${SKILLS[@]}"; do
+      sync_agents_skill_link "$skill"
+    done
+    for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
+      sync_agents_skill_link "$module"
+    done
+    for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
+      remove_managed_skill_path "$AGENTS_SKILLS_DIR" "$retired_skill"
+    done
+    return
+  fi
+
+  run_mkdir "$AGENTS_SKILLS_DIR"
+  AGENTS_SKILLS_DIR="$(cd "$AGENTS_SKILLS_DIR" && pwd)"
+  if same_physical_dir "$AGENTS_SKILLS_DIR" "$SKILLS_TARGET_DIR"; then
+    log "Agent skill compatibility path already resolves to skills target"
+    return
+  fi
+
+  for skill in "${SKILLS[@]}"; do
+    sync_agents_skill_link "$skill"
+  done
+  for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
+    sync_agents_skill_link "$module"
+  done
+  for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
+    remove_managed_skill_path "$AGENTS_SKILLS_DIR" "$retired_skill"
+  done
 }
 
 resolve_source_dir() {
@@ -252,6 +342,7 @@ else
 fi
 
 if [[ "$INSTALL_SKILLS" == "true" ]]; then
+  materialize_skills_target_if_agents_backed
   run_mkdir "$SKILLS_TARGET_DIR"
   if [[ "$DRY_RUN" != "true" ]]; then
     SKILLS_TARGET_DIR="$(cd "$SKILLS_TARGET_DIR" && pwd)"
@@ -270,6 +361,7 @@ if [[ "$INSTALL_SKILLS" == "true" ]]; then
   for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
     remove_retired_skill_entry "$retired_skill"
   done
+  sync_agents_skill_entries
 else
   log "Skills installation skipped."
 fi

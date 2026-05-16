@@ -126,6 +126,8 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
   research-paper.md    research-audit.md
 ```
 
+安装器同时会收敛 `~/.agents/skills` 中由 research-loop 管理的同名入口：可见 skill 和内部 compiler module 会指向 `~/.claude/skills` 的安装真源，`research-prd` 这类 retired 入口会整目录删除。若旧环境中 `~/.claude/skills` 整体指向 `~/.agents/skills`，安装器会先把 `~/.claude/skills` 物化为真实目录，再把 `.agents` 下的 research-loop 入口改成 symlink。这样 Codex/Claude 的技能发现不会继续读到旧的 `research-spec`、`research-plan`、`research-paper` 用户入口。
+
 ## Charter-bounded Epoch Research Loop
 
 新版系统定义为 **Charter-bounded Epoch Research Loop**。
