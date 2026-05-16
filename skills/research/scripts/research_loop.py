@@ -30,18 +30,25 @@ sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 from research_workspace import (  # noqa: E402
     PRD_SECTIONS,
     SPEC_FILES,
+    as_list,
     current_epoch_name,
+    current_epoch_rq_ids,
+    default_gate_aware_task_queue,
     epoch_prd_source_path,
+    epoch_plan_template,
     generate_audit,
     generate_paper,
     generate_plan,
     hash_path,
     init_research_workspace,
+    init_rq_spec_scaffold,
     init_spec_scaffold,
     load_yaml,
+    markdown_template,
     read_task_run_report,
     slugify,
     validate_research,
+    write_research_goal,
 )
 
 
@@ -64,6 +71,15 @@ STAGE_AUDIT_REQUIRED = "S5_AUDIT_REQUIRED"
 STAGE_INSIGHT_REVIEW = "S6_INSIGHT_REVIEW_REQUIRED"
 STAGE_PAPER_UPDATE = "S7_PAPER_UPDATE_READY"
 STAGE_COMPLETE = "S8_RESEARCH_COMPLETE"
+EPOCH_CLOSED_STATUSES = {
+    "closed_success",
+    "closed_negative",
+    "closed_blocked",
+    "closed_falsified",
+    "closed_pivot_required",
+    "closed_stable",
+}
+EPOCH_TERMINAL_STATUSES = EPOCH_CLOSED_STATUSES | {"paper_bound"}
 
 
 @dataclass
@@ -288,6 +304,11 @@ class ResearchLoop:
         if missing:
             return SpecStatus(status="missing", issues=[f"missing spec/{item}" for item in missing])
         validation = validate_research(self.research_dir, "spec-ready")
+        if self.args.legacy_controller:
+            global_spec = load_yaml(spec_dir / "global_spec.yaml")
+            rq_chain = global_spec.get("rq_chain")
+            if not isinstance(rq_chain, list) or not rq_chain:
+                return SpecStatus(status="not_ready", issues=["global_spec.yaml has no RQ -> Hypothesis -> Claim -> Experiment chain"])
         return SpecStatus(status="ready" if validation.ok else "not_ready", issues=validation.issues)
 
     def detect_insights(self) -> InsightStatus:
@@ -373,11 +394,14 @@ class ResearchLoop:
         versions = payload.get("source_versions", {}) if isinstance(payload.get("source_versions"), dict) else {}
         findings = []
         version = (self.research_dir / "CURRENT").read_text(encoding="utf-8").strip() if (self.research_dir / "CURRENT").exists() else ""
-        current_spec_hash = hash_path(self.research_dir / version / "SPEC.yaml") if version else hash_path(self.research_dir / "spec")
+        current_contract_hash = hash_path(self.research_dir / version / "rqs") if version else hash_path(self.research_dir / "spec")
+        legacy_spec_hash = hash_path(self.research_dir / version / "SPEC.yaml") if version else hash_path(self.research_dir / "spec")
         current_prd_hash = hash_path(epoch_prd_source_path(self.research_dir / version)) if version else hash_path(self.research_dir / "prd")
         current_paper_hash = hash_path(self.research_dir / "paper")
-        if versions.get("spec_hash") and versions.get("spec_hash") != current_spec_hash:
-            findings.append(f"active plan {plan_dir.name} has stale spec hash")
+        if versions.get("rq_contract_hash") and versions.get("rq_contract_hash") != current_contract_hash:
+            findings.append(f"active plan {plan_dir.name} has stale RQ contract hash")
+        elif versions.get("spec_hash") and versions.get("spec_hash") != legacy_spec_hash:
+            findings.append(f"active plan {plan_dir.name} has stale legacy spec hash")
         if versions.get("prd_hash") and versions.get("prd_hash") != current_prd_hash:
             findings.append(f"active plan {plan_dir.name} has stale PRD hash")
         if versions.get("paper_hash") and versions.get("paper_hash") != current_paper_hash:
@@ -982,29 +1006,252 @@ def is_epoch_workspace(research_dir: Path) -> bool:
     return any(path.is_dir() and re.fullmatch(r"V\d+", path.name) for path in research_dir.iterdir())
 
 
-def epoch_contract_summary(research_dir: Path, repo: Path) -> dict[str, Any]:
+def epoch_rel(repo: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo.resolve()).as_posix()
+    except ValueError:
+        return path.resolve().as_posix()
+
+
+def epoch_tasks(queue: dict[str, Any]) -> list[dict[str, Any]]:
+    return [task for task in queue.get("tasks", []) if isinstance(task, dict)] if isinstance(queue.get("tasks"), list) else []
+
+
+def epoch_active_task_id(queue: dict[str, Any]) -> str | None:
+    active = [task for task in epoch_tasks(queue) if str(task.get("status")) == "active"]
+    if not active:
+        return None
+    return str(active[0].get("task_id") or active[0].get("id") or "") or None
+
+
+def write_epoch_status(epoch_dir: Path, status_value: str, dry_run: bool, dry_run_writes: list[str], repo: Path) -> None:
+    status_path = epoch_dir / "STATUS.yaml"
+    if dry_run:
+        dry_run_writes.append(epoch_rel(repo, status_path))
+        dry_run_writes.append(epoch_rel(repo, epoch_dir / "GOAL_LOCK.yaml"))
+        return
+    status = load_yaml(status_path)
+    status["status"] = status_value
+    status["last_controller_stage"] = status_value
+    write_yaml_file(status_path, status)
+    write_research_goal(epoch_dir.parent, force=True)
+
+
+def write_epoch_gate_report(
+    epoch_dir: Path,
+    repo: Path,
+    date: str,
+    stage: str,
+    issues: list[str],
+    dry_run: bool,
+    dry_run_writes: list[str],
+) -> Path:
+    audit_dir = epoch_dir / "audits" / f"{date}-{stage}-gate"
+    if dry_run:
+        dry_run_writes.append(epoch_rel(repo, audit_dir))
+        return audit_dir
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    write_yaml_file(
+        audit_dir / "audit_results.yaml",
+        {
+            "schema_version": 1,
+            "stage": stage,
+            "checks": [
+                {
+                    "status": "FAIL",
+                    "severity": "P0",
+                    "check_id": f"{stage}.hard_gate",
+                    "message": issue,
+                }
+                for issue in issues
+            ],
+        },
+    )
+    write_yaml_file(
+        audit_dir / "drift_findings.yaml",
+        {
+            "schema_version": 1,
+            "stage": stage,
+            "findings": [
+                {"category": stage, "severity": "blocker", "message": issue}
+                for issue in issues
+            ],
+        },
+    )
+    write_text(
+        audit_dir / "repair_plan.md",
+        "# Internal Stage Repair Plan\n\n"
+        "## Must fix before continuing（执行失败）\n\n"
+        + "\n".join(f"- [ ] {issue}" for issue in issues)
+        + "\n\n由 `/research` 内部 compiler pass 生成；不要绕过该 gate。\n",
+    )
+    return audit_dir
+
+
+def ensure_epoch_plan_scaffold(epoch_dir: Path, repo: Path, dry_run: bool, dry_run_writes: list[str]) -> None:
+    version = epoch_dir.name
+    queue_path = epoch_dir / "TASK_QUEUE.yaml"
+    if dry_run:
+        if not queue_path.exists():
+            dry_run_writes.append(epoch_rel(repo, queue_path))
+        return
+    if not queue_path.exists():
+        write_yaml_file(queue_path, default_gate_aware_task_queue(version))
+
+
+def missing_rq_contract_paths(research_dir: Path, repo: Path) -> list[str]:
+    version = current_epoch_name(research_dir)
+    if not version:
+        return []
+    epoch_dir = research_dir / version
+    spine = load_yaml(epoch_dir / "RESEARCH_SPINE.yaml")
+    rq_items = {
+        str(item.get("id")): item
+        for item in as_list(spine.get("research_questions"))
+        if isinstance(item, dict) and item.get("id")
+    }
+    missing: list[str] = []
+    for rq_id in current_epoch_rq_ids(research_dir):
+        rq_dir = epoch_dir / "rqs" / rq_id
+        for name in ["RQ.md", "SPEC.yaml", "PLAN.md", "TASKS.yaml", "INSIGHT_REVIEW.yaml"]:
+            path = rq_dir / name
+            if not path.exists():
+                missing.append(epoch_rel(repo, path))
+        rq_item = rq_items.get(rq_id, {})
+        if rq_item.get("spec_ref") != f"rqs/{rq_id}/SPEC.yaml":
+            missing.append(epoch_rel(repo, epoch_dir / "RESEARCH_SPINE.yaml") + f"#research_questions.{rq_id}.spec_ref")
+        if rq_item.get("plan_ref") != f"rqs/{rq_id}/PLAN.md":
+            missing.append(epoch_rel(repo, epoch_dir / "RESEARCH_SPINE.yaml") + f"#research_questions.{rq_id}.plan_ref")
+    return missing
+
+
+def validation_issues(research_dir: Path, mode: str) -> list[str]:
+    validation = validate_research(research_dir, mode)
+    return validation.issues
+
+
+def epoch_contract_summary(research_dir: Path, repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     version = read_text(research_dir / "CURRENT").strip()
     epoch_dir = research_dir / version
+    actions: list[dict[str, Any]] = []
+    dry_run_writes: list[str] = []
+    max_steps = 1 if args.once else max(1, int(args.max_steps))
+
+    for _ in range(max_steps):
+        status = load_yaml(epoch_dir / "STATUS.yaml")
+        status_value = str(status.get("status") or "")
+        if status_value not in EPOCH_TERMINAL_STATUSES and (epoch_dir / "RESEARCH_SPINE.yaml").exists():
+            missing_contracts = missing_rq_contract_paths(research_dir, repo)
+            if missing_contracts:
+                if args.dry_run:
+                    dry_run_writes.extend(missing_contracts)
+                else:
+                    init_rq_spec_scaffold(research_dir, all_rqs=True, force=False)
+                actions.append({"action": "ensured_rq_contracts_for_declared_rqs", "writes": missing_contracts[:20]})
+
+        if status_value == "initialized":
+            issues = validation_issues(research_dir, "prd-ready")
+            if issues:
+                actions.append({"action": "waiting_for_prd_lock", "stage": "prd_gate", "issues": issues[:10]})
+                break
+            write_epoch_status(epoch_dir, "prd_locked", args.dry_run, dry_run_writes, repo)
+            actions.append({"action": "locked_prd", "stage_after": "prd_locked"})
+            continue
+
+        if status_value == "prd_locked":
+            if args.dry_run:
+                dry_run_writes.extend(
+                    [
+                        epoch_rel(repo, epoch_dir / "rqs"),
+                    ]
+                )
+            else:
+                init_rq_spec_scaffold(research_dir, all_rqs=True, force=False)
+            issues = validation_issues(research_dir, "spec-ready")
+            if issues:
+                audit_dir = write_epoch_gate_report(epoch_dir, repo, args.date or dt.date.today().isoformat(), "spec_compile", issues[:20], args.dry_run, dry_run_writes)
+                actions.append({"action": "blocked_after_internal_spec_compile", "audit": epoch_rel(repo, audit_dir), "issues": issues[:10]})
+                break
+            write_epoch_status(epoch_dir, "spec_ready", args.dry_run, dry_run_writes, repo)
+            actions.append({"action": "compiled_spec", "stage_after": "spec_ready"})
+            continue
+
+        if status_value == "spec_ready":
+            ensure_epoch_plan_scaffold(epoch_dir, repo, args.dry_run, dry_run_writes)
+            if not args.dry_run:
+                write_research_goal(research_dir, force=True)
+            issues: list[str] = []
+            for mode in ["goal-ready", "loop-ready"]:
+                issues.extend(f"{mode}: {issue}" for issue in validation_issues(research_dir, mode))
+            if issues:
+                audit_dir = write_epoch_gate_report(epoch_dir, repo, args.date or dt.date.today().isoformat(), "plan_compile", issues[:20], args.dry_run, dry_run_writes)
+                actions.append({"action": "blocked_before_internal_plan_ready", "audit": epoch_rel(repo, audit_dir), "issues": issues[:10]})
+                break
+            write_epoch_status(epoch_dir, "plan_ready", args.dry_run, dry_run_writes, repo)
+            actions.append({"action": "compiled_plan", "stage_after": "plan_ready"})
+            continue
+
+        if status_value == "closed_stable":
+            if args.dry_run:
+                dry_run_writes.append(epoch_rel(repo, research_dir / "paper"))
+            else:
+                generate_paper(research_dir, force=False)
+            paper_issues = validation_issues(research_dir, "paper-ready")
+            if paper_issues:
+                audit_dir = write_epoch_gate_report(epoch_dir, repo, args.date or dt.date.today().isoformat(), "paper_draft", paper_issues[:20], args.dry_run, dry_run_writes)
+                actions.append({"action": "blocked_after_internal_paper_draft", "audit": epoch_rel(repo, audit_dir), "issues": paper_issues[:10]})
+                break
+            decision_text = read_text(epoch_dir / "PAPER_BINDING_DECISION.md") if (epoch_dir / "PAPER_BINDING_DECISION.md").exists() else ""
+            if "paper_binding_ready: true" not in decision_text:
+                actions.append({"action": "generated_paper_draft_waiting_human_binding_decision", "stage_after": "waiting_human_binding_decision"})
+                break
+            binding_issues = validation_issues(research_dir, "paper-binding-ready")
+            if binding_issues:
+                audit_dir = write_epoch_gate_report(epoch_dir, repo, args.date or dt.date.today().isoformat(), "paper_binding", binding_issues[:20], args.dry_run, dry_run_writes)
+                actions.append({"action": "blocked_before_paper_binding", "audit": epoch_rel(repo, audit_dir), "issues": binding_issues[:10]})
+                break
+            write_epoch_status(epoch_dir, "paper_binding_ready", args.dry_run, dry_run_writes, repo)
+            actions.append({"action": "paper_binding_gate_ready", "stage_after": "paper_binding_ready"})
+            continue
+
+        if status_value == "paper_binding_ready":
+            binding_issues = validation_issues(research_dir, "paper-binding-ready")
+            if binding_issues:
+                audit_dir = write_epoch_gate_report(epoch_dir, repo, args.date or dt.date.today().isoformat(), "paper_binding", binding_issues[:20], args.dry_run, dry_run_writes)
+                actions.append({"action": "blocked_before_paper_binding", "audit": epoch_rel(repo, audit_dir), "issues": binding_issues[:10]})
+                break
+            if args.dry_run:
+                dry_run_writes.append(epoch_rel(repo, research_dir / "paper"))
+            else:
+                generate_paper(research_dir, force=True, mode="binding")
+            write_epoch_status(epoch_dir, "paper_bound", args.dry_run, dry_run_writes, repo)
+            actions.append({"action": "generated_binding_ready_manuscript", "stage_after": "paper_bound"})
+            break
+
+        if status_value == "paper_bound":
+            actions.append({"action": "paper_already_bound", "status": status_value})
+            break
+
+        actions.append({"action": "no_internal_stage", "status": status_value})
+        break
+
     status = load_yaml(epoch_dir / "STATUS.yaml")
     queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
-    tasks = [task for task in queue.get("tasks", []) if isinstance(task, dict)] if isinstance(queue.get("tasks"), list) else []
-    active = [task for task in tasks if str(task.get("status")) == "active"]
-    try:
-        workspace = research_dir.resolve().relative_to(repo.resolve()).as_posix()
-    except ValueError:
-        workspace = research_dir.resolve().as_posix()
+    workspace = epoch_rel(repo, research_dir)
     return {
         "controller_mode": "epoch_contract",
         "workspace": workspace,
         "current_version": version,
         "status": status.get("status"),
-        "active_task": active[0].get("id") if active else None,
+        "active_task": epoch_active_task_id(queue),
         "blocked": status.get("status") == "gate_blocked",
+        "actions": actions,
+        "dry_run_writes": dry_run_writes,
         "execution_mode": "agent_executor_contract",
         "execution_backend": {
             "mode": "codex_or_claude_code_agent",
             "implemented": True,
-            "note": "Agent executor contract; this script validates and reports the epoch contract without running a backend.",
+            "note": "Agent executor contract; /research owns internal Spec/Plan/Paper compiler passes and validates gates without running experiment harnesses.",
         },
         "task_queue": (epoch_dir / "TASK_QUEUE.yaml").as_posix(),
     }
@@ -1037,7 +1284,7 @@ def main() -> int:
     args = parse_args()
     controller = ResearchLoop(args)
     if not args.legacy_controller and is_epoch_workspace(controller.research_dir):
-        result = epoch_contract_summary(controller.research_dir, controller.repo)
+        result = epoch_contract_summary(controller.research_dir, controller.repo, args)
     else:
         result = controller.run()
     if args.json:

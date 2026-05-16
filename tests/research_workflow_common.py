@@ -19,6 +19,8 @@ INIT_SCRIPT = REPO_ROOT / "skills" / "research-init" / "scripts" / "init_researc
 VALIDATE_SCRIPT = REPO_ROOT / "skills" / "research-spec" / "scripts" / "validate_research.py"
 PAPER_SCRIPT = REPO_ROOT / "skills" / "research-paper" / "scripts" / "generate_research_paper.py"
 PLAN_SCRIPT = REPO_ROOT / "skills" / "research-plan" / "scripts" / "generate_research_plan.py"
+GOAL_SCRIPT = REPO_ROOT / "skills" / "research-goal" / "scripts" / "generate_research_goal.py"
+STATUS_SCRIPT = REPO_ROOT / "skills" / "research-status" / "scripts" / "research_status.py"
 AUDIT_SCRIPT = REPO_ROOT / "skills" / "research-audit" / "scripts" / "generate_research_audit.py"
 RESEARCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "research_loop.py"
 CREATE_EPOCH_SCRIPT = REPO_ROOT / "skills" / "research" / "scripts" / "create_epoch.py"
@@ -29,12 +31,15 @@ SKILL_NAMES = [
     "research",
     "research-explore",
     "research-insight",
+    "research-status",
     "research-init",
-    "research-prd",
+    "research-goal",
+    "research-audit",
+]
+INTERNAL_COMPILER_MODULE_NAMES = [
     "research-paper",
     "research-spec",
     "research-plan",
-    "research-audit",
 ]
 CLAUDE_RESEARCH_AGENT_NAMES = [
     "research-math",

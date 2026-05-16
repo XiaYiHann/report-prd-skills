@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import atexit
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,17 +13,59 @@ from research_workflow_common import *  # noqa: F403
 from research_workflow_common import _get_plain_template  # noqa: F401
 
 
+def refresh_research_goal(research_dir: Path, target: str = "both") -> None:
+    result = run_cmd(
+        [
+            "python3",
+            str(GOAL_SCRIPT),
+            "--research-dir",
+            str(research_dir),
+            "--target",
+            target,
+        ]
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stdout + result.stderr)
+
+
 def approve_research_direction(research_dir: Path) -> None:
     path = research_dir / "RESEARCH_DIRECTION.md"
     text = path.read_text(encoding="utf-8")
     text = text.replace("- status: draft", "- status: human_approved")
-    text = text.replace(
-        "- `【待填写：允许探索方向 1，例如 MoE routing analysis】`\n"
-        "- `【待填写：允许探索方向 2，例如 expert-DAG / expert-subgraph representation】`\n"
-        "- `【待填写：允许探索方向 3，例如 routing trace / routing intervention】`",
-        "- MoE routing analysis\n- expert-DAG / expert-subgraph representation\n- routing trace / routing intervention",
+
+    def _fill(txt: str, field: str, value: str) -> str:
+        return re.sub(rf"(- {field}: `)[^`]*(`)", rf"\g<1>{value}\g<2>", txt)
+
+    text = _fill(text, "big_rq", "Can structured research scaffolding improve reproducibility of agent-generated experiments compared to ad-hoc prompting?")
+    text = _fill(text, "falsification_condition", "If scaffolding shows no reproducibility improvement under controlled conditions with real datasets and models.")
+    text = _fill(text, "scientific_gap", "Current agent workflows lack structured falsifiability checks and reproducible evidence contracts.")
+    text = _fill(text, "practical_consequence", "A reproducible scaffold would enable independent verification of agent-generated claims.")
+    text = _fill(text, "reviewer_interest", "NeurIPS and ICLR reviewers increasingly demand reproducible evidence and falsifiable claims in agent-assisted research.")
+    text = _fill(text, "closest_prior_framing", "Closest prior framing is pipeline-based experiment tracking; we differ by embedding falsifiability into the research constitution.")
+    text = _fill(text, "core_hypothesis", "Structured scaffolding with explicit falsification boundaries improves reproducibility metrics over ad-hoc prompting.")
+    text = _fill(text, "hypothesis_falsification", "H0 is falsified if reproducibility metrics do not improve under the declared scaffold.")
+    text = _fill(text, "mvr_question", "Does the scaffold produce at least one independently reproducible experiment within a single epoch?")
+    text = _fill(text, "mvr_success_condition", "One full experiment with real data, real model, artifact hash, and independent rerun succeeds.")
+    text = _fill(text, "mvr_failure_condition", "No experiment completes with real data and model after two diagnostic iterations.")
+
+    text = re.sub(
+        r"(- `)【待填写：允许探索方向 1[^`]*(`)",
+        r"\g<1>Structured RQ decomposition preserves falsifiability across epochs\g<2>",
+        text,
     )
+    text = re.sub(
+        r"(- `)【待填写：允许探索方向 2[^`]*(`)",
+        r"\g<1>Claim-to-evidence gate with anti-mock guardrail\g<2>",
+        text,
+    )
+    text = re.sub(
+        r"(- `)【待填写：允许探索方向 3[^`]*(`)",
+        r"\g<1>Epoch closeout to spine writeback drift control\g<2>",
+        text,
+    )
+
     path.write_text(text, encoding="utf-8")
+    refresh_research_goal(research_dir)
 
 def make_epoch_closeout_complete(research_dir: Path, final_status: str = "closed_success") -> None:
     epoch = research_dir / "V0"

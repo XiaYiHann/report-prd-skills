@@ -9,7 +9,7 @@ description: "Use when a research workspace under docs/research needs the defaul
 
 `research` is the unified epoch contract controller for Codex / Claude Code agent executors.
 
-It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and reports the bounded research contract through Direction, PRD, Spec, Plan, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute `TASK_QUEUE.yaml` active task as the agent executor and must submit structured evidence with `update_state.py`.
+It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and owns the bounded research lifecycle through Direction, PRD, internal Spec compilation, internal Plan compilation, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, paper draft, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute `TASK_QUEUE.yaml` active task as the agent executor and must submit structured evidence with `update_state.py`.
 
 新版系统是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -21,17 +21,19 @@ It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and rep
 
 `RESEARCH_DIRECTION.md` constrains exploration.  
 `CURRENT` resolves the active epoch.  
+`Vn/goal.md` and `Vn/GOAL_LOCK.yaml` define the current long-running execution objective and its source hashes.
 `Vn/PRD.tex` defines the current research truth; `Vn/PRD.pdf` is the review artifact and `Vn/PRD_SUMMARY.md` is agent context only.
 `Vn/RESEARCH_SPINE.yaml` binds the evidence chain (RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section).  
 `Vn/rqs/RQxx/SPEC.yaml` constrains RQ-local execution.
 `Vn/rqs/RQxx/PLAN.md` schedules RQ-local evidence generation.
-`Vn/SPEC.yaml` and `Vn/PLAN.md` are epoch-level aggregate / orchestration files.
+`Vn/rqs/RQxx/INSIGHT_REVIEW.yaml` records the AI draft and the human verdict; only human-reviewed insights can become durable wiki knowledge.
+`Vn/reproduction/REPRODUCTION_LEDGER.yaml` records reusable reproduction assets, compatibility audits, delta checks, and borrowed experiment designs across RQs.
 `Vn/TASK_QUEUE.yaml` defines available work.  
 The active task from `Vn/TASK_QUEUE.yaml` defines the current loop task.  
 `Vn/GIT_STATE.yaml` records Git checkpoints.  
 `docs/research/explore/` records pure exploration sessions.  
 Runs and artifacts provide evidence.  
-Wiki records durable insight.  
+Wiki records only human-reviewed durable insight, with `Vn/wiki/frontier_map.yaml` as the version-to-version synthesis source for next RQ proposals.  
 Closeout controls next version or Paper Binding.
 
 Authority chain:
@@ -40,11 +42,12 @@ Authority chain:
 RESEARCH_DIRECTION.md (研究走廊边界，所有 RQ 必须落在其范围内)
   -> CURRENT
   -> Vn/goal.md
+  -> Vn/GOAL_LOCK.yaml
   -> Vn/PRD.tex
     -> Vn/RESEARCH_SPINE.yaml (RQ 必须绑定 direction_ref 到 RESEARCH_DIRECTION.md)
       -> Vn/rqs/RQxx/SPEC.yaml
       -> Vn/rqs/RQxx/PLAN.md
-      -> Vn/SPEC.yaml / Vn/PLAN.md
+      -> Vn/rqs/RQxx/TASKS.yaml
       -> Vn/TASK_QUEUE.yaml
       -> Vn/runs + Vn/artifacts
       -> Vn/audits
@@ -60,57 +63,70 @@ Every `/research` run must first read:
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
 4. `docs/research/{CURRENT}/goal.md`
-5. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
-6. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-7. `docs/research/{CURRENT}/PRD.tex`
-8. `docs/research/{CURRENT}/PRD_SUMMARY.md`
-9. `docs/research/{CURRENT}/SPEC.yaml`
-10. `docs/research/{CURRENT}/PLAN.md`
-11. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
-12. `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+5. `docs/research/{CURRENT}/GOAL_LOCK.yaml`
+6. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+7. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+8. `docs/research/{CURRENT}/PRD.tex`
+9. `docs/research/{CURRENT}/PRD_SUMMARY.md`
+10. `docs/research/{CURRENT}/BASELINE_LOCK.yaml`
+11. `docs/research/{CURRENT}/EVIDENCE_GATE.yaml`
+12. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+13. `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+14. `docs/research/{CURRENT}/rqs/RQxx/TASKS.yaml`
+15. `docs/research/{CURRENT}/rqs/RQxx/INSIGHT_REVIEW.yaml`
+16. `docs/research/{CURRENT}/reproduction/REPRODUCTION_LEDGER.yaml`
+17. `docs/research/{CURRENT}/wiki/frontier_map.yaml`
 
 **File-level distinction**:
 - `goal.md` is the **version-level** anchor. It defines the overall mission, global constraints, and success criteria for the entire `Vn`. It changes only when the version's core question or scope shifts.
+- `GOAL_LOCK.yaml` records the source hashes behind `goal.md`; refresh the goal when `goal-ready` reports a stale lock.
 - `PRD.tex` is the research hypothesis source of truth.
 - `PRD_SUMMARY.md` is not a source of truth and cannot define experiments.
 - `rqs/RQxx/PLAN.md` is the concrete RQ schedule derived from `rqs/RQxx/SPEC.yaml`; `PLAN.md` is the epoch orchestration summary.
+- `rqs/RQxx/INSIGHT_REVIEW.yaml` is the human insight gate: AI may draft, but the human verdict controls wiki binding and paper eligibility.
+- `reproduction/REPRODUCTION_LEDGER.yaml` is the reuse ledger for prior-work reproductions; each RQ must pass a coverage check, but compatible reproduction assets may be reused.
+- `wiki/frontier_map.yaml` is the next-version basis: it summarizes human-reviewed knowledge, reusable reproductions, open frontier questions, and human direction decisions.
 
 Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.md` from legacy epochs. Never let an old-version PRD override the current epoch PRD.（旧版本只读 `closeout.md` 和轻量 wiki；禁止让旧版本 PRD 覆盖当前版本 PRD。）
 
-### Ralph-loop readiness check
+### Goal-mode readiness check
 
-读完上述 8 个文件后，检查是否满足自动循环执行条件。若以下条件**全部满足**，且当前**不在** ralph-loop 中（`.claude/.ralph-loop.local.md` 不存在），则**仅输出启动建议，不执行任何任务**：
+读完上述文件后，检查是否满足目标模式执行条件。若以下条件**全部满足**，且当前不是由 Codex / Claude Code 目标模式驱动的一次执行迭代，则**仅输出目标模式启动建议，不执行任何任务**：
 
 - `STATUS.yaml.status` 为 `prd_locked`、`spec_ready`、`plan_ready` 或 `running`
 - `TASK_QUEUE.yaml` 中有 `status: active` 或 `status: pending` 的任务
 - `TASK_QUEUE.yaml` 中有具体的、非占位符的 Active Task
+- `goal-ready` 通过，或 `GOAL_LOCK.yaml` 明确指出 stale source 需要先刷新
 
 满足条件时输出：
 
 ```
-[research] 检测到可执行任务，建议启动自动循环：
+[research] 检测到可执行任务，建议进入 Codex / Claude Code 目标模式：
 
-  /ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+  使用 docs/research/{CURRENT}/goal.md 作为目标输入。
 
-启动后每个迭代会自动执行 `TASK_QUEUE.yaml` 中的 active task。
-受阻时循环自动停止。用 /cancel-ralph 可随时取消。
+目标模式每轮只能执行 `TASK_QUEUE.yaml` 中的唯一 active task。
+遇到 blocker、stale lock、human review、gate_blocked 或 closed_* 时停止。
 ```
 
-用户执行上述命令后，系统进入全自动 Gate-by-Gate 执行。
-
-若当前**已在** ralph-loop 中（`.claude/.ralph-loop.local.md` 存在），则跳过此提示，正常进入执行流程。
+若当前已处于目标模式迭代中，则跳过此提示，直接进入执行流程。
 
 ## Execution policy
 
 - Always execute the earliest incomplete gate, or write the precise next execution prompt when the controller cannot safely run harnesses itself.
 - Default to the current `Vn`; do not advance legacy folders when `CURRENT` exists.
 - `research_loop.py` defaults to epoch contract mode when `CURRENT` and `Vn/` exist; the legacy deterministic controller requires explicit `--legacy-controller`.
+- PRD, Spec, Plan, and paper draft generation are internal compiler passes owned by `/research`. Users should not need to invoke retired compiler skills directly during the normal lifecycle.
+- Internal Spec/Plan/Paper passes may run automatically, but their gates cannot auto-pass: `spec-ready`, `loop-ready`/plan gate, `paper-ready`, and `paper-binding-ready` remain hard validation boundaries.
+- Paper is semi-internal: placeholder-complete draft generation is automatic, but Paper Binding remains blocked until `PAPER_BINDING_DECISION.md` explicitly records `paper_binding_ready: true` and audit passes.
 - Execute only the active task from `Vn/TASK_QUEUE.yaml`; do not skip `TASK_QUEUE.yaml`.
 - Do not execute a task that lacks `research_binding`. Every active task must declare whether it is `direction_bootstrap`, `spine_bound`, `maintenance`, or `paper_binding`.
 - For `spine_bound` work, `research_binding` must trace the task to `RESEARCH_SPINE.yaml` through `rq_id`, `claim_ids`, `experiment_ids`, and `evidence_ids`; experiment, analysis, and result-binding tasks must bind concrete experiment and evidence ids before execution.
 - Treat `TASK_QUEUE.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
 - Treat `docs/research/agent/SEARCH_POLICY.md` and `docs/research/agent/REPRODUCTION_POLICY.md` as hard execution policies.
-- Default epochs start with `G0_SEARCH_LOCK`, which must also produce version-level `BASELINE_LOCK.yaml`, and then `G1_REPRODUCTION_LOCK`; do not activate reproduction, proposed-method implementation, or experiment tasks until baseline lock is `locked` and the relevant gate is `passed`, explicitly human-waived, or explicitly marked as `failed_harness` with recorded evidence and human waiver. A gate in `blocked` or `falsified` status is not an exemption; it stops activation.
+- Default epochs start with `G0_SEARCH_LOCK`, which must produce `search/` logs, curated `baselines/INDEX.yaml` dossier entries, and version-level `BASELINE_LOCK.yaml`, and then `G1_REPRODUCTION_LOCK`; do not activate reproduction, proposed-method implementation, or experiment tasks until baseline lock is `locked`, selected baseline/dataset/design refs resolve to dossier cards, and the relevant gate is `passed`, explicitly human-waived, or explicitly marked as `failed_harness` with recorded evidence and human waiver. A gate in `blocked` or `falsified` status is not an exemption; it stops activation.
+- Every approved RQ must run reproduction coverage before innovation or experiment work. Coverage may resolve to `reuse_allowed`, `delta_check_required`, `new_reproduction_required`, or `reuse_blocked`; it must be recorded in `REPRODUCTION_LEDGER.yaml`.
+- Insight is not self-approved by the executor. The agent writes an AI draft in `INSIGHT_REVIEW.yaml`; wiki binding and paper eligibility require a human verdict.
 - Stay inside the Research Corridor.
 - Do not create `Vn+1` before current `Vn/closeout.md` is complete and status is `closed_*`.
 - If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.
@@ -130,22 +146,45 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
   - When writing, editing, or compiling research documents (PRD, SPEC, PLAN, RESEARCH_SPINE, ai_loop_prompt.md, goal.md, CODEX_GOAL_TEMPLATE.md), if user intent is unclear, contradictory, or a decision would change the research direction, core hypothesis, baseline selection, metric choice, or evidence boundary: **stop and ask the user before proceeding**. Do not choose the most convenient interpretation.
   - When executing the active task (running experiments, writing implementation code, running harnesses, collecting artifacts, running tests, reproducing baselines): **do not stop to ask for preference clarification**. Proceed autonomously. Record blockers only for missing required information (dataset paths, commands, seeds, artifacts), not for ambiguous design choices.
 
-## Ralph Loop Integration
+## Internal Compiler Pipeline
 
-`/research` is designed to run as a stateless-per-iteration worker inside Claude Code's ralph-loop plugin. Each iteration reads persisted state from files, executes one atomic task, updates state, and exits. The next iteration picks up where the previous left off.
+`/research` is the only normal lifecycle entry. The following former user-facing skills are now internal passes:
 
-### Starting the loop
+```text
+initialized --prd-ready--> prd_locked
+prd_locked --compile SPEC + spec-ready--> spec_ready
+spec_ready --compile PLAN/TASK_QUEUE + loop-ready--> plan_ready
+plan_ready/running --agent executor--> gate / closeout
+closed_stable --paper draft + paper-ready--> waiting_human_binding_decision
+closed_stable + PAPER_BINDING_DECISION.md:true --paper-binding-ready--> paper_binding_ready
+paper_binding_ready --binding manuscript generated--> paper_bound
+```
+
+Internal pass ownership:
+
+- **Spec compiler**: uses `skills/research-spec/scripts/` and shared code, but `/research` calls it automatically after PRD lock.
+- **Plan compiler**: uses `skills/research-plan/scripts/` and shared code, but `/research` calls it automatically after Spec readiness.
+- **Paper draft compiler**: uses `skills/research-paper/scripts/`, but `/research` calls it automatically after stable closeout.
+- **Paper Binding**: never auto-approved; the human decision file remains the explicit signature.
+
+Spec/Plan/Paper can be implicit, but their gates cannot be implicit. Every failed internal pass writes a machine-readable blocker under `Vn/audits/*-gate/` and stops progression.
+
+## Goal Mode Integration
+
+`/research` is designed to run as a stateless-per-iteration worker under Codex or Claude Code goal mode. Each iteration reads persisted state from files, executes one atomic task, updates state, and exits. The next iteration picks up where the previous left off through `goal.md`, `GOAL_LOCK.yaml`, and `TASK_QUEUE.yaml`.
+
+### Starting goal mode
 
 After the PRD is filled and approved:
 
 ```
-/ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
+Use docs/research/{CURRENT}/goal.md as the Codex or Claude Code goal-mode input.
 ```
 
-This feeds `/research` to Claude Code repeatedly. Each iteration:
+Each iteration:
 
 1. Read `RESEARCH_DIRECTION.md` and `CURRENT`
-2. Read `Vn/STATUS.yaml` — if `status` is `closed_*` or `paper_binding_ready`, **stop and output completion signal**
+2. Read `Vn/STATUS.yaml` — if `status` is `closed_*` or `paper_bound`, **stop and output completion signal**
 3. Read the active task from `Vn/TASK_QUEUE.yaml`.
 4. Read `Vn/TASK_QUEUE.yaml` for task details (success criteria, test commands, evidence requirements)
 5. Execute the atomic task described in the active task entry.
@@ -161,13 +200,13 @@ This feeds `/research` to Claude Code repeatedly. Each iteration:
 
 ### Completion signal
 
-When `STATUS.yaml.status` is any of `closed_success`, `closed_negative`, `closed_blocked`, `closed_falsified`, `closed_pivot_required`, `closed_stable`, or `paper_binding_ready`, output:
+When `STATUS.yaml.status` is any of `closed_success`, `closed_negative`, `closed_blocked`, `closed_falsified`, `closed_pivot_required`, `closed_stable`, or `paper_bound`, output:
 
 ```
 <promise>RESEARCH_COMPLETE</promise>
 ```
 
-This tells ralph-loop to stop. The state file `.claude/.ralph-loop.local.md` is automatically cleaned up.
+This tells the goal-mode executor to stop. No plugin-local state file is required.
 
 ### Block signal
 
@@ -177,15 +216,7 @@ When `STATUS.yaml.status` is `gate_blocked` and a blocker is documented in `Vn/r
 <promise>RESEARCH_BLOCKED</promise>
 ```
 
-The user can inspect the blocker, resolve it, and restart with `/ralph-loop "/research" --max-iterations N`.
-
-### Cancelling
-
-```
-/cancel-ralph
-```
-
-Stops the loop immediately. State files are preserved — restarting the loop resumes from the last persisted state.
+The user can inspect the blocker, resolve it, refresh the stale contract if needed, and restart goal mode from the same `goal.md`.
 
 ### Loop safety rules
 
@@ -209,7 +240,7 @@ Create `Vn+1` only when current status is closed and `closeout.md` says `create_
 
 ## Paper Binding policy
 
-Paper Binding is allowed only when current status is `closed_stable` or `paper_binding_ready`, `PAPER_BINDING_DECISION.md` says `paper_binding_ready: true`, and every allowed claim is backed by experiment, run, artifact, metric, baseline, seed protocol, and audit status. Exploratory insight can support motivation or discussion only.
+Paper draft generation is an internal `/research` expression stage after closeout. Paper Binding is allowed only when current status is `closed_stable` or `paper_binding_ready`, `PAPER_BINDING_DECISION.md` says `paper_binding_ready: true`, and every allowed claim is backed by experiment, run, artifact, metric, baseline, seed protocol, and audit status. Successful binding advances the epoch to `paper_bound`; exploratory insight can support motivation or discussion only.
 
 Conflict resolution: If `STATUS.yaml` and `PAPER_BINDING_DECISION.md` disagree, trust `PAPER_BINDING_DECISION.md` and pause for human review. The human decision file overrides the machine status when they conflict.
 
@@ -234,7 +265,6 @@ Conflict resolution: If `STATUS.yaml` and `PAPER_BINDING_DECISION.md` disagree, 
 - legacy insight logs under `docs/research/insights/`
 - spec feedback under `docs/research/spec/feedback/`
 - human review requests under `docs/research/audits/YYYY-MM-DD-prd-review/`
-- ralph-loop state file `.claude/.ralph-loop.local.md` (managed by ralph-loop plugin)
 
 ## Command
 
@@ -246,19 +276,13 @@ python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/rese
 python3 ~/.claude/skills/research/scripts/research_loop.py --workspace docs/research --dry-run --json
 ```
 
-When `CURRENT` and `Vn/` exist, the default implementation reports the epoch contract for Codex / Claude Code. Legacy deterministic controller behavior requires explicit `--legacy-controller`.
+When `CURRENT` and `Vn/` exist, the default implementation reports the epoch contract and may advance internal compiler passes (`prd_locked -> spec_ready -> plan_ready`, and `closed_stable -> paper draft / binding gate`) without running experiment harnesses. Legacy deterministic controller behavior requires explicit `--legacy-controller`.
 
-### Autonomous loop (ralph-loop)
+### Autonomous loop (goal mode)
 
 ```bash
-# Start autonomous execution (50 iterations max)
-/ralph-loop "/research" --max-iterations 50 --completion-promise "RESEARCH_COMPLETE"
-
-# Resume after blocker resolution
-/ralph-loop "/research" --max-iterations 30
-
-# Cancel running loop
-/cancel-ralph
+# Start or resume autonomous execution
+Use docs/research/{CURRENT}/goal.md as the Codex or Claude Code goal-mode input.
 ```
 
 ## Agent Executor Boundary
@@ -271,7 +295,7 @@ Codex / Claude Code are the supported agent executors. They read the active task
 
 Terms used across the research skill family with precise operational definitions:
 
-- **Research Corridor** — The scope declared in `RESEARCH_DIRECTION.md` plus the current epoch's `Vn/PRD.md` and `Vn/RESEARCH_SPINE.yaml`. If those files are absent, the agent must stop and request human clarification rather than guessing the boundary.
+- **Research Corridor** — The scope declared in `RESEARCH_DIRECTION.md` plus the current epoch's `Vn/PRD.tex` and `Vn/RESEARCH_SPINE.yaml`. If those files are absent, the agent must stop and request human clarification rather than guessing the boundary.
 - **backend** — An independent resident execution environment (e.g., a daemon, server, or persistent compute layer) that runs experiments, harnesses, or generates empirical evidence. The `research` skill does not provide such a backend; Codex / Claude Code are the agent executors.
 - **Charter-bounded** — The epoch loop is constrained by a human-approved research charter (`RESEARCH_DIRECTION.md`). Agents may not modify the charter or explore outside its scope without explicit human instruction.
 - **工程问题 (engineering issue)** — Bug fixes, path corrections, reruns, minor spec field fixes, paper placeholder fixes, or stale-plan regeneration. These stay in the current version.
@@ -292,9 +316,9 @@ Machine-facing layers remain **English** for parser compatibility:
 - LaTeX structural commands and TikZ code
 - Git commit messages and branch names
 
-The only explicit exception is `research-paper`: the manuscript body (Abstract, Introduction, Method, Experiments, Results) may be English for top-conference submission style. All associated metadata, blockers, gap reports, placeholder maps, and binding decisions remain Chinese.
+The only explicit exception is the internal paper draft/binding stage: the manuscript body (Abstract, Introduction, Method, Experiments, Results) may be English for top-conference submission style. All associated metadata, blockers, gap reports, placeholder maps, and binding decisions remain Chinese.
 
-Sub-skills that already define their own language clauses (`research-spec`, `research-plan`, `research-init`) remain valid and must not contradict this contract.
+Internal compiler modules that define language clauses through scripts or generated templates must not contradict this contract.
 
 ## Git Safety
 

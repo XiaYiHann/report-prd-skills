@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,8 @@ from research_workspace import (  # noqa: E402
     validate_agent_contracts,
 )
 from tests.research_workflow_common import init_workspace_fast, write_yaml  # noqa: E402
+
+pytestmark = pytest.mark.integration
 
 
 class AgentContractTests(unittest.TestCase):

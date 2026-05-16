@@ -5,7 +5,11 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
@@ -29,10 +33,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             for name in [
                 "PRD.tex",
                 "PRD_SUMMARY.md",
-                "SPEC.yaml",
-                "PLAN.md",
                 "STATUS.yaml",
                 "TASK_QUEUE.yaml",
+                "EVIDENCE_GATE.yaml",
                 "LOOP_LOG.md",
                 "GIT_STATE.yaml",
                 "git_log.md",
@@ -40,6 +43,8 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "PAPER_BINDING_DECISION.md",
             ]:
                 self.assertTrue((research_dir / "V0" / name).exists(), name)
+            self.assertFalse((research_dir / "V0" / "SPEC.yaml").exists())
+            self.assertFalse((research_dir / "V0" / "PLAN.md").exists())
             summary = (research_dir / "V0" / "PRD_SUMMARY.md").read_text(encoding="utf-8")
             self.assertIn("不是研究真源", summary)
             self.assertTrue((research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml").exists())
@@ -96,6 +101,30 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("V0/PRD.tex", result.stdout)
 
+    def test_research_loop_auto_creates_contracts_for_new_declared_rq(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_fast(repo)
+            spine_path = research_dir / "V0" / "RESEARCH_SPINE.yaml"
+            spine = read_yaml(spine_path)
+            spine["research_questions"].append({"id": "RQ02", "text": "Does the second branch remain independently executable?"})
+            write_yaml(spine_path, spine)
+
+            result = run_cmd(["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--json"], cwd=repo)
+            refreshed_spine = read_yaml(spine_path)
+            rq02_spec_exists = (research_dir / "V0" / "rqs" / "RQ02" / "SPEC.yaml").exists()
+            rq02_plan_exists = (research_dir / "V0" / "rqs" / "RQ02" / "PLAN.md").exists()
+            rq02_tasks_exists = (research_dir / "V0" / "rqs" / "RQ02" / "TASKS.yaml").exists()
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(rq02_spec_exists)
+        self.assertTrue(rq02_plan_exists)
+        self.assertTrue(rq02_tasks_exists)
+        rq02 = next(item for item in refreshed_spine["research_questions"] if item["id"] == "RQ02")
+        self.assertEqual(rq02["spec_ref"], "rqs/RQ02/SPEC.yaml")
+        self.assertEqual(rq02["plan_ref"], "rqs/RQ02/PLAN.md")
+        self.assertIn("ensured_rq_contracts_for_declared_rqs", result.stdout)
+
     def test_loop_ready_requires_single_active_task_and_matching_next_action(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
@@ -116,7 +145,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             research_dir = init_workspace_fast(Path(tmp))
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
             spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
-            spine["research_questions"] = [{"id": "RQ01", "text": "q1"}]
+            spine["research_questions"] = [{"id": "RQ01", "text": "q1", "rq_dir": "rqs/RQ01", "spec_ref": "rqs/RQ01/SPEC.yaml", "plan_ref": "rqs/RQ01/PLAN.md"}]
             spine["claims"] = [{"id": "C1", "rq_id": "RQ01", "text": "c1"}]
             spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
             spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
@@ -247,9 +276,6 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             status["status"] = "closed_stable"
             status["direction_ref"] = "../RESEARCH_DIRECTION.md"
             write_yaml(v1 / "STATUS.yaml", status)
-            spec = read_yaml(v1 / "SPEC.yaml")
-            spec["version"] = "V1"
-            write_yaml(v1 / "SPEC.yaml", spec)
             baseline_lock = read_yaml(v1 / "BASELINE_LOCK.yaml")
             baseline_lock["version"] = "V1"
             write_yaml(v1 / "BASELINE_LOCK.yaml", baseline_lock)
@@ -262,15 +288,19 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             spine = read_yaml(v1 / "RESEARCH_SPINE.yaml")
             spine["version"] = "V1"
             write_yaml(v1 / "RESEARCH_SPINE.yaml", spine)
+            gate = read_yaml(v1 / "EVIDENCE_GATE.yaml")
+            gate["version"] = "V1"
+            write_yaml(v1 / "EVIDENCE_GATE.yaml", gate)
+            refresh_research_goal(research_dir)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("without explicit carry_forward", result.stdout)
 
-            spec = read_yaml(v1 / "SPEC.yaml")
-            spec["version"] = "V1"
-            spec["carry_forward"] = [{"from_version": "V0", "artifact_path": "docs/research/V0/artifacts/run_001.json"}]
-            write_yaml(v1 / "SPEC.yaml", spec)
+            spine = read_yaml(v1 / "RESEARCH_SPINE.yaml")
+            spine["carry_forward"] = [{"from_version": "V0", "artifact_path": "docs/research/V0/artifacts/run_001.json"}]
+            write_yaml(v1 / "RESEARCH_SPINE.yaml", spine)
+            refresh_research_goal(research_dir)
             ready = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])
             self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
 
@@ -290,12 +320,14 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         self.assertIn("Research Direction", readme)
         self.assertIn("Paper Binding", readme)
 
-    def test_agents_and_claude_rules_are_created_and_reference_current_next_action(self) -> None:
+    def test_root_agent_rules_are_meta_framework_scoped_but_generated_rules_use_current(self) -> None:
         root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
         root_claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-        self.assertIn("docs/research/CURRENT", root_agents)
+        self.assertIn("`research-loop` 元框架仓库", root_agents)
+        self.assertIn("meta-framework", root_claude)
+        self.assertNotIn("docs/research/{CURRENT}/TASK_QUEUE.yaml", root_agents)
+        self.assertNotIn("Resolve current epoch from `docs/research/CURRENT`", root_claude)
         self.assertNotIn("NEXT_ACTION.md", root_agents)
-        self.assertIn("docs/research/CURRENT", root_claude)
         self.assertNotIn("NEXT_ACTION.md", root_claude)
         for forbidden in ["git push", "git reset --hard", "git clean -fd", "git rebase", "force push"]:
             self.assertIn(forbidden, root_agents)
@@ -340,6 +372,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
                 "format-ready",
                 "rq-driven-ready",
                 "baseline-lock-ready",
+                "goal-ready",
                 "migration-ready",
                 "git-ready",
             ]:

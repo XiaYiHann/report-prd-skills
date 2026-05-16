@@ -3,12 +3,78 @@
 
 from __future__ import annotations
 
+import pytest
 import shutil
 
 from research_workflow_helpers import *  # noqa: F403
 
 
 def lock_default_baseline(research_dir: Path) -> None:
+    baseline_dir = research_dir / "V0" / "baselines" / "B_OFFICIAL"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    write_yaml(
+        baseline_dir / "BASELINE_CARD.yaml",
+        {
+            "schema_version": 1,
+            "epoch": "V0",
+            "baseline_id": "B_OFFICIAL",
+            "paper_id": "P_TEST",
+            "role": "official",
+            "reproduction_mode": "official_code_reuse",
+            "decision_rationale": "official code is the closest reproducible baseline",
+        },
+    )
+    write_yaml(
+        baseline_dir / "PAPER_CARD.yaml",
+        {
+            "schema_version": 1,
+            "paper_id": "P_TEST",
+            "title": "Protocol baseline paper",
+            "venue_year": "Test 2026",
+            "paper_url": "https://example.invalid/paper",
+        },
+    )
+    write_yaml(
+        baseline_dir / "DATASET_CARD.yaml",
+        {
+            "schema_version": 1,
+            "dataset_id": "D_TEST",
+            "source_paper": "Protocol baseline paper",
+            "license": "research-use",
+            "split_protocol": "frozen public split",
+            "metric": "M_TEST",
+        },
+    )
+    write_yaml(
+        baseline_dir / "EXPERIMENT_DESIGN.yaml",
+        {
+            "schema_version": 1,
+            "design_id": "ED_TEST",
+            "source_paper": "Protocol baseline paper",
+            "reusable_design": "baseline reproduction before innovation",
+        },
+    )
+    write_yaml(
+        baseline_dir / "REUSE_DECISION.yaml",
+        {
+            "schema_version": 1,
+            "baseline_id": "B_OFFICIAL",
+            "decision": "reuse_for_version_baseline_lock",
+            "rationale": "closest reproducible baseline",
+        },
+    )
+    baseline_index = read_yaml(research_dir / "V0" / "baselines" / "INDEX.yaml")
+    baseline_index["baseline_cards"] = [
+        {
+            "baseline_id": "B_OFFICIAL",
+            "card_ref": "baselines/B_OFFICIAL/BASELINE_CARD.yaml",
+            "paper_card_ref": "baselines/B_OFFICIAL/PAPER_CARD.yaml",
+            "dataset_card_ref": "baselines/B_OFFICIAL/DATASET_CARD.yaml",
+            "experiment_design_ref": "baselines/B_OFFICIAL/EXPERIMENT_DESIGN.yaml",
+            "reuse_decision_ref": "baselines/B_OFFICIAL/REUSE_DECISION.yaml",
+        }
+    ]
+    write_yaml(research_dir / "V0" / "baselines" / "INDEX.yaml", baseline_index)
     baseline = read_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml")
     baseline["status"] = "locked"
     baseline["task_definition"] = {
@@ -26,6 +92,7 @@ def lock_default_baseline(research_dir: Path) -> None:
             "dataset": "D_TEST",
             "metric": "M_TEST",
             "reproduction_mode": "official_code_reuse",
+            "baseline_card_ref": "baselines/B_OFFICIAL/BASELINE_CARD.yaml",
             "rq_ids": ["RQ01"],
             "decision_rationale": "official code is the closest reproducible baseline",
         }
@@ -38,6 +105,7 @@ def lock_default_baseline(research_dir: Path) -> None:
             "split_protocol": "frozen public split",
             "preprocessing": "none",
             "metric": "M_TEST",
+            "dataset_card_ref": "baselines/B_OFFICIAL/DATASET_CARD.yaml",
             "known_pitfalls": [],
         }
     ]
@@ -46,13 +114,86 @@ def lock_default_baseline(research_dir: Path) -> None:
             "paper": "Protocol baseline paper",
             "reusable_design": "baseline reproduction before innovation",
             "adopted_as": "G0/G1 gate protocol",
+            "experiment_design_ref": "baselines/B_OFFICIAL/EXPERIMENT_DESIGN.yaml",
             "caveat": "template-only evidence is not paper evidence",
         }
     ]
     write_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml", baseline)
 
+pytestmark = pytest.mark.integration
+
+
+def write_meta_framework_workspace(repo: Path) -> Path:
+    research_dir = repo / "docs" / "research"
+    research_dir.mkdir(parents=True, exist_ok=True)
+    (repo / "AGENTS.md").write_text("# AGENTS.md\n\nmeta framework test\n", encoding="utf-8")
+    (repo / "CLAUDE.md").write_text("# CLAUDE.md\n\nmeta framework test\n", encoding="utf-8")
+    (research_dir / "RESEARCH_DIRECTION.md").write_text(
+        """# Research Direction
+
+## Direction Status
+
+- direction_id: `research-loop-scaffold`
+- status: `frozen`
+- created_at: `2026-05-13`
+- updated_at: `2026-05-16`
+- repository_role: `meta_framework`
+- current_version: `none`
+- final_target: `Generic research-loop framework protocol`
+- owner_decision_required: `true`
+
+## Research Seed
+
+This repository is the research-loop framework repository.
+
+## Research Corridor
+
+- Framework file protocol, schema, validator, installer, and policy tests.
+
+## Out-of-Scope Directions
+
+- Concrete project datasets, baselines, metrics, methods, or paper claims.
+
+## Autonomy Boundary
+
+AI 可以自动做:
+
+- framework tests and docs.
+
+AI 不可以自动做:
+
+- create repo-local project epochs.
+
+## Global Stop Conditions
+
+- Framework tests pass and no project-research content is bound locally.
+""",
+        encoding="utf-8",
+    )
+    return research_dir
+
 
 class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
+    def test_meta_framework_workspace_does_not_require_project_epoch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = write_meta_framework_workspace(repo)
+
+            for mode in ["direction-ready", "format-ready", "migration-ready", "rq-driven-ready", "baseline-lock-ready", "epoch-ready"]:
+                result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", mode])
+                self.assertEqual(result.returncode, 0, f"{mode}\n{result.stdout}{result.stderr}")
+
+    def test_meta_framework_workspace_rejects_repo_local_project_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = write_meta_framework_workspace(repo)
+            (research_dir / "CURRENT").write_text("V0\n", encoding="utf-8")
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "direction-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("repo-local project research marker", result.stdout)
+
     def test_rq_driven_ready_accepts_pure_epoch_rq_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
@@ -86,6 +227,57 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("BASELINE_LOCK.yaml must be locked", result.stdout)
 
+    def test_baseline_lock_ready_requires_baseline_dossier_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            (research_dir / "V0" / "baselines" / "INDEX.yaml").unlink()
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "baseline-lock-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline_dossier_ref does not exist", result.stdout)
+
+    def test_baseline_lock_ready_requires_locked_selected_baseline_cards(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            baseline = read_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml")
+            baseline["status"] = "locked"
+            baseline["selected_baselines"] = [
+                {
+                    "baseline_id": "B_MISSING_CARD",
+                    "paper": "Missing Card Paper",
+                    "role": "official",
+                    "reproduction_mode": "official_code_reuse",
+                    "baseline_card_ref": "baselines/B_MISSING_CARD/BASELINE_CARD.yaml",
+                    "decision_rationale": "closest baseline",
+                }
+            ]
+            baseline["selected_datasets"] = [
+                {
+                    "dataset_id": "D_TEST",
+                    "source_paper": "Missing Card Paper",
+                    "license": "research-use",
+                    "split_protocol": "frozen split",
+                    "metric": "M_TEST",
+                    "dataset_card_ref": "baselines/B_MISSING_CARD/DATASET_CARD.yaml",
+                }
+            ]
+            baseline["borrowed_experiment_designs"] = [
+                {
+                    "paper": "Missing Card Paper",
+                    "reusable_design": "official evaluation matrix",
+                    "experiment_design_ref": "baselines/B_MISSING_CARD/EXPERIMENT_DESIGN.yaml",
+                }
+            ]
+            write_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml", baseline)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "baseline-lock-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline_card_ref does not exist", result.stdout)
+        self.assertIn("dataset_card_ref does not exist", result.stdout)
+        self.assertIn("experiment_design_ref does not exist", result.stdout)
+
     def test_baseline_lock_ready_accepts_locked_baseline_matrix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
@@ -118,6 +310,34 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("rq_id RQ_OTHER does not match directory RQ01", result.stdout)
+
+    def test_epoch_ready_rejects_invalid_human_insight_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            review_path = research_dir / "V0" / "rqs" / "RQ01" / "INSIGHT_REVIEW.yaml"
+            review = read_yaml(review_path)
+            review["human_verdict"]["verdict"] = "ai_decided"
+            review["human_verdict"]["paper_eligibility"] = "publish_now"
+            write_yaml(review_path, review)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid human verdict", result.stdout)
+        self.assertIn("invalid paper_eligibility", result.stdout)
+
+    def test_epoch_ready_rejects_invalid_frontier_human_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            frontier_path = research_dir / "V0" / "wiki" / "frontier_map.yaml"
+            frontier = read_yaml(frontier_path)
+            frontier["human_decision"]["status"] = "auto_continue"
+            write_yaml(frontier_path, frontier)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid frontier human_decision status", result.stdout)
 
     def test_epoch_ready_rejects_global_task_missing_rq_refs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -233,8 +453,8 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
             spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
-            spine["research_questions"] = [{"id": "RQ1", "text": "q1"}]
-            spine["claims"] = [{"id": "C1", "rq_id": "RQ1", "text": "c1"}]
+            spine["research_questions"] = [{"id": "RQ01", "text": "q1", "rq_dir": "rqs/RQ01", "spec_ref": "rqs/RQ01/SPEC.yaml", "plan_ref": "rqs/RQ01/PLAN.md"}]
+            spine["claims"] = [{"id": "C1", "rq_id": "RQ01", "text": "c1"}]
             spine["experiments"] = [{"id": "E1", "claim_ids": ["C1"], "purpose": "p1"}]
             spine["evidence"] = [{"id": "EV1", "experiment_id": "E1", "artifact_path": "artifacts/e1.json"}]
             write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
@@ -246,7 +466,7 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
             active_task["test_commands"] = ["python -m pytest tests/test_epoch_schema_validation.py"]
             active_task["research_binding"] = {
                 "mode": "spine_bound",
-                "rq_id": "RQ1",
+                "rq_id": "RQ01",
                 "claim_ids": ["C1"],
                 "experiment_ids": [],
                 "evidence_ids": [],
@@ -293,15 +513,15 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("task T_G0_001 direction_bootstrap is only allowed in G0/G1 gates: G2_METHOD_LOCK", result.stdout)
 
-    def test_epoch_ready_rejects_missing_spec_required_field_in_any_version(self) -> None:
+    def test_epoch_ready_rejects_missing_rq_spec_required_field_in_any_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_closed_fast(Path(tmp))
             shutil.copytree(research_dir / "V0", research_dir / "V1")
             (research_dir / "CURRENT").write_text("V1\n", encoding="utf-8")
-            spec = read_yaml(research_dir / "V1" / "SPEC.yaml")
+            spec = read_yaml(research_dir / "V1" / "rqs" / "RQ01" / "SPEC.yaml")
             spec["version"] = "V1"
-            spec.pop("anti_mock_policy", None)
-            write_yaml(research_dir / "V1" / "SPEC.yaml", spec)
+            spec.pop("claim_contract", None)
+            write_yaml(research_dir / "V1" / "rqs" / "RQ01" / "SPEC.yaml", spec)
             status = read_yaml(research_dir / "V1" / "STATUS.yaml")
             status["version"] = "V1"
             write_yaml(research_dir / "V1" / "STATUS.yaml", status)
@@ -312,7 +532,7 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("V1/SPEC.yaml missing required field: anti_mock_policy", result.stdout)
+        self.assertIn("V1/rqs/RQ01/SPEC.yaml missing required field: claim_contract", result.stdout)
 
     def test_epoch_ready_rejects_version_field_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -434,7 +654,7 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
             spine = read_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml")
-            spine["research_questions"] = [{"id": "RQ1", "text": "q1"}]
+            spine["research_questions"] = [{"id": "RQ01", "text": "q1", "rq_dir": "rqs/RQ01", "spec_ref": "rqs/RQ01/SPEC.yaml", "plan_ref": "rqs/RQ01/PLAN.md"}]
             spine["claims"] = [{"id": "C1", "rq_id": "RQ_MISSING", "text": "c1"}]
             write_yaml(research_dir / "V0" / "RESEARCH_SPINE.yaml", spine)
 

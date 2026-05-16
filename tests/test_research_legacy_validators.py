@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
@@ -137,7 +141,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             self.assertIn("must define full run command", result.stdout)
             self.assertIn("full_reproduction harness", result.stdout)
 
-    def test_plan_ready_rejects_stale_spec_hash(self) -> None:
+    def test_plan_ready_rejects_stale_rq_contract_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             research_dir = init_workspace_fast(repo)
@@ -159,17 +163,13 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
                 cwd=repo,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            epoch_spec = research_dir / "V0" / "SPEC.yaml"
-            if epoch_spec.exists():
-                epoch_spec.write_text(epoch_spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
-            else:
-                spec = research_dir / "spec" / "global_spec.yaml"
-                spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+            rq_spec = research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml"
+            rq_spec.write_text(rq_spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
 
             check = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "plan-ready"])
 
             self.assertNotEqual(check.returncode, 0)
-            self.assertIn("stale spec hash", check.stdout)
+            self.assertIn("stale RQ contract hash", check.stdout)
 
     def test_insight_ready_validates_insight_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -222,7 +222,7 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             approve_research_direction(research_dir)
             direction = research_dir / "RESEARCH_DIRECTION.md"
             text = direction.read_text(encoding="utf-8")
-            text = text.split("## 6. Autonomy Boundary", 1)[0] + "## 7. Global Stop Conditions\n\n- paper binding 已完成\n"
+            text = text.split("## 9. Autonomy Boundary", 1)[0]
             direction.write_text(text, encoding="utf-8")
 
             result = run_cmd(["python3", str(AUDIT_SCRIPT), "--research-dir", str(research_dir), "--date", "2026-05-09", "--force"])
@@ -234,6 +234,23 @@ class ResearchLegacyValidatorTests(unittest.TestCase):  # noqa: F405
             findings_text = "\n".join(matrix["dimensions"]["direction_completeness"]["findings"])
             self.assertIn("Autonomy Boundary", findings_text)
             self.assertIn("AI can and cannot", findings_text)
+
+    def test_direction_ready_rejects_build_style_big_rq(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            approve_research_direction(research_dir)
+            direction = research_dir / "RESEARCH_DIRECTION.md"
+            text = direction.read_text(encoding="utf-8")
+            text = text.replace(
+                "Can structured research scaffolding improve reproducibility of agent-generated experiments compared to ad-hoc prompting?",
+                "Build a research-loop system.",
+            )
+            direction.write_text(text, encoding="utf-8")
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "direction-ready"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("build/roadmap", result.stdout)
+            self.assertIn("falsifiable research question", result.stdout)
 
     def test_research_audit_documents_format_migration_and_git_modes(self) -> None:
         skill_text = (REPO_ROOT / "skills" / "research-audit" / "SKILL.md").read_text(encoding="utf-8")

@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
     def test_research_init_scaffolds_docs_research_tree_and_required_prd_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
 
             expected_dirs = ["prd", "paper", "spec", "plans", "audits", "insights"]
             for dirname in expected_dirs:
@@ -39,7 +43,7 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
 
     def test_research_init_generates_chinese_latex_tikz_prd_without_fake_pdf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             prd_dir = research_dir / "prd"
             tex = (prd_dir / "research_prd.tex").read_text(encoding="utf-8")
 
@@ -65,10 +69,11 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
                 pdf_header = pdf.read_bytes()[:8]
                 self.assertTrue(pdf_header.startswith(b"%PDF-"))
 
+    @pytest.mark.slow
     @unittest.skipUnless(latex_available(), "LaTeX engine is not available")
     def test_research_prd_latex_template_compiles_without_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             log = research_dir / "prd" / "build" / "research_prd.log"
             self.assertTrue(log.exists())
             log_text = log.read_text(encoding="utf-8", errors="replace")
@@ -81,10 +86,11 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
             for marker in forbidden:
                 self.assertNotIn(marker, log_text)
 
+    @pytest.mark.slow
     @unittest.skipUnless(latex_available(), "LaTeX engine is not available")
     def test_research_paper_latex_template_compiles_without_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             log = research_dir / "paper" / "build" / "planned_paper.log"
             self.assertTrue(log.exists())
             log_text = log.read_text(encoding="utf-8", errors="replace")
@@ -98,7 +104,7 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
 
     def test_spec_scaffold_uses_chinese_values_with_english_keys(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
 
             readme = (research_dir / "spec" / "README.md").read_text(encoding="utf-8")
             gap = (research_dir / "spec" / "reproduction" / "reproduction_gap_report.md").read_text(encoding="utf-8")
@@ -121,7 +127,7 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
 
     def test_research_init_generates_top_conference_paper_template(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             paper_md = (research_dir / "paper" / "planned_paper.md").read_text(encoding="utf-8")
             paper_tex = (research_dir / "paper" / "planned_paper.tex").read_text(encoding="utf-8")
             gap_report = (research_dir / "paper" / "paper_gap_report.md").read_text(encoding="utf-8")
@@ -151,9 +157,30 @@ class ResearchInitScaffoldTests(unittest.TestCase):  # noqa: F405
             self.assertIn("【阻塞】", gap_report)
             self.assertIn("未验证结果必须保留为 typed placeholder", gap_report)
 
+    def test_research_init_generates_big_rq_direction_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            text = (research_dir / "RESEARCH_DIRECTION.md").read_text(encoding="utf-8")
+            for heading in [
+                "## 0. Direction Status",
+                "## 1. Big Research Question",
+                "## 2. Why This Question Matters",
+                "## 3. Core Hypothesis",
+                "## 4. Research Corridor",
+                "## 5. Out-of-Scope Directions",
+                "## 6. Minimum Viable Research",
+                "## 7. Evidence Contract",
+                "## 8. Global Stop Conditions",
+                "## 9. Autonomy Boundary",
+                "## 10. Spine Binding",
+            ]:
+                self.assertIn(heading, text, heading)
+            for old_section in ["Research Seed", "Prior Work Basis", "Desired Paper Shape"]:
+                self.assertNotIn(old_section, text)
+
     def test_spec_scaffold_contains_execution_contract_templates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            research_dir = init_workspace(Path(tmp))
+            research_dir = init_workspace_fast(Path(tmp))
             global_spec = read_yaml(research_dir / "spec" / "global_spec.yaml")
             experiment_manifest = read_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
             experiment_harness = read_yaml(research_dir / "spec" / "experiments" / "experiment_harness.yaml")

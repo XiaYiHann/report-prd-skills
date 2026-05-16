@@ -20,12 +20,20 @@ SKILLS=(
   research
   research-explore
   research-insight
+  research-status
   research-init
-  research-prd
+  research-goal
+  research-audit
+)
+
+INTERNAL_COMPILER_MODULES=(
   research-paper
   research-spec
   research-plan
-  research-audit
+)
+
+RETIRED_SKILL_ENTRIES=(
+  research-prd
 )
 
 CLAUDE_SUBAGENTS=(
@@ -163,6 +171,40 @@ copy_path() {
   log "$label installed"
 }
 
+copy_internal_module() {
+  local module="$1"
+  local source="$SOURCE_DIR/skills/$module"
+  local dest="$SKILLS_TARGET_DIR/$module"
+
+  if [[ "$DRY_RUN" != "true" ]]; then
+    [[ -d "$source" ]] || die "missing internal compiler module: $module"
+  fi
+
+  copy_path "$source" "$dest" "$module" "internal compiler module"
+
+  local stale_skill="$dest/SKILL.md"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would remove retired user-facing skill entry $stale_skill if present"
+  elif [[ -f "$stale_skill" ]]; then
+    rm -f "$stale_skill"
+    log "$module retired SKILL.md removed"
+  fi
+  if [[ "$DRY_RUN" != "true" && -d "$dest" && "$FORCE" != "true" ]]; then
+    cp -Rn "$source/." "$dest"
+  fi
+}
+
+remove_retired_skill_entry() {
+  local skill="$1"
+  local stale_skill="$SKILLS_TARGET_DIR/$skill/SKILL.md"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would remove retired user-facing skill entry $stale_skill if present"
+  elif [[ -f "$stale_skill" ]]; then
+    rm -f "$stale_skill"
+    log "$skill retired SKILL.md removed"
+  fi
+}
+
 resolve_source_dir() {
   if [[ -n "$SOURCE_DIR" ]]; then
     printf '%s\n' "$SOURCE_DIR"
@@ -220,6 +262,13 @@ if [[ "$INSTALL_SKILLS" == "true" ]]; then
       [[ -f "$SOURCE_DIR/skills/$skill/SKILL.md" ]] || die "missing required skill: $skill"
     fi
     copy_path "$SOURCE_DIR/skills/$skill" "$SKILLS_TARGET_DIR/$skill" "$skill" "skill"
+  done
+  log "Installed internal compiler modules:"
+  for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
+    copy_internal_module "$module"
+  done
+  for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
+    remove_retired_skill_entry "$retired_skill"
   done
 else
   log "Skills installation skipped."

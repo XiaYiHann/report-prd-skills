@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", default=".", help="Repository root.")
     parser.add_argument("--research-dir", default="", help="Research workspace directory.")
     parser.add_argument("--force", action="store_true", help="Overwrite paper files.")
+    parser.add_argument("--mode", default="draft", choices=["draft", "binding"], help="Paper generation mode.")
     parser.add_argument(
         "--demo",
         action="store_true",
@@ -30,7 +31,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     research_dir = resolve_research_dir(args)
-    paper_dir = generate_demo_paper(research_dir, args.force) if args.demo else generate_paper(research_dir, args.force)
+    paper_dir = generate_demo_paper(research_dir, args.force) if args.demo else generate_paper(research_dir, args.force, mode=args.mode)
     print(f"[OK] wrote planned research paper: {paper_dir}")
     return 0
 

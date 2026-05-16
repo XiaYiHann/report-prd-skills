@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import pytest
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class CreateEpochTests(unittest.TestCase):  # noqa: F405

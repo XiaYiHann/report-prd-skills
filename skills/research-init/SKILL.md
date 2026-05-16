@@ -25,12 +25,14 @@ The generated paper and spec are also real templates, not empty files:
 
 ## Source Model
 
-- Research PRD is the human research source of truth.
+- `RESEARCH_DIRECTION.md` is the fixed Big-RQ constitution: question, falsification boundary, evidence contract, and autonomy boundary.
+- `Vn/RESEARCH_SPINE.yaml` is the machine-traceable decomposition: Big RQ → Sub-RQ → Hypothesis → Claim → Evidence → Experiment.
+- Research PRD is the current epoch's human research contract for one or more Spine-bound sub-questions.
 - Research Paper is derived academic expression.
 - Research Spec is the machine-readable execution contract.
 - Research Plan is a dated concrete execution run.
 - Research Insight interprets existing evidence into current `Vn/wiki/*`.
-- Research Audit checks drift among all artifacts.
+- Research Audit checks drift among all artifacts and hard-gates the fixed Direction template.
 
 ## Command
 
@@ -40,6 +42,17 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
   --title "Project Title" \
   --purpose "minimum viable research goal"
 ```
+
+Minimal scientific judgment mode:
+
+```bash
+python3 ~/.claude/skills/research-init/scripts/init_research.py \
+  --repo /absolute/path/to/repo \
+  --judgment-file /absolute/path/to/judgment.yaml \
+  --force
+```
+
+`judgment.yaml` must contain `big_rq`, `core_hypothesis`, `falsification_condition`, `closest_baseline`, `dataset_or_environment`, `metric_or_judgment_rule`, and `stop_rule`. This mode compiles the user-facing judgment into `SCIENTIFIC_JUDGMENT.yaml`, approved `RESEARCH_DIRECTION.md`, PRD binding, Spine, RQ-local Spec/Plan/Tasks, Task Queue, and `EVIDENCE_GATE.yaml`. It does not create epoch-level `SPEC.yaml` or `PLAN.md`, does not lock baselines, and does not admit claims; `BASELINE_LOCK.yaml` remains `needs_human_review` until G0/G1 evidence is observed and audited.
 
 The command creates the new default structure:
 
@@ -56,12 +69,12 @@ The command creates the new default structure:
 - `docs/research/explore/syntheses/EXP_SYNTHESIS.md`
 - `docs/research/explore/proposals/*`
 - `docs/research/V0/goal.md`
+- `docs/research/V0/GOAL_LOCK.yaml`
 - `docs/research/V0/PRD.tex`
 - `docs/research/V0/PRD.pdf` or `docs/research/V0/render_blocker.md`
 - `docs/research/V0/PRD_SUMMARY.md`
+- `docs/research/V0/EVIDENCE_GATE.yaml`
 - `docs/research/V0/RESEARCH_SPINE.yaml`
-- `docs/research/V0/SPEC.yaml`
-- `docs/research/V0/PLAN.md`
 - `docs/research/V0/STATUS.yaml`
 - `docs/research/V0/TASK_QUEUE.yaml`
 - `docs/research/V0/rqs/RQ01/SPEC.yaml`
@@ -94,10 +107,10 @@ If `latexmk` or `xelatex` is available, initialization renders a real PDF from t
 1. Resolve the repository root.
 2. Run the initializer.
 3. Inspect and fill `docs/research/V0/PRD.tex`; rerender `PRD.pdf` before treating the spec as executable.
-4. Inspect `docs/research/RESEARCH_DIRECTION.md`, then fill and approve the Research Corridor before letting agents explore.
+4. Inspect `docs/research/RESEARCH_DIRECTION.md`, then fill and approve the Big RQ, falsification condition, MVR, evidence contract, and Research Corridor before letting agents explore.
 5. Resolve current epoch through `docs/research/CURRENT`; default is `V0`.
 6. Use `docs/research/V0/PRD_SUMMARY.md` only as agent context; do not let it override `PRD.tex`.
-7. Run `research-spec` only after the active PRD has concrete RQs, hypotheses, benchmarks, experiments, harnesses, and evidence boundaries.
+7. Let `/research` run the internal Spec compiler only after the active PRD has concrete RQs, hypotheses, benchmarks, experiments, harnesses, and evidence boundaries. Do not expose `research-spec` as a normal user entry.
 8. Run validation:
 
 ```bash
@@ -109,14 +122,15 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 ## Hard Rules
 
 - Do not initialize `docs/report/` for new work. If the user explicitly requests it, record `report_init_blocker.md` explaining that `docs/research/` is the current architecture, wait for explicit human confirmation, and only then degrade to legacy initialization.
-- Do not create `research-evidence`, `research-writing`, or `research-goal`; use `research-insight` for interpretation.
+- Do not create execution-type `research-evidence` or `research-writing`; use `research-insight` for interpretation and `research-goal` only for version-level goal synthesis.
 - Scaffold files may contain blockers; readiness validators must fail until contracts are concrete.
 - PRD, Plan, prompts, gap reports, and explanatory YAML values must be Chinese.
 - YAML keys and stable IDs stay English for parser compatibility.
 - Use structured placeholders such as `【待填写：...】`; do not leave raw `TODO` placeholders.
 - `CURRENT` defaults to `V0`.
 - `V0/STATUS.yaml` defaults to `status=initialized`.
-- `V0/goal.md` defaults to a scaffold with YAML frontmatter (`version`, `language`, `style`, `evidence_rule`, `gate_strategy`, `commit_policy`) and Chinese body sections: 工作目录, 全局约束, 版本目标, 总规则, Gate 序列, 测试要求, 提交要求, 最终回复格式. **It is the per-version high-level execution prompt and constraint anchor.** It defines the overall mission for the entire `V0`, not the current task. It changes only when the version's core question or scope shifts.
+- `V0/goal.md` is generated by `research-goal` as the per-version high-level execution prompt and constraint anchor. It defines the overall mission for the entire `V0`, not the current task; single-step execution still comes from `TASK_QUEUE.yaml`.
+- `V0/GOAL_LOCK.yaml` records the source refs and hashes used to synthesize `goal.md`; `goal-ready` must fail when PRD, baseline lock, baseline dossier, spine, RQ-local contracts, task queue, evidence gate, status, or direction changes without a goal refresh.
 - `V0/PRD.tex` defaults to active task: 完善并人工批准 `RESEARCH_DIRECTION.md` 与 `V0/PRD.tex`。
 - `V0/rqs/RQ01/` defaults to the first RQ-local contract scaffold; every declared RQ must have local `SPEC.yaml`, `PLAN.md`, `TASKS.yaml`, and reproduction verification files.
 - `V0/TASK_QUEUE.yaml` tasks include a Git policy block.

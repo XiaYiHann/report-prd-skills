@@ -11,7 +11,7 @@ SKILLS_DIR = SCRIPT_DIR.parents[1]
 SHARED_SCRIPT_DIR = SKILLS_DIR / "research-init" / "_shared" / "scripts"
 sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
-from research_workspace import init_rq_spec_scaffold, init_spec_scaffold, resolve_research_dir  # noqa: E402
+from research_workspace import current_epoch_name, init_rq_spec_scaffold, init_spec_scaffold, resolve_research_dir  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,9 +27,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     research_dir = resolve_research_dir(args)
-    init_spec_scaffold(research_dir, args.force)
+    if not current_epoch_name(research_dir):
+        init_spec_scaffold(research_dir, args.force)
     rq_specs = init_rq_spec_scaffold(research_dir, rq_id=args.rq or None, all_rqs=args.all_rqs, force=args.force)
-    print(f"[OK] wrote research spec scaffold: {research_dir / 'spec'}")
+    if not current_epoch_name(research_dir):
+        print(f"[OK] wrote legacy research spec scaffold: {research_dir / 'spec'}")
     for path in rq_specs:
         print(f"[OK] wrote RQ spec scaffold: {path}")
     return 0
