@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 def write_search_evidence(epoch_dir: Path) -> None:
@@ -51,11 +55,13 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
                 cwd=repo,
             )
             updated = read_yaml(queue_path)
+            goal_ready = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "goal-ready"])
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(updated["current_task"], "T_G0_002")
         self.assertEqual(updated["gates"][0]["status"], "active")
         self.assertEqual(updated["tasks"][1]["status"], "active")
+        self.assertEqual(goal_ready.returncode, 0, goal_ready.stdout + goal_ready.stderr)
 
     def test_gate_enters_audit_required_after_all_tasks_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,7 +103,7 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
         self.assertEqual(queue["gates"][0]["status"], "audit_required")
         self.assertIsNone(queue["current_task"])
 
-    def test_failed_execution_does_not_falsify_gate(self) -> None:
+    def test_failed_branch_task_activates_independent_runnable_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             research_dir = init_workspace_fast(repo)
@@ -127,9 +133,63 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
             )
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
             report = read_yaml(research_dir / "V0" / "runs" / "T_G0_001_report.yaml")
+            status = read_yaml(research_dir / "V0" / "STATUS.yaml")
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(queue["gates"][0]["status"], "blocked")
+        self.assertEqual(queue["gates"][0]["status"], "active")
+        self.assertEqual(queue["current_task"], "T_G0_002")
+        self.assertEqual(queue["tasks"][1]["status"], "active")
+        self.assertIn("T_G0_001", queue["gates"][0]["blocked_tasks"])
+        self.assertEqual(status["status"], "running")
         self.assertNotEqual(queue["gates"][0]["status"], "falsified")
         self.assertEqual(report["conclusion"]["failure_class"], "execution_failure")
         self.assertFalse(report["conclusion"]["research_interpretation_allowed"])
+
+    def test_blocked_dependency_stops_only_after_no_runnable_tasks_remain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_fast(repo)
+            epoch_dir = research_dir / "V0"
+            write_search_evidence(epoch_dir)
+            queue_path = epoch_dir / "TASK_QUEUE.yaml"
+            queue = read_yaml(queue_path)
+            queue["tasks"][0]["status"] = "completed"
+            queue["tasks"][1]["status"] = "completed"
+            queue["tasks"][2]["status"] = "active"
+            queue["current_task"] = "T_G0_003"
+            queue["gates"][0]["tasks"] = [
+                {"task_id": "T_G0_001", "status": "completed"},
+                {"task_id": "T_G0_002", "status": "completed"},
+                {"task_id": "T_G0_003", "status": "active"},
+            ]
+            write_yaml(queue_path, queue)
+
+            result = run_cmd(
+                [
+                    "python3",
+                    str(UPDATE_STATE_SCRIPT),
+                    "--repo",
+                    str(repo),
+                    "--task-id",
+                    "T_G0_003",
+                    "--gate-id",
+                    "G0_SEARCH_LOCK",
+                    "--status",
+                    "blocked",
+                    "--failure-class",
+                    "spec_gap",
+                    "--blocker-reason",
+                    "baseline cannot be locked without human decision",
+                    "--executor",
+                    "codex",
+                ],
+                cwd=repo,
+            )
+            queue = read_yaml(queue_path)
+            status = read_yaml(epoch_dir / "STATUS.yaml")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(queue["queue_status"], "blocked")
+        self.assertEqual(queue["gates"][0]["status"], "blocked")
+        self.assertIsNone(queue["current_task"])
+        self.assertEqual(status["status"], "gate_blocked")

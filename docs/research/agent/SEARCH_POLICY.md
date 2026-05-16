@@ -1,5 +1,10 @@
 # Search Policy
 
+This policy is part of the research-loop framework contract for generated
+downstream research workspaces. It is not a repo-local mandate to bind this
+meta-framework repository to a concrete project, dataset, baseline, metric, or
+paper claim.
+
 Search is mandatory before tasks that can change the research evidence base:
 
 1. project start;
@@ -38,3 +43,9 @@ The system should prefer sufficient logged search to under-searching for reprodu
 - default query minimum: 6;
 - default query maximum: 20;
 - stop when official code status, dataset availability, metric definition, and at least three candidate baselines or justified scarcity are resolved.
+
+Baseline search has three artifact layers:
+
+1. `search/` records raw discovery and absence evidence.
+2. `baselines/INDEX.yaml` records curated baseline, paper, dataset, experiment-design, and reuse-decision cards under `baselines/Bxxx/`.
+3. `BASELINE_LOCK.yaml` records the final version-level decision and must reference the selected dossier cards.

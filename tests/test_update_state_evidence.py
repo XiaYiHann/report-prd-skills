@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class UpdateStateEvidenceTests(unittest.TestCase):  # noqa: F405

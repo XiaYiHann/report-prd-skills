@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
             "loop-ready",
             "spine-ready",
             "loop-prompt-ready",
+            "goal-ready",
             "closeout-ready",
             "paper-binding-ready",
             "format-ready",

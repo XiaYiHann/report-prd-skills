@@ -20,15 +20,18 @@ Every `/research explore` run first reads:
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/PRD.md`
-5. `docs/research/{CURRENT}/SPEC.yaml`
-6. `docs/research/{CURRENT}/wiki/epoch_summary.md`
-7. `docs/research/{CURRENT}/wiki/evidence_map.md`
-8. `docs/research/{CURRENT}/wiki/positive_signals.md`
-9. `docs/research/{CURRENT}/wiki/negative_results.md`
-10. `docs/research/{CURRENT}/wiki/open_questions.md`
-11. `docs/research/{CURRENT}/wiki/next_version_seed.md`
-12. `docs/research/{CURRENT}/closeout.md`
+4. `docs/research/{CURRENT}/PRD.tex`
+5. `docs/research/{CURRENT}/PRD_SUMMARY.md`
+6. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+7. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+8. `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+9. `docs/research/{CURRENT}/wiki/epoch_summary.md`
+10. `docs/research/{CURRENT}/wiki/evidence_map.md`
+11. `docs/research/{CURRENT}/wiki/positive_signals.md`
+12. `docs/research/{CURRENT}/wiki/negative_results.md`
+13. `docs/research/{CURRENT}/wiki/open_questions.md`
+14. `docs/research/{CURRENT}/wiki/next_version_seed.md`
+15. `docs/research/{CURRENT}/closeout.md`
 
 Old versions are context only. Read only `closeout.md`, `wiki/epoch_summary.md`, `wiki/evidence_map.md`, and `wiki/next_version_seed.md`.
 
@@ -110,6 +113,7 @@ Explore can propose save targets such as:
 
 - `Vn/wiki/literature_notes.md`
 - `Vn/wiki/baseline_landscape.md`
+- `Vn/baselines/INDEX.yaml` or `Vn/baselines/Bxxx/*` as curated dossier candidates
 - `Vn/wiki/open_questions.md`
 - `Vn/wiki/next_version_seed.md`
 
@@ -145,7 +149,7 @@ Explore can suggest; it cannot execute. "Execute" here means experiment executio
 It must not:
 
 - modify `RESEARCH_DIRECTION.md`
-- modify `Vn/PRD.md`, `Vn/SPEC.yaml`, or `Vn/PLAN.md`
+- modify `Vn/PRD.tex`, `Vn/RESEARCH_SPINE.yaml`, RQ-local `SPEC.yaml`, RQ-local `PLAN.md`, or `Vn/TASK_QUEUE.yaml`
 - create `Vn+1`
 - enter Paper Binding
 - claim a result is stable

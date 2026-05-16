@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
@@ -211,12 +215,8 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
                 cwd=repo,
             )
             self.assertEqual(plan_result.returncode, 0, plan_result.stdout + plan_result.stderr)
-            epoch_spec = research_dir / "V0" / "SPEC.yaml"
-            if epoch_spec.exists():
-                epoch_spec.write_text(epoch_spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
-            else:
-                spec = research_dir / "spec" / "global_spec.yaml"
-                spec.write_text(spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
+            rq_spec = research_dir / "V0" / "rqs" / "RQ01" / "SPEC.yaml"
+            rq_spec.write_text(rq_spec.read_text(encoding="utf-8") + "\n# drift after plan creation\n", encoding="utf-8")
 
             result = run_cmd(
                 ["python3", str(RESEARCH_SCRIPT), "--repo", str(repo), "--max-steps", "1", "--date", "2026-05-10", "--json", "--legacy-controller"],
@@ -228,4 +228,4 @@ class ResearchLoopControllerTests(unittest.TestCase):  # noqa: F405
             self.assertEqual(state["project_status"]["current_stage"], "S5_AUDIT_REQUIRED")
             self.assertTrue(state["project_status"]["blocked"])
             repair = (research_dir / "audits" / "2026-05-10-audit" / "repair_plan.md").read_text(encoding="utf-8")
-            self.assertIn("stale spec hash", repair)
+            self.assertIn("stale RQ contract hash", repair)

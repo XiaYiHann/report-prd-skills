@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import pytest
 from research_workflow_helpers import *  # noqa: F403
 import sys
 
@@ -16,6 +17,8 @@ from research_workspace import (  # noqa: E402
     check_paper_claim_ledger,
     check_reproduction_claim_boundaries,
 )
+
+pytestmark = pytest.mark.integration
 
 
 class AuditChecksTests(unittest.TestCase):  # noqa: F405

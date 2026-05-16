@@ -17,6 +17,7 @@ from research_workspace import (  # noqa: E402
     EPOCH_MANIFEST_PATH,
     EPOCH_REQUIRED_FILES,
     EPOCH_WIKI_FILES,
+    epoch_baseline_files,
     epoch_required_files,
     epoch_reproduction_files,
     epoch_search_files,
@@ -45,11 +46,11 @@ class EpochManifestContractTests(unittest.TestCase):
                 "PRD_SUMMARY.md",
                 "BASELINE_LOCK.yaml",
                 "goal.md",
+                "GOAL_LOCK.yaml",
                 "RESEARCH_SPINE.yaml",
-                "SPEC.yaml",
-                "PLAN.md",
                 "STATUS.yaml",
                 "TASK_QUEUE.yaml",
+                "EVIDENCE_GATE.yaml",
                 "LOOP_LOG.md",
                 "GIT_STATE.yaml",
                 "git_log.md",
@@ -77,6 +78,7 @@ class EpochManifestContractTests(unittest.TestCase):
                 "literature_notes.md",
                 "open_questions.md",
                 "next_version_seed.md",
+                "frontier_map.yaml",
                 "insight_index.yaml",
             ],
         )
@@ -98,10 +100,14 @@ class EpochManifestContractTests(unittest.TestCase):
             epoch_reproduction_files(),
             [
                 "REPRODUCTION_INDEX.yaml",
+                "REPRODUCTION_LEDGER.yaml",
                 "REPRODUCTION_PLAN.md",
                 "REPRODUCTION_DELTA.yaml",
             ],
         )
+
+    def test_manifest_declares_baseline_dossier_metadata_files(self) -> None:
+        self.assertEqual(epoch_baseline_files(), ["INDEX.yaml"])
 
     def test_missing_manifest_fails_with_clear_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

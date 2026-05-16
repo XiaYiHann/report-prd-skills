@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
+
+pytestmark = pytest.mark.integration
 
 
 class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
@@ -30,7 +34,33 @@ class ResearchPaperPlanTests(unittest.TestCase):  # noqa: F405
             self.assertIn(r"\documentclass[UTF8,11pt]{ctexart}", paper_tex)
             self.assertIn("论文缺口报告", gap_report)
             self.assertIn("论文正文中的表格和结果段落保留 typed placeholder", gap_report)
+            self.assertIn("generation_mode: `draft`", gap_report)
             self.assertEqual(placeholder_map["placeholders"][0]["experiment_id"], "E01")
+
+    def test_research_paper_binding_mode_fails_before_gate_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_closed_fast(repo)
+            result = run_cmd(
+                ["python3", str(PAPER_SCRIPT), "--research-dir", str(research_dir), "--mode", "binding", "--force"],
+                cwd=repo,
+            )
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("paper binding gate failed", result.stdout + result.stderr)
+
+    def test_research_paper_binding_mode_succeeds_after_gate_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_closed_fast(repo)
+            make_paper_binding_decision(research_dir)
+            result = run_cmd(
+                ["python3", str(PAPER_SCRIPT), "--research-dir", str(research_dir), "--mode", "binding", "--force"],
+                cwd=repo,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            gap_report = (research_dir / "paper" / "paper_gap_report.md").read_text(encoding="utf-8")
+            self.assertIn("generation_mode: `binding`", gap_report)
+            self.assertIn("`paper-binding-ready` gate 已通过", gap_report)
 
     def test_research_paper_demo_generates_placeholder_complete_manuscript(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

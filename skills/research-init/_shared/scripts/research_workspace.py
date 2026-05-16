@@ -66,6 +66,23 @@ REPRODUCTION_EVIDENCE_LEVELS = {
     "literature_only",
     "failed_but_informative",
 }
+REPRODUCTION_REUSE_STATUSES = {
+    "not_checked",
+    "reuse_allowed",
+    "delta_check_required",
+    "new_reproduction_required",
+    "reuse_blocked",
+}
+INSIGHT_VERDICTS = {
+    "pending_human_review",
+    "supported",
+    "refuted",
+    "inconclusive",
+    "needs_replication",
+    "blocked",
+    "pivot_required",
+}
+PAPER_ELIGIBILITY_STATUSES = {"none", "discussion_only", "partial", "allowed"}
 
 
 PRD_SECTIONS = [
@@ -156,6 +173,10 @@ def epoch_reproduction_files(manifest: dict[str, Any] | None = None) -> list[str
     return epoch_manifest_list("required_reproduction_files", manifest)
 
 
+def epoch_baseline_files(manifest: dict[str, Any] | None = None) -> list[str]:
+    return epoch_manifest_list("required_baseline_files", manifest)
+
+
 EPOCH_REQUIRED_FILES = epoch_required_files()
 
 EPOCH_WIKI_FILES = epoch_wiki_files()
@@ -172,7 +193,7 @@ CLOSED_VERSION_STATUSES = {
     "closed_stable",
 }
 
-PAPER_BINDING_STATUSES = {"closed_stable", "paper_binding_ready"}
+PAPER_BINDING_STATUSES = {"closed_stable", "paper_binding_ready", "paper_bound"}
 AUDIT_RESULT_STATUSES = {"pass", "repair_required", "human_review_required", "falsification_confirmed"}
 
 AGENT_REQUIRED_FILES = [
@@ -384,7 +405,7 @@ def _insight_log_template() -> str:
 
 > Legacy compatibility note: 新版 epoch workspace 的当前 insight 真源是 `docs/research/{CURRENT}/wiki/*`。
 > 本文件只作为旧 `docs/research/insights/` 路径的兼容日志、迁移来源或用户显式要求的 legacy 记录。
-> 旧 insight 不能直接支撑当前版本 claim，除非当前 `Vn/PRD.md` 或 `Vn/SPEC.yaml` 显式 carry_forward。
+> 旧 insight 不能直接支撑当前版本 claim，除非当前 `Vn/PRD.tex`、`Vn/RESEARCH_SPINE.yaml` 或 RQ-local `SPEC.yaml` 显式 carry_forward。
 
 > 本文件记录从 Plan 执行中产生的洞察、异常、负结果和 pivot 提案。
 > legacy dated plan 执行完毕后，可以在这里追加一个 entry，而不是只写"任务完成"。
@@ -1524,9 +1545,9 @@ def research_direction_template(title: str, purpose: str) -> str:
     today = today_string()
     return f"""# Research Direction
 
-> 自动科研不是自动写论文，而是一个按研究版本推进的闭环：每个版本都在顶层研究方向约束下，完整提出问题、签订实验合同、执行或被门禁阻断、把证据与洞察沉淀进 wiki，然后生成下一版更清晰的研究问题，直到某个版本 closed_stable 后进入 Paper Binding。
+> `RESEARCH_DIRECTION.md` 是研究问题宪法，不是 PRD、roadmap 或论文草稿。它固定 Big Research Question、证伪边界、证据合同和自治红线；可执行拆解写入 `RESEARCH_SPINE.yaml` 与当前 epoch。
 
-> Auto research is not automatic paper writing. It is a charter-bounded, epoch-based loop where each research version fully frames, contracts, executes, gates, distills evidence into a wiki, and either seeds the next sharper version or enters paper binding.
+> `RESEARCH_DIRECTION.md` is the research-question constitution. It anchors the Big Research Question, falsification boundary, evidence contract, and autonomy boundary; executable decomposition belongs in `RESEARCH_SPINE.yaml` and the active epoch.
 
 ## 0. Direction Status
 
@@ -1538,90 +1559,122 @@ def research_direction_template(title: str, purpose: str) -> str:
 - final_target: paper_binding
 - owner_decision_required: true
 
-## 1. Research Seed
+## 1. Big Research Question
 
-### A. ad hoc idea
+> 用一句可回答、可证伪的问题表达整个研究方向。不要写成“构建一个系统”或“提升效率”的产品愿景。
 
-- seed_summary: `【待填写：尚未验证的研究直觉、机制假设或方法想法】`
+- big_rq: `【待填写：Can/How/Under what conditions ...；必须是问题，不是 roadmap】`
+- falsification_condition: `【待填写：什么观察、实验结果或反例会推翻或迫使修改这个 Big RQ】`
 - minimum_viable_purpose: `{purpose}`
 
-### B. follow-up from existing paper
+## 2. Why This Question Matters
 
-- source_type: `【待填写：如不基于已有论文，写 none】`
-- gap_or_limitation: `【待填写：已有论文中的 gap、limitation、unanswered question、unfair baseline 或未充分验证机制】`
+> 说明为什么这是研究问题，而不只是工程需求。
 
-## 2. Research Corridor
+- scientific_gap: `【待填写：已有方法、agent workflow 或科研管理系统没有解决什么】`
+- practical_consequence: `【待填写：如果解决，会新增什么可验证能力】`
+- reviewer_interest: `【待填写：为什么 NeurIPS/ICLR/AAAI/系统顶会审稿人会关心】`
+- closest_prior_framing: `【待填写：最接近的已有研究 framing；若未检索，写 literature blocker】`
 
-- `【待填写：允许探索方向 1，例如 MoE routing analysis】`
-- `【待填写：允许探索方向 2，例如 expert-DAG / expert-subgraph representation】`
-- `【待填写：允许探索方向 3，例如 routing trace / routing intervention】`
+## 3. Core Hypothesis
 
-## 3. Out-of-Scope Directions
+> Big RQ 的暂时答案。必须允许被实验推翻。
 
-- 与核心研究问题无关的普通 prompt engineering
+- core_hypothesis_id: H0
+- core_hypothesis: `【待填写：一句话核心假设】`
+- hypothesis_falsification: `【待填写：什么结果会推翻 H0】`
+- hypothesis_status: unvalidated
+
+## 4. Research Corridor
+
+> 只列允许探索的问题族、机制族、评估族。不要写具体任务队列。
+
+- `【待填写：允许探索方向 1，例如 RQ 分解质量 / falsifiability preservation】`
+- `【待填写：允许探索方向 2，例如 claim-to-evidence gate / anti-mock guardrail】`
+- `【待填写：允许探索方向 3，例如 epoch closeout 到 spine 回写的 drift control】`
+
+## 5. Out-of-Scope Directions
+
+- 与 Big RQ 无关的普通 prompt engineering
 - 与 Research Corridor 无关的普通工程优化
 - 纯产品化工具但没有科研 claim
 - 没有证据链的论文叙事重写
 - 超出用户授权的全新研究主题
 
-## 4. Prior Work Basis
+## 6. Minimum Viable Research
 
-- paper_id: `【待填写：如无则写 none】`
-- title: `【待填写：论文标题或 none】`
-- citation_or_url: `【待填写：文献占位或 literature blocker】`
-- relationship_to_project: `【待填写：与本项目的关系】`
-- inherited_claims: `【待填写：继承哪些 claim；没有则写 none】`
-- questioned_claims: `【待填写：质疑哪些 claim；没有则写 none】`
-- follow_up_gaps: `【待填写：继续研究哪些 gap】`
-- must_compare_baselines: `【待填写：必须比较的 baseline】`
-- novelty_risk: `【待填写：novelty risk 或 literature blocker】`
+> 最小可成立研究，不是最终论文目标。没有 MVR，研究应停止或 pivot。
 
-> 如果当前环境无法联网或未完成检索，必须写入 literature blocker，不得编造文献。
+- mvr_question: `【待填写：如果只回答一个最小子问题，是什么】`
+- mvr_success_condition: `【待填写：达到什么证据说明方向值得继续】`
+- mvr_failure_condition: `【待填写：什么结果说明应停止或 pivot】`
+- mvr_status: not_started
 
-## 5. Desired Paper Shape
+## 7. Evidence Contract
 
-优先级从高到低：
+> 什么证据算数，什么不算数。Audit 必须按此强制检测。
 
-1. mechanism analysis paper
-2. method paper
-3. causal intervention paper
-4. benchmark / tooling paper
-5. diagnostic paper
-6. negative result paper
+| evidence_type | allowed_to_support_claim | description |
+| --- | --- | --- |
+| real_experiment | yes | 真实数据 / 真实模型或真实系统、完整命令、artifact hash、可复跑。 |
+| reproduction | partial | 支持 baseline comparability；不能单独证明新方法 claim。 |
+| diagnostic | partial | 支持机制理解；不能替代主实验或最终性能 claim。 |
+| toy / mock / smoke | no | 只能支持 unit/smoke 或流程连通性，不支持 research claim。 |
+| agent_report_only | no | agent 文字报告不能单独作为 evidence。 |
 
-## 6. Autonomy Boundary
+## 8. Global Stop Conditions
+
+- Big RQ 无法拆成可证伪 Sub-RQ
+- Claim 无法绑定 evidence contract
+- 连续两个 epoch 只产生文档、不产生可审计证据或可复用 insight
+- Agent 把 toy/mock/smoke/prompt-only 输出提升为 observed claim
+- 核心假设被有效证据反复反驳且没有可辩护 pivot
+- 需要超出预算、权限或伦理边界的数据 / 算力 / 系统访问
+- paper binding 已完成
+
+## 9. Autonomy Boundary
 
 ### AI 可以自动做
 
-- 起草 Vn/PRD.md
-- 编译 Vn/SPEC.yaml
-- 生成 Vn/PLAN.md
+- 在 Big RQ 与 Research Corridor 内起草 `RESEARCH_SPINE.yaml` 子问题分解
+- 起草 Vn/PRD.tex
+- 编译 RQ-local `Vn/rqs/RQxx/SPEC.yaml`
+- 生成 RQ-local `Vn/rqs/RQxx/PLAN.md` 与 `TASKS.yaml`
 - 维护 TASK_QUEUE.yaml
 - 实现代码 scaffold
 - 写测试
 - 写 run report
 - 写 wiki
 - 写 closeout
-- 在研究走廊内起草 Vn+1/PRD.md
+- 记录 negative results、anomaly report 和 pivot proposal
 
 ### AI 不可以自动做
 
-- 修改 RESEARCH_DIRECTION.md 的核心方向
+- 修改 Big RQ
+- 删除或弱化 falsification_condition
 - pivot 到 Out-of-Scope Directions
 - 把 exploratory insight 写成 paper result
 - 伪造实验、benchmark、harness、stdout/stderr 或 artifact
 - 宣称未验证 claim 已稳定
+- 把 toy/mock/smoke/prompt-only 输出提升为 observed claim
 - 在当前版本未 closeout 前创建下一版本
 - 在 closed_stable 前进行 Paper Binding
 
-## 7. Global Stop Conditions
+## 10. Spine Binding
 
-- 连续两个版本没有产生任何可复用 insight
-- 核心机制被反复反驳
-- 所有可行版本都被 hard gate 阻断
-- 需要超出预算的数据、算力或权限
-- novelty risk 无法解决
-- paper binding 已完成
+> `RESEARCH_DIRECTION.md` 持有 Big RQ；`RESEARCH_SPINE.yaml` 持有机器可追踪拆解。
+
+- spine_file: `docs/research/{{CURRENT}}/RESEARCH_SPINE.yaml`
+- active_epoch_pointer: `docs/research/CURRENT`
+- epoch_prd_pattern: `docs/research/{{CURRENT}}/PRD.tex`
+- rq_spec_pattern: `docs/research/{{CURRENT}}/rqs/RQxx/SPEC.yaml`
+- closeout_writeback: `docs/research/{{CURRENT}}/closeout.md -> RESEARCH_SPINE.yaml`
+
+连接规则：
+
+- BRQ 不变时，本文件不改；子问题分解、假设细化、洞察积累在 Spine 中完成。
+- 每个 epoch PRD 必须显式引用 Spine 中的 sub-RQ ID，不得发明新的 BRQ。
+- 每个 closeout 必须说明本轮回答了哪个 Sub-RQ、支持/反驳了哪些 claim、哪些 insight 回写 Spine。
 """
 
 
@@ -1633,16 +1686,17 @@ def research_index_template() -> str:
 ```text
 RESEARCH_DIRECTION.md
   -> CURRENT
-  -> Vn/PRD.md
-  -> Vn/SPEC.yaml
-  -> Vn/PLAN.md
+  -> Vn/RESEARCH_SPINE.yaml
+  -> Vn/PRD.tex
+  -> Vn/rqs/RQxx/SPEC.yaml
+  -> Vn/rqs/RQxx/PLAN.md
   -> Vn/TASK_QUEUE.yaml
   -> Vn/runs + Vn/artifacts
   -> Vn/audits
   -> research-insight
   -> Vn/wiki
   -> Vn/closeout.md
-  -> Vn+1/PRD.md 或 paper binding
+  -> Vn+1/PRD.tex 或 paper binding
 ```
 
 ## Current Epoch
@@ -1669,10 +1723,12 @@ Auto research is not automatic paper writing. It is a charter-bounded, epoch-bas
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
+4. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-6. `docs/research/{CURRENT}/PRD.md`
-7. `docs/research/{CURRENT}/SPEC.yaml`
-8. `docs/research/{CURRENT}/PLAN.md`
+6. `docs/research/{CURRENT}/PRD.tex`
+7. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+8. `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+9. `docs/research/{CURRENT}/EVIDENCE_GATE.yaml`
 
 旧版本只读 `closeout.md` 和 `wiki/` 中的 `epoch_summary.md`、`evidence_map.md`、`positive_signals.md`、`negative_results.md`、`failed_paths.md`、`next_version_seed.md`。禁止让旧版本 PRD 覆盖当前版本 PRD。
 
@@ -1698,7 +1754,7 @@ Explore 负责想，Vn 负责做，Git 负责记，Insight 负责解释，Wiki �
 - `gate_blocked`：解释 blocker，更新 wiki，准备 closeout。
 - `interpreting`：写 wiki 与 closeout。
 - `closed_*`：根据 closeout 决定 Vn+1 或停止。
-- `closed_stable` / `paper_binding_ready`：允许 Paper Binding。
+- `closed_stable` / `paper_binding_ready`：允许 Paper Binding；`paper_bound` 为绑定完成终态。
 
 ## Next Version Rule
 
@@ -1710,14 +1766,14 @@ Explore 负责想，Vn 负责做，Git 负责记，Insight 负责解释，Wiki �
 
 ## Paper Binding
 
-只有当前版本 `status=closed_stable` 或 `paper_binding_ready`，且 `PAPER_BINDING_DECISION.md` 明确允许，才能把结果绑定到 paper。Exploratory insight 只能进入 motivation / discussion，不能写成 main result。
+只有当前版本 `status=closed_stable` 或 `paper_binding_ready`，且 `PAPER_BINDING_DECISION.md` 明确允许，才能把结果绑定到 paper。绑定完成后进入 `paper_bound`。Exploratory insight 只能进入 motivation / discussion，不能写成 main result。
 """
 
 
 def claude_loop_prompt_template() -> str:
-    return """# Claude Code Ralph-loop Prompt
+    return """# Claude Code Goal Mode Prompt
 
-你处于 ralph-loop 持续循环中。每轮收到相同的提示词，但通过读取持久化的状态文件来推进研究。每轮只执行一个原子任务。
+你处于 Claude Code 目标模式中。每轮应读取持久化状态文件来推进研究。每轮只执行一个原子任务。
 
 ## Per-Iteration Workflow
 
@@ -1727,14 +1783,16 @@ def claude_loop_prompt_template() -> str:
 
 1. `docs/research/RESEARCH_DIRECTION.md` — 研究走廊边界
 2. `docs/research/CURRENT` — 当前 epoch 版本号
-3. `docs/research/{CURRENT}/STATUS.yaml` — 当前状态
-5. `docs/research/{CURRENT}/TASK_QUEUE.yaml` — 任务详情（success_criteria、test_commands、evidence_required）
+3. `docs/research/{CURRENT}/goal.md` — 目标模式锚点
+4. `docs/research/{CURRENT}/GOAL_LOCK.yaml` — goal source hash 合同
+5. `docs/research/{CURRENT}/STATUS.yaml` — 当前状态
+6. `docs/research/{CURRENT}/TASK_QUEUE.yaml` — 任务详情（success_criteria、test_commands、evidence_required）
 
 ### Step 2: Check termination conditions
 
 读取 STATUS.yaml 后，先检查是否该停止：
 
-- 若 `status` 为 `closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable` 或 `paper_binding_ready`：
+- 若 `status` 为 `closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable` 或 `paper_bound`：
   输出 `<promise>RESEARCH_COMPLETE</promise>` 并停止。
 - 若 `status` 为 `gate_blocked` 且 `runs/TASK_XXX_blocker.md` 存在：
   输出 `<promise>RESEARCH_BLOCKED</promise>` 并停止。
@@ -1811,9 +1869,11 @@ Read:
 - `docs/research/CURRENT`
 - `docs/research/{CURRENT}/STATUS.yaml`
 - `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-- `docs/research/{CURRENT}/PRD.md`
-- `docs/research/{CURRENT}/SPEC.yaml`
-- `docs/research/{CURRENT}/PLAN.md`
+- `docs/research/{CURRENT}/PRD.tex`
+- `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+- `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+- `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+- `docs/research/{CURRENT}/EVIDENCE_GATE.yaml`
 
 ## Deliverables
 
@@ -1918,8 +1978,8 @@ def literature_policy_template() -> str:
 
 ## Mandatory Search Points
 
-1. Project start：写 `RESEARCH_DIRECTION.md` 或 `V0/PRD.md` 前后，确认问题是否已被做过。
-2. Version start：每个 `Vn/PRD.md` lock 前，确认本版本 RQ / baseline / method 合理。
+1. Project start：写 `RESEARCH_DIRECTION.md` 或 `V0/PRD.tex` 前后，确认问题是否已被做过。
+2. Version start：每个 `Vn/PRD.tex` lock 前，确认本版本 RQ / baseline / method 合理。
 3. Baseline lock：任何 method superiority claim 出现前，确认必须比较的强 baseline。
 4. Unexpected strong/negative result：实验结果和预期冲突时，确认是否已有解释或类似现象。
 5. Before paper binding：补齐 related work、novelty risk、concurrent work。
@@ -2028,7 +2088,7 @@ Paper Binding requires a clean git tree and a stable source commit. If `tag_poli
 def epoch_prd_template(version: str, title: str, purpose: str) -> str:
     return f"""# {version} Research PRD
 
-> 最新版本 `{version}/PRD.md` 是当前研究真源；`RESEARCH_DIRECTION.md` 是上位边界。
+> 最新版本 `{version}/PRD.tex` 是当前研究真源；`RESEARCH_DIRECTION.md` 是上位边界。
 
 ## 1. Version Frame
 
@@ -2129,7 +2189,7 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
             "notes": ["当前模板不实现真实 local-shell executor；执行报告必须由真实命令、artifact 或 prompt-only 标记支撑。"],
         },
         "runtime_contract": {
-            "supported_agents": ["claude_code_ralph_loop", "codex_goal"],
+            "supported_agents": ["claude_code_goal", "codex_goal"],
             "execution_truth": [
                 "Spec defines executable research tasks.",
                 "Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.",
@@ -2156,6 +2216,7 @@ def epoch_spec_payload(version: str) -> dict[str, Any]:
         },
         "reproduction_contract": default_reproduction_contract(version),
         "baseline_lock_ref": "BASELINE_LOCK.yaml",
+        "baseline_dossier_ref": "baselines/INDEX.yaml",
         "filesystem_contract": default_filesystem_contract(version),
         "subagent_policy": {
             "allow_subagents": True,
@@ -2308,6 +2369,19 @@ def rq_spec_payload(version: str, rq_id: str) -> dict[str, Any]:
             "alternative_hypothesis": "【待填写：备择假设】",
             "falsification_condition": "【待填写：何种证据会反驳该 RQ】",
         },
+        "human_approval": {
+            "status": "proposed",
+            "allowed_status": ["proposed", "approved", "rejected", "deferred"],
+            "approved_by": None,
+            "approved_at": None,
+            "decision_note": "只有 approved RQ 才能进入执行 pipeline。",
+        },
+        "version_lineage": {
+            "parent_version": None,
+            "parent_rq_ids": [],
+            "source_insight_ids": [],
+            "relation": "root",
+        },
         "claim_contract": {
             "claim_ids": [],
             "allowed_claim_scope": "【待填写：该 RQ 最多允许声称什么】",
@@ -2336,11 +2410,49 @@ def rq_spec_payload(version: str, rq_id: str) -> dict[str, Any]:
             "audit_required": True,
             "paper_admissible_condition": "full run + artifact hash + audit passed + no mock evidence",
         },
+        "insight_contract": {
+            "insight_review_ref": "INSIGHT_REVIEW.yaml",
+            "ai_draft_allowed": True,
+            "human_verdict_required": True,
+            "wiki_binding_requires_human_verdict": True,
+            "paper_binding_requires_human_verdict": True,
+        },
         "failure_taxonomy": {
             "reproduction_failed": "复现失败；不得进入 innovation，需记录 blocker 或负结果。",
             "implementation_failed": "工程实现失败；不得解释为研究假设被证伪。",
             "hypothesis_falsified": "只有在 full harness 与 audit 后才能标记。",
             "inconclusive": "证据不足；保持 claim blocked。",
+        },
+    }
+
+
+def rq_insight_review_payload(version: str, rq_id: str) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "version": version,
+        "rq_id": rq_id,
+        "status": "pending_human_review",
+        "allowed_status": sorted(INSIGHT_VERDICTS),
+        "ai_draft": {
+            "verdict_candidate": None,
+            "summary": None,
+            "evidence_refs": [],
+            "claim_boundary": None,
+            "failure_or_blocker_class": None,
+            "next_rq_seeds": [],
+        },
+        "human_verdict": {
+            "verdict": "pending_human_review",
+            "reviewed_by": None,
+            "reviewed_at": None,
+            "decision_note": None,
+            "paper_eligibility": "none",
+        },
+        "wiki_binding": {
+            "insight_id": None,
+            "target_ref": "../../wiki/insight_index.yaml",
+            "frontier_map_ref": "../../wiki/frontier_map.yaml",
+            "bound": False,
         },
     }
 
@@ -2388,6 +2500,7 @@ def rq_tasks_payload(version: str, rq_id: str) -> dict[str, Any]:
                 "task_id": task_id,
                 "phase": "reproduction",
                 "status": "pending",
+                "depends_on": [],
                 "title": "Lock and verify baseline reproduction prerequisite",
                 "preconditions": ["PRD.tex exists", "SPEC.yaml declares reproduction_contract.required=true"],
                 "commands": [],
@@ -2449,6 +2562,7 @@ def init_rq_scaffold(epoch_dir: Path, version: str, rq_id: str = "RQ01", force: 
     write_yaml(rq_dir / "SPEC.yaml", rq_spec_payload(version, rq_id), force)
     write_text(rq_dir / "PLAN.md", markdown_template(rq_plan_template(version, rq_id)), force)
     write_yaml(rq_dir / "TASKS.yaml", rq_tasks_payload(version, rq_id), force)
+    write_yaml(rq_dir / "INSIGHT_REVIEW.yaml", rq_insight_review_payload(version, rq_id), force)
     for filename, payload in rq_reproduction_payloads(version, rq_id).items():
         write_yaml(rq_dir / "reproduction" / filename, payload, force)
 
@@ -2496,6 +2610,7 @@ def default_baseline_lock_payload(version: str) -> dict[str, Any]:
             "dataset_candidates": "search/dataset_candidates.yaml",
             "paper_experiment_designs": "search/paper_experiment_designs.yaml",
         },
+        "baseline_dossier_ref": "baselines/INDEX.yaml",
         "task_definition": {
             "target_task": "【待填写：当前版本要解决的任务】",
             "target_input_output": "【待填写：输入、输出与评测对象】",
@@ -2523,8 +2638,10 @@ def default_filesystem_contract(version: str) -> dict[str, Any]:
     return {
         "state_root": f"docs/research/{version}",
         "search_metadata_root": f"docs/research/{version}/search",
+        "baseline_dossier_root": f"docs/research/{version}/baselines",
         "reproduction_metadata_root": f"docs/research/{version}/reproduction",
         "baseline_lock_ref": f"docs/research/{version}/BASELINE_LOCK.yaml",
+        "baseline_dossier_ref": f"docs/research/{version}/baselines/INDEX.yaml",
         "rq_contract_root": f"docs/research/{version}/rqs",
         "reproduction_workspace_root": f"reproduction/{version}",
         "experiment_root": f"experiments/{version}",
@@ -2545,14 +2662,14 @@ def epoch_plan_template(version: str) -> str:
 version: {version}
 loop_target: paper_binding
 loop_mode:
-  claude_code: ralph_loop
-  codex: goal_driven
+  claude_code: goal_mode
+  codex: goal_mode
 active_task_source: TASK_QUEUE.yaml
 loop_rules:
   - "Each loop may complete at most one active task."
   - "After each loop, update LOOP_LOG.md."
   - "If blocked twice by same cause, escalate to gate_blocked."
-  - "If no active task exists, generate one from PLAN.md or close version."
+  - "If no active task exists, activate the next runnable task whose depends_on edges are satisfied; if none remains, stop for human review or closeout."
   - "Do not start a new version unless current version is closed."
   - "Stay inside RESEARCH_DIRECTION.md."
   - "文档撰写阶段遇到用户意图不明或要求自相矛盾时，必须停止并请求用户确认；执行阶段不得停止询问，应自主推进并仅对确实缺失的必需信息记录 blocker。"
@@ -2561,7 +2678,7 @@ codex_goal_rules:
   - "Codex must run tests when code changes."
   - "Codex must cite terminal/test evidence in run report."
   - "Codex should not perform broad literature search unless task phase=literature and network is available."
-claude_ralph_rules:
+claude_goal_rules:
   - "Do not expand scope mid-loop."
   - "Use subagents for large search or audit work."
   - "Write compact persistent state after each loop."
@@ -2645,6 +2762,280 @@ commit_policy: per_gate_or_blocker
 """
 
 
+GOAL_LOCK_SCHEMA_VERSION = "goal_lock_v1"
+GOAL_TARGET_EXECUTORS = {"codex", "claude-code", "both"}
+GOAL_SOURCE_REFS = {
+    "direction": "../RESEARCH_DIRECTION.md",
+    "prd": "PRD.tex",
+    "baseline_lock": "BASELINE_LOCK.yaml",
+    "baseline_dossier": "baselines/INDEX.yaml",
+    "spine": "RESEARCH_SPINE.yaml",
+    "rq_contracts": "rqs",
+    "task_queue": "TASK_QUEUE.yaml",
+    "evidence_gate": "EVIDENCE_GATE.yaml",
+    "status": "STATUS.yaml",
+}
+GOAL_DONE_TASK_STATUSES = {"completed", "skipped"}
+GOAL_BLOCKED_TASK_STATUSES = {"blocked", "failed_execution", "failed_harness"}
+
+
+def resolve_epoch_ref(epoch_dir: Path, ref: str) -> Path:
+    return (epoch_dir / ref).resolve()
+
+
+def goal_source_hashes(epoch_dir: Path) -> dict[str, str]:
+    return {key: hash_path(resolve_epoch_ref(epoch_dir, ref)) for key, ref in GOAL_SOURCE_REFS.items()}
+
+
+def goal_active_task(queue: dict[str, Any]) -> dict[str, Any]:
+    current = str(queue.get("current_task") or "")
+    for task in as_list(queue.get("tasks")):
+        if isinstance(task, dict) and str(task.get("task_id") or task.get("id") or "") == current:
+            return task
+    return {}
+
+
+def goal_task_id(task: dict[str, Any]) -> str:
+    return str(task.get("task_id") or task.get("id") or "")
+
+
+def goal_task_dependencies(task: dict[str, Any]) -> list[str]:
+    raw = task.get("depends_on", task.get("dependencies", []))
+    if isinstance(raw, str):
+        return [raw] if raw else []
+    return [str(item) for item in as_list(raw) if str(item)]
+
+
+def goal_task_status_map(queue: dict[str, Any]) -> dict[str, str]:
+    return {
+        goal_task_id(task): str(task.get("status") or "")
+        for task in as_list(queue.get("tasks"))
+        if isinstance(task, dict) and goal_task_id(task)
+    }
+
+
+def goal_task_is_runnable(task: dict[str, Any], status_by_id: dict[str, str]) -> bool:
+    if str(task.get("status") or "") not in {"pending", "active"}:
+        return False
+    for dep_id in goal_task_dependencies(task):
+        if status_by_id.get(dep_id) not in GOAL_DONE_TASK_STATUSES:
+            return False
+    return True
+
+
+def goal_rq_contract_lines(spine: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for rq in as_list(spine.get("research_questions")):
+        if not isinstance(rq, dict):
+            continue
+        rq_id = str(rq.get("id") or "")
+        if not rq_id:
+            continue
+        spec_ref = str(rq.get("spec_ref") or f"rqs/{rq_id}/SPEC.yaml")
+        plan_ref = str(rq.get("plan_ref") or f"rqs/{rq_id}/PLAN.md")
+        task_ref = f"rqs/{rq_id}/TASKS.yaml"
+        lines.append(f"- `{rq_id}`: spec=`{spec_ref}`; plan=`{plan_ref}`; tasks=`{task_ref}`")
+    return "\n".join(lines) if lines else "- unresolved: `RESEARCH_SPINE.yaml` 尚未声明 RQ。"
+
+
+def goal_outstanding_task_graph(queue: dict[str, Any]) -> str:
+    status_by_id = goal_task_status_map(queue)
+    lines: list[str] = []
+    for task in as_list(queue.get("tasks")):
+        if not isinstance(task, dict):
+            continue
+        task_id = goal_task_id(task)
+        task_status = str(task.get("status") or "")
+        if not task_id or task_status in GOAL_DONE_TASK_STATUSES:
+            continue
+        deps = goal_task_dependencies(task)
+        dep_text = ", ".join(deps) if deps else "none"
+        rq_id = str(task.get("rq_id") or "")
+        binding = task.get("research_binding") if isinstance(task.get("research_binding"), dict) else {}
+        if not rq_id:
+            rq_id = str(binding.get("rq_id") or "direction_bootstrap")
+        rq_spec_ref = str(task.get("rq_spec_ref") or (f"rqs/{rq_id}/SPEC.yaml" if rq_id.startswith("RQ") else "n/a"))
+        rq_task_ref = str(task.get("rq_task_ref") or (f"rqs/{rq_id}/TASKS.yaml" if rq_id.startswith("RQ") else "n/a"))
+        runnable = "yes" if goal_task_is_runnable(task, status_by_id) else "no"
+        lines.append(
+            f"- `{task_id}`: status=`{task_status}`; gate=`{task.get('gate_id', 'unknown')}`; "
+            f"phase=`{task.get('phase', 'unknown')}`; rq=`{rq_id}`; depends_on=`{dep_text}`; "
+            f"runnable_now=`{runnable}`; spec=`{rq_spec_ref}`; task_ref=`{rq_task_ref}`"
+        )
+    return "\n".join(lines) if lines else "- 当前没有未完成 task。"
+
+
+def synthesize_epoch_goal(epoch_dir: Path, target_executor: str = "both") -> str:
+    version = epoch_dir.name
+    status = load_yaml(epoch_dir / "STATUS.yaml")
+    baseline_lock = load_yaml(epoch_dir / "BASELINE_LOCK.yaml")
+    spine = load_yaml(epoch_dir / "RESEARCH_SPINE.yaml")
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    active_task = goal_active_task(queue)
+    rq_ids = [
+        str(rq.get("id"))
+        for rq in as_list(spine.get("research_questions"))
+        if isinstance(rq, dict) and rq.get("id")
+    ]
+    rq_contracts = goal_rq_contract_lines(spine)
+    outstanding_task_graph = goal_outstanding_task_graph(queue)
+    target_executor = target_executor if target_executor in GOAL_TARGET_EXECUTORS else "both"
+    return f"""---
+version: {version}
+language: zh-CN
+style: formal_academic
+generated_by: research-goal
+target_executor: {target_executor}
+source_lock: GOAL_LOCK.yaml
+active_task_source: TASK_QUEUE.yaml
+---
+
+# {version} Long-Running Research Goal
+
+本文件由 `research-goal` 生成或刷新，是当前 `{version}` 的 version-level 长程执行锚点。它只定义任务边界、证据规则、gate 策略和停止条件；单步执行真源仍然是 `TASK_QUEUE.yaml`。
+
+## 当前上下文
+
+- current_version: `{version}`
+- version_status: `{status.get("status", "unknown")}`
+- current_gate: `{queue.get("current_gate", "unknown")}`
+- current_task: `{queue.get("current_task", "unknown")}`
+- active_task_phase: `{active_task.get("phase", "unknown")}`
+- baseline_lock_status: `{baseline_lock.get("status", "unknown")}`
+- declared_rqs: `{", ".join(rq_ids) if rq_ids else "unresolved"}`
+
+## RQ Contract Coverage
+
+每个已确认 RQ 必须有对应的 RQ-local Spec、Plan 与 Task contract。缺失时先让 `/research` 自动补齐 scaffold，再继续 validator 或执行。
+
+{rq_contracts}
+
+## Outstanding Task Graph
+
+以下是当前 `{version}` 的所有未完成 task。`depends_on` 是调度真源；`runnable_now=yes` 表示该 task 不依赖已阻塞分支，且可以在当前合同下继续推进。
+
+{outstanding_task_graph}
+
+## 执行目标
+
+把当前 `{version}` 从现有 gate 状态推进到明确终态：`closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable` 或 `paper_bound`。如果遇到缺失信息、复现失败、证据不足或人工决策点，必须显式写入 blocker，而不是继续扩写叙事。
+
+## 单步执行规则
+
+- 每轮开始必须读取 `TASK_QUEUE.yaml`，只执行其中唯一 active task。
+- 不允许从 `goal.md` 直接发明新 task；需要新 task 时必须由 RQ-local `PLAN.md` / `TASKS.yaml`、`TASK_QUEUE.yaml` 或 audit repair route 生成。
+- 每轮最多完成一个 task，并更新 `LOOP_LOG.md`、对应 run report、必要的 wiki 与 audit 记录。
+- 如果某个分支 task 进入 `blocked`、`failed_execution` 或 `failed_harness`，只冻结显式依赖该 task 的后续分支；不依赖该 blocker 且 `depends_on` 已满足的 independent runnable tasks 必须继续执行。
+- 当一个 active task 完成或阻塞后，调度器应优先激活 `TASK_QUEUE.yaml` 中下一个 runnable unblocked task；不要因为单个分支 blocker 直接停止整个版本。
+- 代码变更必须运行相关测试；无法测试时记录 blocker 和缺失条件。
+- 文档编译、Spec/Plan 修改或 Research Spine 修改若改变研究方向、核心假设、baseline 选择、metric 或证据边界，必须停止并请求人工确认。
+
+## 证据与 Baseline 规则
+
+- 禁止伪造数据、stdout/stderr、artifact、hash、benchmark number、paper result 或 citation。
+- `search/` 是 raw discovery；`baselines/INDEX.yaml` 是 curated baseline dossier；`BASELINE_LOCK.yaml` 是版本级 baseline/dataset/metric/design 决策真源。
+- `BASELINE_LOCK.yaml` 未 locked 时，不得进入 reproduction、innovation、experiment 或 analysis task，除非存在显式 human waiver 和 audit 记录。
+- RQ-local reproduction 必须继承 `BASELINE_LOCK.yaml`，并解析 selected baseline/dataset/design dossier refs。
+- `spine_bound` task 必须能在 `RESEARCH_SPINE.yaml` 中解析 `rq_id`、`claim_ids`、`experiment_ids` 和 `evidence_ids`。
+- `EVIDENCE_GATE.yaml` 是 claim admission 真源；RQ-local evidence 未通过 audit 前只能保持 draft claim。
+
+## 长循环策略
+
+- `G0_SEARCH_LOCK` 先完成 search、baseline dossier 和 version baseline lock。
+- `G1_REPRODUCTION_LOCK` 在 baseline lock 后完成 reproduction classification、plan 与 audit。
+- implementation / experiment / analysis task 必须等待相应 RQ reproduction verified 或显式 blocker/waiver。
+- 同一原因阻塞两次后，将 gate 标记为 blocked 或 human_review_required，并写明最小解除条件。
+- 完成 gate 后运行 audit，再用 `research-insight` 将证据、负结果、失败路径和 open question 写入 `Vn/wiki/*`。
+
+## 停止条件
+
+- 当前版本进入任一 closed 状态。
+- `PAPER_BINDING_DECISION.md` 明确允许 Paper Binding。
+- `RESEARCH_DIRECTION.md` 范围不足，需要人工改方向。
+- `BASELINE_LOCK.yaml`、`GOAL_LOCK.yaml`、RQ-local contracts、`EVIDENCE_GATE.yaml` 或 `TASK_QUEUE.yaml` stale，必须先刷新对应合同。
+- 所有未完成 task 都不再 runnable，或剩余任务全部依赖已阻塞分支、缺失证据或显式人工决策；此时停止等待人类接管。
+- 需要新增 `Vn+1`，但当前版本尚未 closeout。
+
+## 子智能体调度
+
+- literature / benchmark / baseline selection -> `research-literature`
+- baseline reproduction -> `research-reproduce`
+- method or harness implementation -> `research-coding`
+- full experiment execution -> `research-experiment`
+- analysis / anomaly / pivot -> `research-analysis`
+- math or formulation -> `research-math`
+- paper placeholder update -> `research-paper`
+- cross-file consistency and gate check -> `research-audit`
+
+## 最终回复要求
+
+每次长循环迭代结束时，用中文报告：完成的 task、修改的文件、运行的命令、测试或 blocker 证据、当前 gate 状态、下一步唯一 active task。不要把 clean render 或 smoke test 当作科学结论。
+"""
+
+
+def goal_lock_payload(epoch_dir: Path, target_executor: str, goal_hash: str = "") -> dict[str, Any]:
+    return {
+        "schema_version": GOAL_LOCK_SCHEMA_VERSION,
+        "version": epoch_dir.name,
+        "target_executor": target_executor,
+        "goal_status": "active",
+        "goal_ref": "goal.md",
+        "goal_hash": goal_hash,
+        "source_refs": dict(GOAL_SOURCE_REFS),
+        "source_hashes": goal_source_hashes(epoch_dir),
+        "allowed_scope": [
+            "docs/research/{version}/goal.md".format(version=epoch_dir.name),
+            "docs/research/{version}/GOAL_LOCK.yaml".format(version=epoch_dir.name),
+        ],
+        "forbidden_scope": [
+            "RESEARCH_DIRECTION.md changes without explicit human approval",
+            "TASK_QUEUE.yaml execution bypass",
+            "paper result claims from unverified artifacts",
+            "creating Vn+1 before closeout",
+        ],
+        "stop_conditions": [
+            "closed_* status reached",
+            "paper_bound reached",
+            "human_review_required",
+            "no runnable unblocked task remains",
+            "stale source hash",
+        ],
+        "staleness_triggers": [
+            "direction_changed",
+            "prd_changed",
+            "baseline_lock_changed",
+            "baseline_dossier_changed",
+            "spine_changed",
+            "rq_contracts_changed",
+            "task_queue_changed",
+            "evidence_gate_changed",
+            "status_changed",
+        ],
+        "audit": {
+            "required_before_plan_generation": True,
+            "required_before_long_loop": True,
+            "validator_mode": "goal-ready",
+        },
+    }
+
+
+def write_epoch_goal_files(epoch_dir: Path, target_executor: str = "both", force: bool = True) -> tuple[Path, Path]:
+    if not epoch_dir.exists():
+        raise ValueError(f"active epoch does not exist: {epoch_dir}")
+    if target_executor not in GOAL_TARGET_EXECUTORS:
+        raise ValueError(f"target_executor must be one of {sorted(GOAL_TARGET_EXECUTORS)}")
+    goal_path = epoch_dir / "goal.md"
+    lock_path = epoch_dir / "GOAL_LOCK.yaml"
+    write_text(goal_path, synthesize_epoch_goal(epoch_dir, target_executor), force=force)
+    payload = goal_lock_payload(epoch_dir, target_executor, goal_hash=hash_path(goal_path))
+    write_yaml(lock_path, payload, force=True)
+    return goal_path, lock_path
+
+
+def write_research_goal(research_dir: Path, target_executor: str = "both", force: bool = True) -> tuple[Path, Path]:
+    return write_epoch_goal_files(current_epoch_dir(research_dir), target_executor, force)
+
+
 def epoch_status_payload(version: str) -> dict[str, Any]:
     return {
         **template_metadata(),
@@ -2665,14 +3056,15 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
             "closed_pivot_required",
             "closed_stable",
             "paper_binding_ready",
+            "paper_bound",
         ],
         "direction_ref": "../RESEARCH_DIRECTION.md",
         "current_prd": "PRD.tex",
         "current_prd_summary": "PRD_SUMMARY.md",
         "current_spine": "RESEARCH_SPINE.yaml",
-        "current_spec": "SPEC.yaml",
-        "current_plan": "PLAN.md",
+        "current_rq_contract_root": "rqs",
         "current_task_queue": "TASK_QUEUE.yaml",
+        "current_evidence_gate": "EVIDENCE_GATE.yaml",
         "current_gate": None,
         "last_completed_task": None,
         "last_loop_report": "LOOP_LOG.md",
@@ -2709,6 +3101,33 @@ def default_search_metadata(version: str) -> dict[str, dict[str, Any] | str]:
     }
 
 
+def default_baseline_metadata(version: str) -> dict[str, dict[str, Any] | str]:
+    return {
+        "INDEX.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "authority": "curated_baseline_dossier",
+            "source_search_refs": {
+                "candidate_baselines": "search/candidate_baselines.yaml",
+                "dataset_candidates": "search/dataset_candidates.yaml",
+                "paper_experiment_designs": "search/paper_experiment_designs.yaml",
+            },
+            "baseline_cards": [],
+            "required_card_files": [
+                "BASELINE_CARD.yaml",
+                "PAPER_CARD.yaml",
+                "DATASET_CARD.yaml",
+                "EXPERIMENT_DESIGN.yaml",
+                "REUSE_DECISION.yaml",
+            ],
+            "notes": [
+                "This directory is the curated baseline dossier, not raw discovery output.",
+                "BASELINE_LOCK.yaml remains the version-level decision source of truth.",
+            ],
+        }
+    }
+
+
 def default_reproduction_metadata(version: str) -> dict[str, dict[str, Any] | str]:
     return {
         "REPRODUCTION_INDEX.yaml": {
@@ -2723,6 +3142,21 @@ def default_reproduction_metadata(version: str) -> dict[str, dict[str, Any] | st
                 "failed_reproduction_requires_audit": True,
             },
             "items": [],
+        },
+        "REPRODUCTION_LEDGER.yaml": {
+            "schema_version": 1,
+            "epoch": version,
+            "authority": "cross_rq_reproduction_reuse_assets",
+            "reuse_policy": {
+                "coverage_check_required_for_every_rq": True,
+                "reuse_requires_same_task_definition": True,
+                "reuse_requires_dataset_metric_compatibility": True,
+                "delta_check_required_on_setting_change": True,
+                "literature_only_cannot_support_claim": True,
+            },
+            "assets": [],
+            "coverage_checks": [],
+            "borrowed_experiment_designs": [],
         },
         "REPRODUCTION_PLAN.md": "# Reproduction Plan\n\nNo reproduction item has been locked yet.\n",
         "REPRODUCTION_DELTA.yaml": {
@@ -2805,6 +3239,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "phase": "search",
                 "title": "Web search prior work and baselines",
                 "status": "active",
+                "depends_on": [],
                 "type": "literature_search",
                 "research_binding": direction_bootstrap_research_binding(),
                 "agent_mode": ["main", "research-literature"],
@@ -2829,7 +3264,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
-                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.tex", "PRD_SUMMARY.md", "SPEC.yaml"],
+                "input_refs": ["../RESEARCH_DIRECTION.md", "PRD.tex", "PRD_SUMMARY.md", "RESEARCH_SPINE.yaml", "rqs/RQ01/SPEC.yaml"],
                 "output_refs": [
                     "search/search_report.md",
                     "search/web_search_log.yaml",
@@ -2873,6 +3308,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "phase": "search",
                 "title": "Repository search for existing code/data/configs",
                 "status": "pending",
+                "depends_on": [],
                 "type": "repo_search",
                 "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": True, "reason": "local repository evidence discovery"},
@@ -2901,6 +3337,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "phase": "baseline_lock",
                 "title": "Lock version baseline, dataset, metric, and experiment design",
                 "status": "pending",
+                "depends_on": ["T_G0_001", "T_G0_002"],
                 "type": "baseline_lock",
                 "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": False},
@@ -2909,7 +3346,14 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/search/candidate_baselines.yaml",
                     f"docs/research/{version}/search/dataset_candidates.yaml",
                     f"docs/research/{version}/search/paper_experiment_designs.yaml",
+                    f"docs/research/{version}/baselines/INDEX.yaml",
+                    f"docs/research/{version}/baselines/*/BASELINE_CARD.yaml",
+                    f"docs/research/{version}/baselines/*/PAPER_CARD.yaml",
+                    f"docs/research/{version}/baselines/*/DATASET_CARD.yaml",
+                    f"docs/research/{version}/baselines/*/EXPERIMENT_DESIGN.yaml",
+                    f"docs/research/{version}/baselines/*/REUSE_DECISION.yaml",
                     f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
+                    f"docs/research/{version}/reproduction/REPRODUCTION_LEDGER.yaml",
                     f"docs/research/{version}/reproduction/REPRODUCTION_PLAN.md",
                     f"docs/research/{version}/wiki/baseline_landscape.md",
                     f"docs/research/{version}/wiki/literature_notes.md",
@@ -2923,20 +3367,29 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     "search/paper_experiment_designs.yaml",
                     "search/candidate_reproductions.yaml",
                 ],
-                "output_refs": ["BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
+                "output_refs": [
+                    "baselines/INDEX.yaml",
+                    "BASELINE_LOCK.yaml",
+                    "reproduction/REPRODUCTION_INDEX.yaml",
+                    "reproduction/REPRODUCTION_LEDGER.yaml",
+                    "reproduction/REPRODUCTION_PLAN.md",
+                ],
                 "success_criteria": [
+                    "baselines/INDEX.yaml records curated baseline cards derived from search candidates.",
                     "BASELINE_LOCK.yaml records selected strongest/simple/control baselines or a blocker.",
+                    "Each selected baseline, dataset, and borrowed experiment design points to a dossier card.",
                     "Dataset, split, metric, and borrowed experiment design decisions are recorded.",
                     "Candidate reproduction set is derived from the version baseline lock or blocker is recorded.",
+                    "Reusable reproduction assets and borrowed experiment designs are indexed in REPRODUCTION_LEDGER.yaml.",
                 ],
                 "test_commands": [],
                 "harness": {
                     "command": "",
                     "timeout_sec": 0,
-                    "success_predicate": "BASELINE_LOCK.yaml status is locked, blocked, or needs_human_review",
-                    "artifact_paths": ["BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml"],
+                    "success_predicate": "BASELINE_LOCK.yaml status is locked, blocked, or needs_human_review and selected entries resolve to baselines/ dossier cards",
+                    "artifact_paths": ["baselines/INDEX.yaml", "BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_LEDGER.yaml"],
                 },
-                "evidence_required": ["baseline_lock", "reproduction_index"],
+                "evidence_required": ["baseline_dossier", "baseline_lock", "reproduction_index", "reproduction_ledger"],
             },
             {
                 "id": "T_G1_001",
@@ -2945,11 +3398,13 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "phase": "reproduction",
                 "title": "Classify and plan selected reproductions",
                 "status": "pending",
+                "depends_on": ["T_G0_003"],
                 "type": "reproduction_planning",
                 "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": True, "reason": "reproduction task"},
                 "allowed_files": [
                     f"docs/research/{version}/reproduction/REPRODUCTION_INDEX.yaml",
+                    f"docs/research/{version}/reproduction/REPRODUCTION_LEDGER.yaml",
                     f"docs/research/{version}/reproduction/REPRODUCTION_PLAN.md",
                     f"docs/research/{version}/search/web_search_log.yaml",
                     f"docs/research/{version}/search/repo_search_log.yaml",
@@ -2957,17 +3412,17 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                     f"docs/research/{version}/TASK_QUEUE.yaml",
                 ],
                 "forbidden_files": [],
-                "input_refs": ["BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml"],
-                "output_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_PLAN.md"],
-                "success_criteria": ["BASELINE_LOCK.yaml is locked or explicitly blocked before reproduction items are classified."],
+                "input_refs": ["baselines/INDEX.yaml", "BASELINE_LOCK.yaml", "reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_LEDGER.yaml"],
+                "output_refs": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_LEDGER.yaml", "reproduction/REPRODUCTION_PLAN.md"],
+                "success_criteria": ["BASELINE_LOCK.yaml is locked or explicitly blocked and baseline dossier refs resolve before reproduction items are classified.", "Every approved RQ has a reproduction coverage check: reuse_allowed, delta_check_required, new_reproduction_required, or reuse_blocked."],
                 "test_commands": [],
                 "harness": {
                     "command": "",
                     "timeout_sec": 0,
                     "success_predicate": "all reproduction items classified or blocker recorded",
-                    "artifact_paths": ["reproduction/REPRODUCTION_INDEX.yaml"],
+                    "artifact_paths": ["reproduction/REPRODUCTION_INDEX.yaml", "reproduction/REPRODUCTION_LEDGER.yaml"],
                 },
-                "evidence_required": ["reproduction_index", "search_log"],
+                "evidence_required": ["reproduction_index", "reproduction_ledger", "search_log"],
             },
             {
                 "id": "T_G1_999",
@@ -2976,6 +3431,7 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
                 "phase": "audit",
                 "title": "Audit reproduction evidence",
                 "status": "pending",
+                "depends_on": ["T_G1_001"],
                 "type": "reproduction_audit",
                 "research_binding": direction_bootstrap_research_binding(),
                 "search": {"required": False},
@@ -3002,6 +3458,49 @@ def default_gate_aware_task_queue(version: str) -> dict[str, Any]:
     }
 
 
+def default_evidence_gate_payload(version: str) -> dict[str, Any]:
+    return {
+        **template_metadata(),
+        "schema_version": 1,
+        "version": version,
+        "authority": "claim_admission_gate",
+        "source_refs": {
+            "spine": "RESEARCH_SPINE.yaml",
+            "rq_contracts": "rqs",
+            "task_queue": "TASK_QUEUE.yaml",
+            "paper_claim_ledger": "PAPER_CLAIM_LEDGER.yaml",
+        },
+        "claim_states": {
+            "allowed_claim": [],
+            "draft_claim": [],
+            "forbidden_claim": [
+                {
+                    "reason": "mock/toy/smoke/prompt-only/stale evidence cannot support paper or Go/No-Go claims",
+                    "applies_to": ["all_claims_without_observed_audited_evidence"],
+                }
+            ],
+        },
+        "evidence_admission": {
+            "required_for_allowed_claim": [
+                "observed artifact",
+                "recorded command or declared non-execution blocker",
+                "artifact hash when artifact exists",
+                "declared baseline/dataset/metric provenance when applicable",
+                "audit status passed",
+                "no mock evidence as claim support",
+            ],
+            "draft_only_until": [
+                "G0_SEARCH_LOCK completed",
+                "G1_REPRODUCTION_LOCK completed or explicitly blocked with human waiver",
+                "RQ-local SPEC.yaml approved",
+                "full harness evidence observed",
+            ],
+            "never_admit": ["agent_report_only", "toy_result", "mock_result", "smoke_only", "stale_artifact"],
+        },
+        "next_required_gate": "G0_SEARCH_LOCK",
+    }
+
+
 def epoch_task_queue_payload(version: str) -> dict[str, Any]:
     return default_gate_aware_task_queue(version)
 
@@ -3011,7 +3510,48 @@ def default_audit_queue(version: str) -> dict[str, Any]:
 
 
 def default_insight_index(version: str) -> dict[str, Any]:
-    return {"schema_version": 1, "epoch": version, "insights": []}
+    return {
+        "schema_version": 1,
+        "epoch": version,
+        "authority": "human_reviewed_insights_only",
+        "rules": {
+            "ai_draft_is_not_wiki_knowledge": True,
+            "human_verdict_required": True,
+            "paper_binding_requires_human_verdict": True,
+        },
+        "insights": [],
+    }
+
+
+def default_frontier_map(version: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "epoch": version,
+        "authority": "version_closeout_synthesis_for_next_rq",
+        "source_refs": {
+            "insight_index": "insight_index.yaml",
+            "reproduction_ledger": "../reproduction/REPRODUCTION_LEDGER.yaml",
+            "closeout": "../closeout.md",
+        },
+        "knowledge_state": {
+            "supported": [],
+            "refuted": [],
+            "inconclusive": [],
+            "blocked": [],
+            "reusable_reproductions": [],
+            "borrowed_experiment_designs": [],
+        },
+        "frontier_questions": [],
+        "next_version_options": [],
+        "human_decision": {
+            "status": "pending",
+            "allowed_status": ["pending", "deepen", "repair_evidence", "pivot", "paper_binding", "stop"],
+            "selected_option": None,
+            "decided_by": None,
+            "decided_at": None,
+            "decision_note": None,
+        },
+    }
 
 
 def default_human_review_requests(version: str) -> dict[str, Any]:
@@ -3053,6 +3593,11 @@ def validate_gate_queue_shape(queue: dict[str, Any]) -> list[str]:
         status = str(task.get("status") or "")
         if status not in TASK_STATUSES:
             issues.append(f"invalid task status: {status}")
+    task_ids = {goal_task_id(task) for task in tasks if goal_task_id(task)}
+    for task in tasks:
+        for dep_id in goal_task_dependencies(task):
+            if dep_id not in task_ids:
+                issues.append(f"task {goal_task_id(task)} depends_on unknown task: {dep_id}")
     current_gate = queue.get("current_gate")
     if current_gate and not any(str(gate.get("gate_id") or "") == str(current_gate) for gate in gates):
         issues.append(f"current_gate {current_gate} does not exist in gates")
@@ -3936,7 +4481,7 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
 
 **你需要做**：
 
-1. 读取 `docs/research/{CURRENT}/PRD.md` 模板（16 章结构）。
+1. 读取 `docs/research/{CURRENT}/PRD.tex` 模板（16 章结构）。
 2. 逐章与用户讨论：
    - 第 2 章背景教程、第 3 章相关工作地图：你需要搜索文献帮用户理清 landscape
    - 第 4 章基准与复现计划：你需要帮用户选 concrete baseline、dataset、metric
@@ -3944,10 +4489,10 @@ python3 ~/.claude/skills/research-init/scripts/init_research.py \
    - 第 10 章实验设计：帮用户设计 experiment matrix
    - **第 11.2 章 Gate 调度表（最关键）**：帮用户把研究拆成有序 Gate，每个 Gate 定义 task 清单和可验证的 pass_condition
    - 第 12 章 Harness：帮用户定义每个 task 的 harness 命令和验收标准
-3. 填写 PRD.md 时将 `【待填写：...】` 替换为具体内容。
+3. 填写 PRD.tex 时将 `【待填写：...】` 替换为具体内容。
 4. 第 11.2 章 Gate 调度表**不可留空**——必须定义至少 2 个 Gate，每个 Gate 绑定具体 task_id。
 5. PRD 全部填完后，**请用户审阅并确认**。
-6. 用户确认后，在 PRD.md 末尾添加 `PRD_STATUS: HUMAN_APPROVED`。
+6. 用户确认后，在 PRD.tex 末尾添加 `PRD_STATUS: HUMAN_APPROVED`。
 7. 运行 `python3 ~/.claude/skills/research/scripts/update_state.py --repo . --task-id TASK_001 --status done`。
 8. 进入阶段 2。
 
@@ -3988,7 +4533,7 @@ while STATUS.yaml.status not in (closed_*, gate_blocked):
 | 触发条件 | 行为 |
 |----------|------|
 | STATUS.yaml → `gate_blocked` | 报告 blocker，等待人工决策 |
-| STATUS.yaml → `closed_*` | 报告 closeout 摘要，若 closeout 指示创建下一版本则进入阶段 1 起草 Vn+1/PRD.md |
+| STATUS.yaml → `closed_*` | 报告 closeout 摘要，若 closeout 指示创建下一版本则进入阶段 1 起草 Vn+1/PRD.tex |
 | 实验证据反驳 PRD 核心假设 | 写 negative_result，请求人工 review |
 | 需要修改 RESEARCH_DIRECTION.md | 请求人工批准 |
 | 所有 Gate 通过 + closeout 完成 | 报告研究完成，若 closeout 允许 Paper Binding 则继续 |
@@ -4049,12 +4594,14 @@ Codex / Claude Code 每次工作：
 3. `docs/research/{CURRENT}/STATUS.yaml`
 4. `docs/research/{CURRENT}/goal.md`
 5. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-6. `docs/research/{CURRENT}/PRD.md`
-7. `docs/research/{CURRENT}/SPEC.yaml`
+6. `docs/research/{CURRENT}/PRD.tex`
+7. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+8. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+9. `docs/research/{CURRENT}/EVIDENCE_GATE.yaml`
 
 ## Bootstrap
 
-If `docs/research/{CURRENT}/SPEC.yaml` is missing or has empty gates, run:
+If RQ-local contracts or `TASK_QUEUE.yaml` are missing, run:
 ```bash
 python3 ~/.claude/skills/research/scripts/research_loop.py --repo . --once
 ```
@@ -4126,19 +4673,18 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(agent_dir / "GIT_POLICY.md", markdown_template(git_policy_template()), force)
 
     epoch_dir = research_dir / version
-    for dirname in ["plans", "runs", "artifacts", "audits", "search", "reproduction", "rqs", "wiki"]:
+    for dirname in ["plans", "runs", "artifacts", "audits", "search", "baselines", "reproduction", "rqs", "wiki"]:
         (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
     prd_tex = epoch_dir / "PRD.tex"
     write_text(prd_tex, research_prd_tex(title, purpose), force)
     render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
     write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "BASELINE_LOCK.yaml", default_baseline_lock_payload(version), force)
-    write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
-    write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
     write_yaml(epoch_dir / "RESEARCH_SPINE.yaml", epoch_spine_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
+    write_yaml(epoch_dir / "EVIDENCE_GATE.yaml", default_evidence_gate_payload(version), force)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
@@ -4148,6 +4694,12 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     init_rq_scaffold(epoch_dir, version, "RQ01", force)
     for filename, content in default_search_metadata(version).items():
         path = epoch_dir / "search" / filename
+        if isinstance(content, str):
+            write_text(path, markdown_template(content), force)
+        else:
+            write_yaml(path, content, force)
+    for filename, content in default_baseline_metadata(version).items():
+        path = epoch_dir / "baselines" / filename
         if isinstance(content, str):
             write_text(path, markdown_template(content), force)
         else:
@@ -4165,16 +4717,19 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     for filename, content in wiki_templates(version).items():
         write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
     write_yaml(epoch_dir / "wiki" / "insight_index.yaml", default_insight_index(version), force)
+    write_yaml(epoch_dir / "wiki" / "frontier_map.yaml", default_frontier_map(version), force)
     for path in [
         epoch_dir / "plans" / ".gitkeep",
         epoch_dir / "runs" / ".gitkeep",
         epoch_dir / "artifacts" / ".gitkeep",
         epoch_dir / "audits" / ".gitkeep",
         epoch_dir / "search" / ".gitkeep",
+        epoch_dir / "baselines" / ".gitkeep",
         epoch_dir / "reproduction" / ".gitkeep",
         epoch_dir / "rqs" / ".gitkeep",
     ]:
         write_text(path, "", force)
+    write_epoch_goal_files(epoch_dir, target_executor="both", force=True)
 
     write_text(repo / "CLAUDE.md", claude_root_template(), force)
     write_text(repo / "AGENTS.md", agents_root_template(), force)
@@ -4182,7 +4737,7 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
 
 def source_epoch_is_closed(epoch_dir: Path) -> bool:
     status = load_yaml(epoch_dir / "STATUS.yaml")
-    if str(status.get("status")) in CLOSED_VERSION_STATUSES or str(status.get("status")) == "paper_binding_ready":
+    if str(status.get("status")) in CLOSED_VERSION_STATUSES or str(status.get("status")) in {"paper_binding_ready", "paper_bound"}:
         return True
     closeout = epoch_dir / "closeout.md"
     if closeout.exists() and closeout_final_status(read_text(closeout)) in CLOSED_VERSION_STATUSES:
@@ -4230,12 +4785,11 @@ def create_epoch(
     render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
     write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "BASELINE_LOCK.yaml", default_baseline_lock_payload(version), force)
-    write_yaml(epoch_dir / "SPEC.yaml", epoch_spec_payload(version), force)
-    write_text(epoch_dir / "PLAN.md", markdown_template(epoch_plan_template(version)), force)
     write_text(epoch_dir / "goal.md", markdown_template(epoch_goal_template(version, title, purpose)), force)
     write_yaml(epoch_dir / "STATUS.yaml", epoch_status_payload(version), force)
     write_yaml(epoch_dir / "RESEARCH_SPINE.yaml", epoch_spine_payload(version), force)
     write_yaml(epoch_dir / "TASK_QUEUE.yaml", epoch_task_queue_payload(version), force)
+    write_yaml(epoch_dir / "EVIDENCE_GATE.yaml", default_evidence_gate_payload(version), force)
     write_text(epoch_dir / "LOOP_LOG.md", markdown_template(epoch_loop_log_template(version)), force)
     write_yaml(epoch_dir / "GIT_STATE.yaml", git_state_payload(version), force)
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
@@ -4245,6 +4799,12 @@ def create_epoch(
     init_rq_scaffold(epoch_dir, version, "RQ01", force)
     for filename, content in default_search_metadata(version).items():
         path = epoch_dir / "search" / filename
+        if isinstance(content, str):
+            write_text(path, markdown_template(content), force)
+        else:
+            write_yaml(path, content, force)
+    for filename, content in default_baseline_metadata(version).items():
+        path = epoch_dir / "baselines" / filename
         if isinstance(content, str):
             write_text(path, markdown_template(content), force)
         else:
@@ -4260,16 +4820,19 @@ def create_epoch(
     for filename, content in wiki_templates(version).items():
         write_text(epoch_dir / "wiki" / filename, markdown_template(content), force)
     write_yaml(epoch_dir / "wiki" / "insight_index.yaml", default_insight_index(version), force)
+    write_yaml(epoch_dir / "wiki" / "frontier_map.yaml", default_frontier_map(version), force)
     for path in [
         epoch_dir / "plans" / ".gitkeep",
         epoch_dir / "runs" / ".gitkeep",
         epoch_dir / "artifacts" / ".gitkeep",
         epoch_dir / "audits" / ".gitkeep",
         epoch_dir / "search" / ".gitkeep",
+        epoch_dir / "baselines" / ".gitkeep",
         epoch_dir / "reproduction" / ".gitkeep",
         epoch_dir / "rqs" / ".gitkeep",
     ]:
         write_text(path, "", force)
+    write_epoch_goal_files(epoch_dir, target_executor="both", force=True)
     write_text(research_dir / "CURRENT", version + "\n", force=True)
     return epoch_dir
 
@@ -4343,7 +4906,7 @@ def init_spec_scaffold(research_dir: Path, force: bool = False) -> None:
                 "paper_binding_allowed_only_when": ["closed_stable", "paper_binding_ready"],
             },
             "runtime_contract": {
-                "supported_agents": ["claude_code_ralph_loop", "codex_goal"],
+                "supported_agents": ["claude_code_goal", "codex_goal"],
                 "execution_truth": [
                     "Spec defines executable research tasks.",
                     "Agent reports are not evidence unless backed by commands, artifacts, or explicit prompt-only status.",
@@ -4955,16 +5518,23 @@ def sync_epoch_rq_spec_index(research_dir: Path, force: bool = True) -> None:
     if not version:
         return
     epoch_dir = research_dir / version
-    spec_path = epoch_dir / "SPEC.yaml"
-    spec = load_yaml(spec_path) if spec_path.exists() else epoch_spec_payload(version)
-    spec["prd_ref"] = "PRD.tex"
-    spec["prd_summary_ref"] = "PRD_SUMMARY.md"
-    spec["role"] = "epoch_aggregate_index"
-    spec["rq_specs"] = [
-        {"rq_id": rq_id, "spec_ref": f"rqs/{rq_id}/SPEC.yaml", "plan_ref": f"rqs/{rq_id}/PLAN.md"}
+    spine_path = epoch_dir / "RESEARCH_SPINE.yaml"
+    spine = load_yaml(spine_path) if spine_path.exists() else epoch_spine_payload(version)
+    existing = {
+        str(item.get("id")): item
+        for item in as_list(spine.get("research_questions"))
+        if isinstance(item, dict) and item.get("id")
+    }
+    spine["research_questions"] = [
+        {
+            **(existing.get(rq_id) or {"id": rq_id, "text": "【待填写：研究问题】"}),
+            "rq_dir": f"rqs/{rq_id}",
+            "spec_ref": f"rqs/{rq_id}/SPEC.yaml",
+            "plan_ref": f"rqs/{rq_id}/PLAN.md",
+        }
         for rq_id in current_epoch_rq_ids(research_dir)
     ]
-    write_yaml(spec_path, spec, force=force)
+    write_yaml(spine_path, spine, force=force)
 
 
 def init_rq_spec_scaffold(research_dir: Path, rq_id: str | None = None, all_rqs: bool = False, force: bool = False) -> list[Path]:
@@ -5022,6 +5592,415 @@ def init_research_workspace(repo: Path, title: str, purpose: str, force: bool = 
     return research_dir
 
 
+MINIMAL_SCIENTIFIC_JUDGMENT_REQUIRED_FIELDS = [
+    "big_rq",
+    "core_hypothesis",
+    "falsification_condition",
+    "closest_baseline",
+    "dataset_or_environment",
+    "metric_or_judgment_rule",
+    "stop_rule",
+]
+
+
+def _required_judgment_value(payload: dict[str, Any], key: str) -> str:
+    value = str(payload.get(key) or "").strip()
+    if not value or "【待填写" in value:
+        raise ValueError(f"minimal scientific judgment missing required field: {key}")
+    return value
+
+
+def normalize_minimal_scientific_judgment(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("minimal scientific judgment must be a YAML mapping")
+    normalized = {
+        "schema_version": 1,
+        "title": str(payload.get("title") or "Research Project").strip() or "Research Project",
+        "purpose": str(payload.get("purpose") or "minimal-scientific-judgment").strip() or "minimal-scientific-judgment",
+    }
+    for key in MINIMAL_SCIENTIFIC_JUDGMENT_REQUIRED_FIELDS:
+        normalized[key] = _required_judgment_value(payload, key)
+    normalized["initial_rq_id"] = str(payload.get("initial_rq_id") or "RQ01").strip() or "RQ01"
+    normalized["initial_claim_id"] = str(payload.get("initial_claim_id") or "C01").strip() or "C01"
+    normalized["initial_experiment_id"] = str(payload.get("initial_experiment_id") or "E01").strip() or "E01"
+    normalized["initial_evidence_id"] = str(payload.get("initial_evidence_id") or "EV01").strip() or "EV01"
+    normalized["mvr_success_condition"] = str(
+        payload.get("mvr_success_condition")
+        or f"{normalized['metric_or_judgment_rule']} improves over the declared baseline after audited evidence."
+    ).strip()
+    normalized["mvr_failure_condition"] = str(
+        payload.get("mvr_failure_condition") or normalized["falsification_condition"]
+    ).strip()
+    normalized["scientific_gap"] = str(
+        payload.get("scientific_gap")
+        or "The user supplied a minimal scientific judgment; G0 search must verify the prior-work gap before any novelty claim."
+    ).strip()
+    normalized["reviewer_interest"] = str(
+        payload.get("reviewer_interest")
+        or "Reviewer interest remains conditional until G0 search records prior work, baseline, dataset or environment, and metric evidence."
+    ).strip()
+    return normalized
+
+
+def load_minimal_scientific_judgment(path: Path) -> dict[str, Any]:
+    payload = yaml.safe_load(read_text(path))
+    return normalize_minimal_scientific_judgment(payload if isinstance(payload, dict) else {})
+
+
+def scientific_judgment_direction_template(judgment: dict[str, Any]) -> str:
+    return f"""# Research Direction
+
+> 本文件由最小科学判断编译生成。用户只提供不可替代的人类科学判断；系统负责把它编译为 PRD、Spine、Spec、Plan、Task Queue 与 Evidence Gate。
+
+## 0. Direction Status
+
+- direction_id: `{slugify(judgment['title'])}`
+- status: `human_approved`
+- created_at: `{today_string()}`
+- updated_at: `{today_string()}`
+- current_version: `V0`
+- final_target: evidence_gated_research_loop
+- owner_decision_required: false
+
+## 1. Big Research Question
+
+- big_rq: `{judgment['big_rq']}`
+- falsification_condition: `{judgment['falsification_condition']}`
+- minimum_viable_purpose: `{judgment['purpose']}`
+
+## 2. Why This Question Matters
+
+- scientific_gap: `{judgment['scientific_gap']}`
+- practical_consequence: `If the claim survives G0/G1 and the declared evidence gate, the workflow can support a bounded research claim instead of prompt-only narration.`
+- reviewer_interest: `{judgment['reviewer_interest']}`
+- closest_prior_framing: `{judgment['closest_baseline']}`
+
+## 3. Core Hypothesis
+
+- core_hypothesis_id: H0
+- core_hypothesis: `{judgment['core_hypothesis']}`
+- hypothesis_falsification: `{judgment['falsification_condition']}`
+- hypothesis_status: unvalidated
+
+## 4. Research Corridor
+
+- `{judgment['big_rq']}`
+- `Baseline: {judgment['closest_baseline']}`
+- `Dataset or environment: {judgment['dataset_or_environment']}`
+- `Metric or judgment rule: {judgment['metric_or_judgment_rule']}`
+
+## 5. Out-of-Scope Directions
+
+- Claims that bypass `EVIDENCE_GATE.yaml`.
+- Paper results derived from mock, smoke, toy, or prompt-only artifacts.
+- Experiments outside the declared dataset/environment and metric/judgment rule without human review.
+- Novelty claims before G0 search and G1 reproduction/source verification.
+
+## 6. Minimum Viable Research
+
+- mvr_question: `{judgment['big_rq']}`
+- mvr_success_condition: `{judgment['mvr_success_condition']}`
+- mvr_failure_condition: `{judgment['mvr_failure_condition']}`
+- mvr_status: not_started
+
+## 7. Evidence Contract
+
+| evidence_type | allowed_to_support_claim | description |
+| --- | --- | --- |
+| real_experiment | yes | 真实数据 / 真实模型或真实系统、完整命令、artifact hash、可复跑。 |
+| reproduction | partial | 支持 baseline comparability；不能单独证明新方法 claim。 |
+| diagnostic | partial | 支持机制理解；不能替代主实验或最终性能 claim。 |
+| toy / mock / smoke | no | 只能支持 unit/smoke 或流程连通性，不支持 research claim。 |
+| agent_report_only | no | agent 文字报告不能单独作为 evidence。 |
+
+## 8. Global Stop Conditions
+
+- `{judgment['stop_rule']}`
+- G0 search cannot verify a fair baseline or defensible scarcity.
+- G1 reproduction/source verification remains blocked without human waiver.
+- Any task attempts to promote mock, smoke, toy, or prompt-only evidence into an observed claim.
+
+## 9. Autonomy Boundary
+
+### AI 可以自动做
+
+- Compile the minimal scientific judgment into PRD, Spine, Spec, Plan, Task Queue, and Evidence Gate.
+- Execute G0/G1 evidence acquisition tasks inside the declared corridor.
+- Record blockers, failed paths, and audit findings.
+
+### AI 不可以自动做
+
+- Change the Big RQ or falsification condition.
+- Treat the user-supplied baseline, dataset/environment, or metric as verified before G0/G1 evidence.
+- Promote draft claims to allowed claims without `EVIDENCE_GATE.yaml` admission.
+- Bind paper results before audited observed evidence exists.
+
+## 10. Spine Binding
+
+- spine_file: `docs/research/{{CURRENT}}/RESEARCH_SPINE.yaml`
+- active_epoch_pointer: `docs/research/CURRENT`
+- epoch_prd_pattern: `docs/research/{{CURRENT}}/PRD.tex`
+- rq_spec_pattern: `docs/research/{{CURRENT}}/rqs/RQxx/SPEC.yaml`
+- closeout_writeback: `docs/research/{{CURRENT}}/closeout.md -> RESEARCH_SPINE.yaml`
+"""
+
+
+def append_minimal_judgment_to_prd(epoch_dir: Path, judgment: dict[str, Any], force: bool = True) -> None:
+    prd_path = epoch_dir / "PRD.tex"
+    text = read_text(prd_path)
+    block = f"""
+
+% BEGIN MINIMAL_SCIENTIFIC_JUDGMENT_BINDING
+% PRD_STATUS: HUMAN_APPROVED
+\\chapter{{Minimal Scientific Judgment Binding}}
+\\label{{chap:minimal-scientific-judgment}}
+
+\\textbf{{PRD\\_STATUS: HUMAN\\_APPROVED}}
+
+\\begin{{description}}
+  \\item[Big RQ] {latex_escape(judgment['big_rq'])}
+  \\item[Core Hypothesis] {latex_escape(judgment['core_hypothesis'])}
+  \\item[Falsification Condition] {latex_escape(judgment['falsification_condition'])}
+  \\item[Closest Baseline] {latex_escape(judgment['closest_baseline'])}
+  \\item[Dataset or Environment] {latex_escape(judgment['dataset_or_environment'])}
+  \\item[Metric or Judgment Rule] {latex_escape(judgment['metric_or_judgment_rule'])}
+  \\item[Stop Rule] {latex_escape(judgment['stop_rule'])}
+\\end{{description}}
+
+This binding is a human-supplied scientific judgment. It is not observed evidence.
+The next executable gate is G0 search/source lock, followed by G1 reproduction/source verification.
+% END MINIMAL_SCIENTIFIC_JUDGMENT_BINDING
+"""
+    text = re.sub(
+        r"\n% BEGIN MINIMAL_SCIENTIFIC_JUDGMENT_BINDING.*?% END MINIMAL_SCIENTIFIC_JUDGMENT_BINDING\n",
+        "\n",
+        text,
+        flags=re.DOTALL,
+    )
+    if "\\end{document}" in text:
+        text = text.replace("\\end{document}", block + "\n\\end{document}")
+    else:
+        text += block
+    write_text(prd_path, text, force=True)
+    render_pdf_from_tex(prd_path, epoch_dir / "PRD.pdf", force=force)
+
+
+def compile_minimal_scientific_judgment(repo: Path, judgment_path: Path, force: bool = False) -> Path:
+    judgment = load_minimal_scientific_judgment(judgment_path)
+    research_dir = init_research_workspace(repo, judgment["title"], judgment["purpose"], force)
+    version = current_epoch_name(research_dir) or "V0"
+    epoch_dir = research_dir / version
+    rq_id = judgment["initial_rq_id"]
+    claim_id = judgment["initial_claim_id"]
+    experiment_id = judgment["initial_experiment_id"]
+    evidence_id = judgment["initial_evidence_id"]
+
+    write_yaml(epoch_dir / "SCIENTIFIC_JUDGMENT.yaml", judgment, force=True)
+    write_text(research_dir / "RESEARCH_DIRECTION.md", markdown_template(scientific_judgment_direction_template(judgment)), force=True)
+    append_minimal_judgment_to_prd(epoch_dir, judgment, force=True)
+
+    write_text(
+        epoch_dir / "PRD_SUMMARY.md",
+        markdown_template(
+            f"""# {version} PRD Summary — Agent Context Only
+
+## Minimal Scientific Judgment
+
+- big_rq: `{judgment['big_rq']}`
+- core_hypothesis: `{judgment['core_hypothesis']}`
+- falsification_condition: `{judgment['falsification_condition']}`
+- closest_baseline: `{judgment['closest_baseline']}`
+- dataset_or_environment: `{judgment['dataset_or_environment']}`
+- metric_or_judgment_rule: `{judgment['metric_or_judgment_rule']}`
+- stop_rule: `{judgment['stop_rule']}`
+
+## Claim Boundary
+
+- 本摘要不是证据；所有 claim admission 由 `EVIDENCE_GATE.yaml` 决定。
+- 用户输入的 baseline/dataset/metric 是待验证 judgment，不是 locked evidence。
+"""
+        ),
+        force=True,
+    )
+
+    spine = epoch_spine_payload(version)
+    spine["research_questions"] = [
+        {
+            "id": rq_id,
+            "text": judgment["big_rq"],
+            "rq_dir": f"rqs/{rq_id}",
+            "spec_ref": f"rqs/{rq_id}/SPEC.yaml",
+            "plan_ref": f"rqs/{rq_id}/PLAN.md",
+        }
+    ]
+    spine["claims"] = [
+        {
+            "id": claim_id,
+            "rq_id": rq_id,
+            "text": judgment["core_hypothesis"],
+            "status": "draft",
+            "claim_boundary": "Draft only until EVIDENCE_GATE.yaml admits observed audited evidence.",
+        }
+    ]
+    spine["experiments"] = [
+        {
+            "id": experiment_id,
+            "claim_ids": [claim_id],
+            "dataset_or_environment": judgment["dataset_or_environment"],
+            "metric_or_judgment_rule": judgment["metric_or_judgment_rule"],
+            "baseline": judgment["closest_baseline"],
+            "support_condition": judgment["mvr_success_condition"],
+            "falsification_condition": judgment["falsification_condition"],
+        }
+    ]
+    spine["evidence"] = [
+        {
+            "id": evidence_id,
+            "experiment_id": experiment_id,
+            "status": "not_observed",
+            "admission_gate": "EVIDENCE_GATE.yaml",
+            "required_before_claim": ["G0_SEARCH_LOCK", "G1_REPRODUCTION_LOCK", "full_harness", "audit_passed"],
+        }
+    ]
+    spine["figures_tables"] = [{"id": "FT01", "evidence_ids": [evidence_id], "status": "planned"}]
+    spine["paper_sections"] = [{"id": "results", "claims": [claim_id], "figures_tables": ["FT01"], "status": "blocked_until_evidence_gate"}]
+    write_yaml(epoch_dir / "RESEARCH_SPINE.yaml", spine, force=True)
+
+    rq_dir = epoch_dir / "rqs" / rq_id
+    init_rq_scaffold(epoch_dir, version, rq_id, force=True)
+    write_text(
+        rq_dir / "RQ.md",
+        markdown_template(
+            f"""# {rq_id} Research Question
+
+## Statement
+
+{judgment['big_rq']}
+
+## Boundary
+
+- closest_baseline: `{judgment['closest_baseline']}`
+- dataset_or_environment: `{judgment['dataset_or_environment']}`
+- metric_or_judgment_rule: `{judgment['metric_or_judgment_rule']}`
+- falsification_condition: `{judgment['falsification_condition']}`
+"""
+        ),
+        force=True,
+    )
+    rq_spec = rq_spec_payload(version, rq_id)
+    rq_spec["research_question"] = {
+        "statement": judgment["big_rq"],
+        "motivation": judgment["scientific_gap"],
+        "null_hypothesis": f"{judgment['closest_baseline']} is not improved under {judgment['metric_or_judgment_rule']}.",
+        "alternative_hypothesis": judgment["core_hypothesis"],
+        "falsification_condition": judgment["falsification_condition"],
+    }
+    rq_spec["human_approval"]["status"] = "approved"
+    rq_spec["human_approval"]["decision_note"] = "Approved by minimal scientific judgment compiler input."
+    rq_spec["claim_contract"]["claim_ids"] = [claim_id]
+    rq_spec["claim_contract"]["allowed_claim_scope"] = "Only draft claim until EVIDENCE_GATE.yaml admits observed audited evidence."
+    rq_spec["candidate_inputs"] = {
+        "dataset_or_environment": {"id": "D_USER_ENV", "description": judgment["dataset_or_environment"], "status": "candidate_requires_g0_verification"},
+        "baseline": {"id": "B_USER_BASELINE", "description": judgment["closest_baseline"], "status": "candidate_requires_g0_verification"},
+        "metric_or_judgment_rule": {"id": "M_PRIMARY", "description": judgment["metric_or_judgment_rule"], "status": "candidate_requires_g0_verification"},
+    }
+    rq_spec["experiment_contract"] = {
+        "datasets": ["D_USER_ENV"],
+        "models": [],
+        "baselines": ["B_USER_BASELINE"],
+        "metrics": ["M_PRIMARY"],
+        "seeds": [],
+        "harnesses": ["H_EVIDENCE_GATE"],
+    }
+    rq_spec["evidence_contract"]["required_artifacts"] = ["search/search_report.md", "reproduction/REPRODUCTION_INDEX.yaml"]
+    rq_spec["evidence_contract"]["paper_admissible_condition"] = "EVIDENCE_GATE.yaml claim_states.allowed_claim contains the claim after audit."
+    write_yaml(rq_dir / "SPEC.yaml", rq_spec, force=True)
+
+    write_text(
+        rq_dir / "PLAN.md",
+        markdown_template(
+            f"""# {rq_id} Evidence-Generation Plan
+
+## Scientific Contract
+
+- RQ: {judgment['big_rq']}
+- claim_boundary: draft-only until `EVIDENCE_GATE.yaml` admits observed audited evidence
+- reproduction_prerequisite: required
+- falsification_condition: {judgment['falsification_condition']}
+
+## Evidence Gate Graph
+
+G0 Search Lock -> G1 Reproduction/Source Verification -> G2 Harness Execution -> G3 Audit -> Evidence Gate Admission
+"""
+        ),
+        force=True,
+    )
+    tasks = rq_tasks_payload(version, rq_id)
+    tasks["tasks"][0]["title"] = "Verify minimal scientific judgment source and baseline prerequisite"
+    tasks["tasks"][0]["pass_criteria"] = ["G0/G1 evidence exists or blocker is explicit; no claim is admitted yet."]
+    write_yaml(rq_dir / "TASKS.yaml", tasks, force=True)
+
+    baseline_lock = default_baseline_lock_payload(version)
+    baseline_lock["status"] = "needs_human_review"
+    baseline_lock["task_definition"] = {
+        "target_task": judgment["big_rq"],
+        "target_input_output": judgment["dataset_or_environment"],
+        "excluded_problem_settings": [],
+    }
+    baseline_lock["selected_baselines"] = [
+        {
+            "baseline_id": "B_USER_BASELINE",
+            "paper": "pending_g0_search",
+            "role": "candidate",
+            "dataset": "D_USER_ENV",
+            "metric": "M_PRIMARY",
+            "reproduction_mode": "pending_g0_search",
+            "decision_rationale": judgment["closest_baseline"],
+        }
+    ]
+    baseline_lock["selected_datasets"] = [
+        {
+            "dataset_id": "D_USER_ENV",
+            "source_paper": "pending_g0_search",
+            "license": "pending_g0_search",
+            "split_protocol": "pending_g0_search",
+            "metric": "M_PRIMARY",
+            "known_pitfalls": ["candidate supplied by minimal scientific judgment; must be verified"],
+        }
+    ]
+    baseline_lock["audit"]["status"] = "needs_human_review"
+    baseline_lock["audit"]["notes"] = "Candidate lock from minimal scientific judgment; G0 search must verify before locked."
+    write_yaml(epoch_dir / "BASELINE_LOCK.yaml", baseline_lock, force=True)
+
+    queue = default_gate_aware_task_queue(version)
+    queue["tasks"][0]["title"] = "Verify minimal scientific judgment against prior work and source evidence"
+    queue["tasks"][0]["success_criteria"] = [
+        f"Search logs evaluate the Big RQ: {judgment['big_rq']}",
+        f"Candidate baseline is verified, rejected, or scarcity is justified: {judgment['closest_baseline']}",
+        f"Dataset/environment and metric/judgment rule are verified or blocked: {judgment['dataset_or_environment']} / {judgment['metric_or_judgment_rule']}",
+    ]
+    write_yaml(epoch_dir / "TASK_QUEUE.yaml", queue, force=True)
+
+    gate = default_evidence_gate_payload(version)
+    gate["claim_states"]["draft_claim"] = [
+        {
+            "claim_id": claim_id,
+            "rq_id": rq_id,
+            "text": judgment["core_hypothesis"],
+            "reason": "Human-supplied minimal judgment; not observed evidence.",
+        }
+    ]
+    gate["source_refs"]["minimal_scientific_judgment"] = "SCIENTIFIC_JUDGMENT.yaml"
+    write_yaml(epoch_dir / "EVIDENCE_GATE.yaml", gate, force=True)
+
+    status = epoch_status_payload(version)
+    status["status"] = "prd_locked"
+    status["current_gate"] = "G0_SEARCH_LOCK"
+    write_yaml(epoch_dir / "STATUS.yaml", status, force=True)
+    write_epoch_goal_files(epoch_dir, target_executor="both", force=True)
+    return research_dir
+
+
 def hash_path(path: Path) -> str:
     digest = hashlib.sha256()
     if not path.exists():
@@ -5062,18 +6041,12 @@ def git_commit(repo: Path) -> str:
 def collect_spec_ids(research_dir: Path) -> dict[str, set[str]]:
     ids: dict[str, set[str]] = {"experiments": set(), "harnesses": set(), "tasks": set(), "gates": set()}
     version = current_epoch_name(research_dir)
-    epoch_spec = research_dir / version / "SPEC.yaml" if version else None
-    if epoch_spec and epoch_spec.exists():
-        spec = load_yaml(epoch_spec)
-        for experiment in as_list(spec.get("experiments")):
-            if isinstance(experiment, dict) and experiment.get("experiment_id"):
-                ids["experiments"].add(str(experiment["experiment_id"]))
-        for harness in as_list(spec.get("harnesses")):
-            if isinstance(harness, dict) and harness.get("harness_id"):
-                ids["harnesses"].add(str(harness["harness_id"]))
-        for gate in as_list(spec.get("gates")):
-            if isinstance(gate, dict) and gate.get("gate_id"):
-                ids["gates"].add(str(gate["gate_id"]))
+    if version:
+        epoch_dir = research_dir / version
+        spine = load_yaml(epoch_dir / "RESEARCH_SPINE.yaml")
+        for experiment in as_list(spine.get("experiments")):
+            if isinstance(experiment, dict) and experiment.get("id"):
+                ids["experiments"].add(str(experiment["id"]))
         queue = load_yaml(research_dir / version / "TASK_QUEUE.yaml")
         for task in as_list(queue.get("tasks")):
             if isinstance(task, dict) and task.get("task_id"):
@@ -5081,6 +6054,11 @@ def collect_spec_ids(research_dir: Path) -> dict[str, set[str]]:
         for gate in as_list(queue.get("gates")):
             if isinstance(gate, dict) and gate.get("gate_id"):
                 ids["gates"].add(str(gate["gate_id"]))
+        for spec_path in sorted((epoch_dir / "rqs").glob("RQ*/SPEC.yaml")):
+            rq_spec = load_yaml(spec_path)
+            contract = rq_spec.get("experiment_contract") if isinstance(rq_spec.get("experiment_contract"), dict) else {}
+            for harness in as_list(contract.get("harnesses")):
+                ids["harnesses"].add(str(harness))
         return ids
     # Fallback to legacy flat spec paths
     exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
@@ -5143,18 +6121,18 @@ def generate_plan(
         "created_at": date,
         "purpose": f"执行目标：{purpose}",
         "loop_target": "paper_binding",
-        "loop_mode": {"claude_code": "ralph_loop", "codex": "goal_driven"},
+        "loop_mode": {"claude_code": "goal_mode", "codex": "goal_mode"},
         "active_task_source": "TASK_QUEUE.yaml",
         "source_versions": {
             "prd_hash": hash_path(epoch_prd_source_path(research_dir / version)) if version else hash_path(research_dir / "prd"),
             "paper_hash": hash_path(research_dir / "paper"),
-            "spec_hash": hash_path(research_dir / version / "SPEC.yaml" if version else research_dir / "spec"),
+            "rq_contract_hash": hash_path(research_dir / version / "rqs" if version else research_dir / "spec"),
             "git_commit": git_commit(repo),
         },
         "track": track,
         "target": target,
-        "source_spec": (
-            [f"docs/research/{version}/SPEC.yaml"] if version else [
+        "source_contracts": (
+            [f"docs/research/{version}/rqs"] if version else [
                 "docs/research/spec/reproduction/reproduction_manifest.yaml",
                 "docs/research/spec/reproduction/reproduction_harness.yaml",
                 "docs/research/spec/experiments/experiment_manifest.yaml",
@@ -5181,7 +6159,7 @@ def generate_plan(
             "Experiment, analysis, and result-binding tasks must use spine_bound binding with experiment_ids and evidence_ids.",
             "After each loop, update LOOP_LOG.md.",
             "If blocked twice by same cause, escalate to gate_blocked.",
-            "If no active task exists, generate one from PLAN.md or close version.",
+            "If no active task exists, activate the next runnable task whose depends_on edges are satisfied; if none remains, stop for human review or closeout.",
             "Do not start a new version unless current version is closed.",
             "Stay inside RESEARCH_DIRECTION.md.",
         ],
@@ -5191,7 +6169,7 @@ def generate_plan(
             "Codex must cite terminal/test evidence in run report.",
             "Codex should not perform broad literature search unless task phase=literature and network is available.",
         ],
-        "claude_ralph_rules": [
+        "claude_goal_rules": [
             "Do not expand scope mid-loop.",
             "Use subagents for large search or audit work.",
             "Write compact persistent state after each loop.",
@@ -5443,29 +6421,35 @@ def generate_audit(research_dir: Path, date: str, force: bool = False) -> Path:
         "- 优先检查当前 Vn/wiki/* 中未纳入 spec/plan 的 positive signal、negative result、failed path 或 next_version_seed。\n"
         "- legacy docs/research/insights/ 只作为迁移候选，不直接当作当前 evidence。\n\n"
         "## Can fix later\n\n- TBD.\n\n"
-        "## Recommended next research-plan target\n\n- TBD.\n\n"
+        "## Recommended next internal Plan compiler target\n\n- TBD.\n\n"
         "## Recommended next research-insight target\n\n- TBD.\n",
         force,
     )
     return audit_dir
 
 
-def generate_paper(research_dir: Path, force: bool = False) -> Path:
+def generate_paper(research_dir: Path, force: bool = False, mode: str = "draft") -> Path:
+    if mode not in {"draft", "binding"}:
+        raise ValueError(f"unknown paper generation mode: {mode}")
+    if mode == "binding":
+        binding_validation = validate_paper_binding_ready(research_dir)
+        if not binding_validation.ok:
+            raise ValueError("paper binding gate failed: " + "; ".join(binding_validation.issues[:10]))
     version = current_epoch_name(research_dir)
-    epoch_spec = research_dir / version / "SPEC.yaml" if version else None
-    if epoch_spec and epoch_spec.exists():
-        exp_manifest = load_yaml(epoch_spec)
-        source_label = f"`docs/research/{version}/SPEC.yaml`"
+    epoch_spine = research_dir / version / "RESEARCH_SPINE.yaml" if version else None
+    if epoch_spine and epoch_spine.exists():
+        exp_manifest = load_yaml(epoch_spine)
+        source_label = f"`docs/research/{version}/RESEARCH_SPINE.yaml`"
     else:
         exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
         source_label = "`docs/research/spec/experiments/experiment_manifest.yaml`"
     experiments = [item for item in as_list(exp_manifest.get("experiments")) if isinstance(item, dict)]
-    if not experiments and epoch_spec and epoch_spec.exists():
-        # Fallback to legacy spec if epoch spec experiments are empty
+    if not experiments and epoch_spine and epoch_spine.exists():
+        # Fallback to legacy spec if epoch spine experiments are empty.
         exp_manifest = load_yaml(research_dir / "spec" / "experiments" / "experiment_manifest.yaml")
         experiments = [item for item in as_list(exp_manifest.get("experiments")) if isinstance(item, dict)]
         if experiments:
-            source_label = "`docs/research/spec/experiments/experiment_manifest.yaml` (epoch spec empty, legacy fallback)"
+            source_label = "`docs/research/spec/experiments/experiment_manifest.yaml` (epoch spine empty, legacy fallback)"
 
     placeholders = []
     paper = planned_paper_markdown("Planned Research Paper")
@@ -5507,8 +6491,19 @@ def generate_paper(research_dir: Path, force: bool = False) -> Path:
         "# 论文缺口报告",
         "",
         "本文件记录 manuscript draft 中所有 typed placeholder 的位置、替换条件和真实证据来源。论文正文不得用 plausible mock numeric values 代替未验证结果。",
+        f"- generation_mode: `{mode}`",
         "",
     ]
+    if mode == "binding":
+        gap_lines.extend(
+            [
+                "## Binding Gate",
+                "",
+                "- `paper-binding-ready` gate 已通过。",
+                "- 本次输出是 binding-ready manuscript；仍不得发明缺失数值，所有未替换 placeholder 必须有真实 artifact 才能进入最终提交版本。",
+                "",
+            ]
+        )
     if placeholders:
         gap_lines.extend(
             [
@@ -6276,13 +7271,9 @@ def detect_epoch_stale_hashes(epoch_dir: Path) -> list[StaleFinding]:
     findings: list[StaleFinding] = []
     prd = epoch_prd_source_path(epoch_dir)
     spine = epoch_dir / "RESEARCH_SPINE.yaml"
-    spec = epoch_dir / "SPEC.yaml"
-    plan = epoch_dir / "PLAN.md"
     queue = epoch_dir / "TASK_QUEUE.yaml"
     _append_stale_if_needed(findings, "SPINE_STALE", prd, spine, _hash_from_yaml(spine, "source_prd_hash"))
-    _append_stale_if_needed(findings, "SPEC_STALE", prd, spec, _hash_from_yaml(spec, "source_prd_hash"))
-    _append_stale_if_needed(findings, "PLAN_STALE", spec, plan, _frontmatter_value(plan, "source_spec_hash"))
-    _append_stale_if_needed(findings, "TASK_QUEUE_STALE", plan, queue, _hash_from_yaml(queue, "source_plan_hash"))
+    _append_stale_if_needed(findings, "TASK_QUEUE_STALE", spine, queue, _hash_from_yaml(queue, "source_spine_hash"))
     return findings
 
 
@@ -6528,14 +7519,17 @@ def run_epoch_audit_checks(research_dir: Path, mode: str = "full") -> list[Audit
         loop_prompt_validation = validate_loop_prompt_ready(research_dir)
         for issue in loop_prompt_validation.issues:
             results.append(audit_fail("loop_prompt." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
+        goal_validation = validate_goal_ready(research_dir)
+        for issue in goal_validation.issues:
+            results.append(audit_fail("goal." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
         contract_validation = validate_agent_contracts(research_dir)
         for issue in contract_validation.issues:
             results.append(audit_fail("format.contract." + issue.replace(" ", "_")[:50], issue, [research_dir.name], severity="P1"))
         if not any(
-            r.status == "FAIL" and r.check_id.startswith(("format.", "direction.", "spine.", "loop_prompt."))
+            r.status == "FAIL" and r.check_id.startswith(("format.", "direction.", "spine.", "loop_prompt.", "goal."))
             for r in results
         ) and contract_validation.ok:
-            results.append(audit_pass("format.compliance", "Format, direction, spine, loop-prompt, and agent contract checks passed."))
+            results.append(audit_pass("format.compliance", "Format, direction, spine, goal, loop-prompt, and agent contract checks passed."))
     if mode == "git":
         git_validation = validate_git_ready(research_dir)
         for issue in git_validation.issues:
@@ -6593,6 +7587,10 @@ def validate_epoch_wiki_set(epoch_dir: Path, manifest: dict[str, Any], strict: b
             if path.name not in required:
                 rel = f"{version}/wiki/{path.name}"
                 issues.append(EpochSchemaIssue(rel, f"unexpected epoch wiki file: {rel}"))
+    frontier_path = wiki_dir / "frontier_map.yaml"
+    if frontier_path.exists():
+        for issue in validate_frontier_map_shape(load_yaml(frontier_path)):
+            issues.append(EpochSchemaIssue(f"{version}/wiki/frontier_map.yaml", f"{version}/{issue}"))
     return issues
 
 
@@ -6603,6 +7601,10 @@ def validate_epoch_search_reproduction_files(epoch_dir: Path, manifest: dict[str
         path = epoch_dir / "search" / filename
         if not path.exists():
             issues.append(EpochSchemaIssue(f"{version}/search/{filename}", f"missing {version}/search/{filename}: {path.as_posix()}"))
+    for filename in epoch_manifest_list("required_baseline_files", manifest):
+        path = epoch_dir / "baselines" / filename
+        if not path.exists():
+            issues.append(EpochSchemaIssue(f"{version}/baselines/{filename}", f"missing {version}/baselines/{filename}: {path.as_posix()}"))
     for filename in epoch_manifest_list("required_reproduction_files", manifest):
         path = epoch_dir / "reproduction" / filename
         if not path.exists():
@@ -6630,21 +7632,121 @@ def validate_reproduction_index_shape(index: dict[str, Any]) -> list[str]:
     return issues
 
 
+def validate_reproduction_ledger_shape(ledger: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(ledger.get("assets"), list):
+        issues.append("REPRODUCTION_LEDGER.yaml missing assets list")
+    if not isinstance(ledger.get("coverage_checks"), list):
+        issues.append("REPRODUCTION_LEDGER.yaml missing coverage_checks list")
+    for asset in as_list(ledger.get("assets")):
+        if not isinstance(asset, dict):
+            issues.append("reproduction ledger asset must be a mapping")
+            continue
+        asset_id = str(asset.get("asset_id") or asset.get("repro_id") or "<missing>")
+        reuse_status = str(asset.get("reuse_status") or "")
+        if reuse_status and reuse_status not in REPRODUCTION_REUSE_STATUSES:
+            issues.append(f"invalid reproduction reuse_status for {asset_id}: {reuse_status}")
+        evidence_level = str(asset.get("evidence_level") or "")
+        if evidence_level and evidence_level not in REPRODUCTION_EVIDENCE_LEVELS:
+            issues.append(f"invalid reproduction ledger evidence_level for {asset_id}: {evidence_level}")
+    for check in as_list(ledger.get("coverage_checks")):
+        if not isinstance(check, dict):
+            issues.append("reproduction coverage check must be a mapping")
+            continue
+        rq_id = str(check.get("rq_id") or "<missing>")
+        status = str(check.get("status") or "")
+        if status and status not in REPRODUCTION_REUSE_STATUSES:
+            issues.append(f"invalid reproduction coverage status for {rq_id}: {status}")
+    return issues
+
+
+def validate_frontier_map_shape(frontier: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    for field in ["knowledge_state", "frontier_questions", "next_version_options", "human_decision"]:
+        if field not in frontier:
+            issues.append(f"frontier_map.yaml missing required field: {field}")
+    if "frontier_questions" in frontier and not isinstance(frontier.get("frontier_questions"), list):
+        issues.append("frontier_map.yaml frontier_questions must be a list")
+    if "next_version_options" in frontier and not isinstance(frontier.get("next_version_options"), list):
+        issues.append("frontier_map.yaml next_version_options must be a list")
+    human_decision = frontier.get("human_decision") if isinstance(frontier.get("human_decision"), dict) else {}
+    status = str(human_decision.get("status") or "")
+    allowed = set(str(item) for item in as_list(human_decision.get("allowed_status"))) or {"pending", "deepen", "repair_evidence", "pivot", "paper_binding", "stop"}
+    if status and status not in allowed:
+        issues.append(f"invalid frontier human_decision status: {status}")
+    return issues
+
+
 def validate_epoch_search_reproduction_shape(epoch_dir: Path) -> list[str]:
     issues: list[str] = []
     index_path = epoch_dir / "reproduction" / "REPRODUCTION_INDEX.yaml"
     if index_path.exists():
         issues.extend(validate_reproduction_index_shape(load_yaml(index_path)))
+    ledger_path = epoch_dir / "reproduction" / "REPRODUCTION_LEDGER.yaml"
+    if ledger_path.exists():
+        issues.extend(validate_reproduction_ledger_shape(load_yaml(ledger_path)))
     return issues
 
 
 BASELINE_LOCK_STATUSES = {"pending", "locked", "blocked", "needs_human_review"}
 BASELINE_ROLES = {"strongest", "official", "simple_control", "classical", "oracle", "ablation_anchor", "negative_control"}
+BASELINE_DOSSIER_REF_FIELDS = [
+    "card_ref",
+    "paper_card_ref",
+    "dataset_card_ref",
+    "experiment_design_ref",
+    "reuse_decision_ref",
+]
 
 
 def baseline_lock_status(epoch_dir: Path) -> str:
     payload = load_yaml(epoch_dir / "BASELINE_LOCK.yaml")
     return str(payload.get("status") or "missing")
+
+
+def validate_baseline_dossier_index(epoch_dir: Path, dossier_ref: str = "baselines/INDEX.yaml") -> list[str]:
+    issues: list[str] = []
+    path = epoch_dir / dossier_ref
+    if not path.exists():
+        return [f"BASELINE_LOCK.yaml baseline_dossier_ref does not exist: {dossier_ref}"]
+    payload = load_yaml(path)
+    if not isinstance(payload, dict):
+        return [f"{dossier_ref} must be a YAML mapping"]
+    for field in ["schema_version", "epoch", "baseline_cards"]:
+        if field not in payload:
+            issues.append(f"{dossier_ref} missing {field}")
+    baseline_ids: set[str] = set()
+    for item in as_list(payload.get("baseline_cards")):
+        if not isinstance(item, dict):
+            issues.append(f"{dossier_ref} baseline_cards item must be a mapping")
+            continue
+        baseline_id = str(item.get("baseline_id") or "")
+        if not baseline_id:
+            issues.append(f"{dossier_ref} baseline card missing baseline_id")
+        elif baseline_id in baseline_ids:
+            issues.append(f"{dossier_ref} duplicate baseline_id: {baseline_id}")
+        baseline_ids.add(baseline_id)
+        if not item.get("card_ref"):
+            issues.append(f"{dossier_ref} baseline {baseline_id or '<missing>'} missing card_ref")
+        for field in BASELINE_DOSSIER_REF_FIELDS:
+            ref = str(item.get(field) or "")
+            if ref and not (epoch_dir / ref).exists():
+                issues.append(f"{dossier_ref} baseline {baseline_id or '<missing>'} {field} does not exist: {ref}")
+    return issues
+
+
+def baseline_dossier_cards_by_id(epoch_dir: Path, dossier_ref: str = "baselines/INDEX.yaml") -> dict[str, dict[str, Any]]:
+    path = epoch_dir / dossier_ref
+    if not path.exists():
+        return {}
+    payload = load_yaml(path)
+    if not isinstance(payload, dict):
+        return {}
+    cards: dict[str, dict[str, Any]] = {}
+    for item in as_list(payload.get("baseline_cards")):
+        if isinstance(item, dict) and item.get("baseline_id"):
+            cards[str(item.get("baseline_id"))] = item
+    return cards
 
 
 def validate_baseline_lock_shape(epoch_dir: Path) -> list[str]:
@@ -6663,10 +7765,16 @@ def validate_baseline_lock_shape(epoch_dir: Path) -> list[str]:
             issues.append(f"BASELINE_LOCK.yaml source_search missing {key}")
         elif not (epoch_dir / ref).exists():
             issues.append(f"BASELINE_LOCK.yaml source_search {key} does not exist: {ref}")
+    dossier_ref = str(payload.get("baseline_dossier_ref") or "")
+    if not dossier_ref:
+        issues.append("BASELINE_LOCK.yaml missing baseline_dossier_ref")
+    else:
+        issues.extend(validate_baseline_dossier_index(epoch_dir, dossier_ref))
     if status == "locked":
         baselines = [item for item in as_list(payload.get("selected_baselines")) if isinstance(item, dict)]
         datasets = [item for item in as_list(payload.get("selected_datasets")) if isinstance(item, dict)]
         designs = [item for item in as_list(payload.get("borrowed_experiment_designs")) if isinstance(item, dict)]
+        dossier_cards = baseline_dossier_cards_by_id(epoch_dir, dossier_ref or "baselines/INDEX.yaml")
         if not baselines:
             issues.append("BASELINE_LOCK.yaml locked status requires selected_baselines")
         if not datasets:
@@ -6681,18 +7789,38 @@ def validate_baseline_lock_shape(epoch_dir: Path) -> list[str]:
             issues.append("BASELINE_LOCK.yaml locked status requires at least one strongest or official baseline")
         for item in baselines:
             baseline_id = str(item.get("baseline_id") or "<missing>")
-            for field in ["baseline_id", "paper", "role", "reproduction_mode", "decision_rationale"]:
+            for field in ["baseline_id", "paper", "role", "reproduction_mode", "baseline_card_ref", "decision_rationale"]:
                 if not item.get(field):
                     issues.append(f"BASELINE_LOCK.yaml baseline {baseline_id} missing {field}")
+            card_ref = str(item.get("baseline_card_ref") or "")
+            if card_ref:
+                if not (epoch_dir / card_ref).exists():
+                    issues.append(f"BASELINE_LOCK.yaml baseline {baseline_id} baseline_card_ref does not exist: {card_ref}")
+                indexed_card = dossier_cards.get(baseline_id)
+                if not indexed_card:
+                    issues.append(f"BASELINE_LOCK.yaml baseline {baseline_id} missing from {dossier_ref or 'baselines/INDEX.yaml'}")
+                elif str(indexed_card.get("card_ref") or "") != card_ref:
+                    issues.append(f"BASELINE_LOCK.yaml baseline {baseline_id} baseline_card_ref does not match dossier index")
         for item in datasets:
             dataset_id = str(item.get("dataset_id") or "<missing>")
-            for field in ["dataset_id", "source_paper", "license", "split_protocol", "metric"]:
+            for field in ["dataset_id", "source_paper", "license", "split_protocol", "metric", "dataset_card_ref"]:
                 if not item.get(field):
                     issues.append(f"BASELINE_LOCK.yaml dataset {dataset_id} missing {field}")
+            dataset_card_ref = str(item.get("dataset_card_ref") or "")
+            if dataset_card_ref and not (epoch_dir / dataset_card_ref).exists():
+                issues.append(f"BASELINE_LOCK.yaml dataset {dataset_id} dataset_card_ref does not exist: {dataset_card_ref}")
+        for item in designs:
+            paper = str(item.get("paper") or "<missing>")
+            for field in ["paper", "reusable_design", "experiment_design_ref"]:
+                if not item.get(field):
+                    issues.append(f"BASELINE_LOCK.yaml experiment design {paper} missing {field}")
+            design_ref = str(item.get("experiment_design_ref") or "")
+            if design_ref and not (epoch_dir / design_ref).exists():
+                issues.append(f"BASELINE_LOCK.yaml experiment design {paper} experiment_design_ref does not exist: {design_ref}")
     return issues
 
 
-RQ_REQUIRED_FILES = ["RQ.md", "SPEC.yaml", "PLAN.md", "TASKS.yaml"]
+RQ_REQUIRED_FILES = ["RQ.md", "SPEC.yaml", "PLAN.md", "TASKS.yaml", "INSIGHT_REVIEW.yaml"]
 RQ_REQUIRED_REPRODUCTION_FILES = [
     "SOURCE_LOCK.yaml",
     "REPRODUCTION_SPEC.yaml",
@@ -6727,6 +7855,24 @@ def validate_rq_task_shape(rq_id: str, tasks_doc: dict[str, Any]) -> list[str]:
     return issues
 
 
+def validate_rq_insight_review_shape(rq_id: str, review: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    status = str(review.get("status") or "")
+    if status and status not in INSIGHT_VERDICTS:
+        issues.append(f"{rq_id}/INSIGHT_REVIEW.yaml invalid status: {status}")
+    human_verdict = review.get("human_verdict") if isinstance(review.get("human_verdict"), dict) else {}
+    verdict = str(human_verdict.get("verdict") or "")
+    if verdict and verdict not in INSIGHT_VERDICTS:
+        issues.append(f"{rq_id}/INSIGHT_REVIEW.yaml invalid human verdict: {verdict}")
+    paper_eligibility = str(human_verdict.get("paper_eligibility") or "")
+    if paper_eligibility and paper_eligibility not in PAPER_ELIGIBILITY_STATUSES:
+        issues.append(f"{rq_id}/INSIGHT_REVIEW.yaml invalid paper_eligibility: {paper_eligibility}")
+    wiki_binding = review.get("wiki_binding") if isinstance(review.get("wiki_binding"), dict) else {}
+    if "bound" not in wiki_binding:
+        issues.append(f"{rq_id}/INSIGHT_REVIEW.yaml missing wiki_binding.bound")
+    return issues
+
+
 def validate_rq_contracts(epoch_dir: Path, spine: dict[str, Any]) -> list[EpochSchemaIssue]:
     issues: list[EpochSchemaIssue] = []
     version = epoch_dir.name
@@ -6734,13 +7880,29 @@ def validate_rq_contracts(epoch_dir: Path, spine: dict[str, Any]) -> list[EpochS
     if not rqs_root.is_dir():
         return [EpochSchemaIssue(f"{version}/rqs", f"missing {version}/rqs: {rqs_root.as_posix()}")]
 
-    declared = [
-        str(rq.get("id"))
+    declared_items = [
+        rq
         for rq in as_list(spine.get("research_questions"))
         if isinstance(rq, dict) and rq.get("id")
     ]
+    declared = [str(rq.get("id")) for rq in declared_items]
     if not declared and (rqs_root / "RQ01").exists():
         declared = ["RQ01"]
+        declared_items = [{"id": "RQ01", "spec_ref": "rqs/RQ01/SPEC.yaml", "plan_ref": "rqs/RQ01/PLAN.md"}]
+
+    for rq in declared_items:
+        rq_id = str(rq.get("id"))
+        expected = {
+            "rq_dir": f"rqs/{rq_id}",
+            "spec_ref": f"rqs/{rq_id}/SPEC.yaml",
+            "plan_ref": f"rqs/{rq_id}/PLAN.md",
+        }
+        for key, expected_ref in expected.items():
+            ref = str(rq.get(key) or "")
+            if ref != expected_ref:
+                issues.append(EpochSchemaIssue(f"{version}/RESEARCH_SPINE.yaml", f"{version}/RESEARCH_SPINE.yaml {rq_id} {key} must be {expected_ref}"))
+            elif key.endswith("_ref") and not (epoch_dir / ref).exists():
+                issues.append(EpochSchemaIssue(f"{version}/RESEARCH_SPINE.yaml", f"{version}/RESEARCH_SPINE.yaml {rq_id} {key} does not exist: {ref}"))
 
     for rq_id in declared:
         rq_dir = rqs_root / rq_id
@@ -6763,7 +7925,7 @@ def validate_rq_contracts(epoch_dir: Path, spine: dict[str, Any]) -> list[EpochS
                 issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/SPEC.yaml", f"{version}/rqs/{rq_id}/SPEC.yaml version {spec.get('version')} does not match epoch {version}"))
             if spec.get("rq_id") != rq_id:
                 issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/SPEC.yaml", f"{version}/rqs/{rq_id}/SPEC.yaml rq_id {spec.get('rq_id')} does not match directory {rq_id}"))
-            for field in ["research_question", "claim_contract", "reproduction_contract", "experiment_contract", "evidence_contract", "failure_taxonomy"]:
+            for field in ["research_question", "human_approval", "version_lineage", "claim_contract", "reproduction_contract", "experiment_contract", "evidence_contract", "insight_contract", "failure_taxonomy"]:
                 if field not in spec:
                     issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/SPEC.yaml", f"{version}/rqs/{rq_id}/SPEC.yaml missing required field: {field}"))
 
@@ -6772,6 +7934,11 @@ def validate_rq_contracts(epoch_dir: Path, spine: dict[str, Any]) -> list[EpochS
             tasks_doc = load_yaml(tasks_path)
             for issue in validate_rq_task_shape(rq_id, tasks_doc):
                 issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/TASKS.yaml", f"{version}/rqs/{issue}"))
+        insight_path = rq_dir / "INSIGHT_REVIEW.yaml"
+        if insight_path.exists():
+            review = load_yaml(insight_path)
+            for issue in validate_rq_insight_review_shape(rq_id, review):
+                issues.append(EpochSchemaIssue(f"{version}/rqs/{rq_id}/INSIGHT_REVIEW.yaml", f"{version}/rqs/{issue}"))
     return issues
 
 
@@ -6866,15 +8033,75 @@ def markdown_has_real_value(text: str, label: str) -> bool:
     return bool(value and "【待填写" not in value and value.lower() not in {"none", "null", "false"})
 
 
+META_FRAMEWORK_FORBIDDEN_LOCAL_MARKERS = [
+    "CURRENT",
+    "prd",
+    "paper",
+    "spec",
+    "plans",
+    "insights",
+    "explore",
+    "audits",
+    "ppt",
+]
+
+META_FRAMEWORK_AGENT_POLICY_FILES = [
+    "FAILURE_TRIAGE_POLICY.md",
+    "REPRODUCTION_AUDIT_POLICY.md",
+    "REPRODUCTION_POLICY.md",
+    "SEARCH_POLICY.md",
+]
+
+
+def is_meta_framework_workspace(research_dir: Path) -> bool:
+    direction = research_dir / "RESEARCH_DIRECTION.md"
+    if not direction.exists():
+        return False
+    text = read_text(direction)
+    return markdown_status_value(text, "repository_role") == "meta_framework"
+
+
+def validate_meta_framework_ready(research_dir: Path) -> Validation:
+    validation = Validation()
+    direction = research_dir / "RESEARCH_DIRECTION.md"
+    if not validation.require_file(direction, "RESEARCH_DIRECTION.md"):
+        return validation
+    text = read_text(direction)
+    if markdown_status_value(text, "repository_role") != "meta_framework":
+        validation.error("RESEARCH_DIRECTION.md repository_role must be meta_framework")
+    if markdown_status_value(text, "current_version") not in {"none", ""}:
+        validation.error("meta-framework repository must not declare a repo-local current_version")
+    for required in [
+        "Research Seed",
+        "Research Corridor",
+        "Out-of-Scope Directions",
+        "Autonomy Boundary",
+        "Global Stop Conditions",
+    ]:
+        if not markdown_section(text, required):
+            validation.error(f"RESEARCH_DIRECTION.md missing meta-framework section: {required}")
+    for marker in META_FRAMEWORK_FORBIDDEN_LOCAL_MARKERS:
+        if (research_dir / marker).exists():
+            validation.error(f"meta-framework repository must not contain repo-local project research marker: docs/research/{marker}")
+    agent_dir = research_dir / "agent"
+    if agent_dir.exists():
+        for name in META_FRAMEWORK_AGENT_POLICY_FILES:
+            validation.require_file(agent_dir / name, f"agent/{name}")
+    return validation
+
+
 RESEARCH_DIRECTION_REQUIRED_SECTIONS = [
     "Direction Status",
-    "Research Seed",
+    "Big Research Question",
+    "Why This Question Matters",
+    "Core Hypothesis",
     "Research Corridor",
     "Out-of-Scope Directions",
-    "Prior Work Basis",
-    "Desired Paper Shape",
-    "Autonomy Boundary",
+    "Minimum Viable Research",
+    "Evidence Contract",
     "Global Stop Conditions",
+    "Autonomy Boundary",
+    "Spine Binding",
 ]
 
 RESEARCH_DIRECTION_STATUS_FIELDS = [
@@ -6887,8 +8114,34 @@ RESEARCH_DIRECTION_STATUS_FIELDS = [
     "owner_decision_required",
 ]
 
+RESEARCH_DIRECTION_REAL_VALUE_FIELDS = {
+    "Big Research Question": ["big_rq", "falsification_condition"],
+    "Why This Question Matters": ["scientific_gap", "reviewer_interest", "closest_prior_framing"],
+    "Core Hypothesis": ["core_hypothesis", "hypothesis_falsification"],
+    "Minimum Viable Research": ["mvr_question", "mvr_success_condition", "mvr_failure_condition"],
+}
+
+RESEARCH_DIRECTION_BUILD_START_ANTI_PATTERNS = [
+    "build ",
+    "create ",
+    "implement ",
+    "develop ",
+]
+
+RESEARCH_DIRECTION_BUILD_CONTAINS_ANTI_PATTERNS = [
+    "构建一个",
+    "构建一套",
+    "打造",
+    "开发一个",
+    "做一个",
+    "提升效率",
+    "improve productivity",
+]
+
 
 def validate_direction_ready(research_dir: Path) -> Validation:
+    if is_meta_framework_workspace(research_dir):
+        return validate_meta_framework_ready(research_dir)
     validation = Validation()
     path = research_dir / "RESEARCH_DIRECTION.md"
     if not validation.require_file(path, "RESEARCH_DIRECTION.md"):
@@ -6903,22 +8156,48 @@ def validate_direction_ready(research_dir: Path) -> Validation:
     status = markdown_status_value(text, "status")
     if status not in {"human_approved", "frozen"}:
         validation.error("RESEARCH_DIRECTION.md status must be human_approved or frozen")
+    for section, fields in RESEARCH_DIRECTION_REAL_VALUE_FIELDS.items():
+        for field in fields:
+            if not markdown_has_real_value(text, field):
+                validation.error(f"RESEARCH_DIRECTION.md {section} missing concrete field: {field}")
+    big_rq = markdown_status_value(text, "big_rq")
+    if big_rq and "【待填写" not in big_rq:
+        normalized_big_rq = big_rq.strip().lower()
+        if any(normalized_big_rq.startswith(marker) for marker in RESEARCH_DIRECTION_BUILD_START_ANTI_PATTERNS) or any(
+            marker in normalized_big_rq for marker in RESEARCH_DIRECTION_BUILD_CONTAINS_ANTI_PATTERNS
+        ):
+            validation.error("Big Research Question must be a falsifiable research question, not a build/roadmap statement")
+        question_markers = ["?", "？", "是否", "能否", "如何", "can ", "how ", "whether ", "under what "]
+        if not any(marker in normalized_big_rq for marker in question_markers):
+            validation.error("Big Research Question must be framed as an answerable question")
     corridor = markdown_section(text, "Research Corridor")
     out_of_scope = markdown_section(text, "Out-of-Scope Directions")
     autonomy = markdown_section(text, "Autonomy Boundary")
     stop_conditions = markdown_section(text, "Global Stop Conditions")
+    evidence_contract = markdown_section(text, "Evidence Contract")
+    spine_binding = markdown_section(text, "Spine Binding")
     if len([line for line in non_placeholder_lines(corridor) if line.startswith("-")]) == 0:
         validation.error("Research Corridor must contain at least one concrete allowed direction")
     if len([line for line in non_placeholder_lines(out_of_scope) if line.startswith("-")]) == 0:
         validation.error("Out-of-Scope Directions must contain at least one concrete forbidden direction")
+    for token in ["toy", "mock", "smoke", "agent_report_only"]:
+        if token not in evidence_contract:
+            validation.error(f"Evidence Contract must explicitly classify {token} evidence")
+    if "allowed_to_support_claim" not in evidence_contract:
+        validation.error("Evidence Contract must declare allowed_to_support_claim")
     if "AI 可以自动做" not in autonomy or "AI 不可以自动做" not in autonomy:
         validation.error("Autonomy Boundary must define what AI can and cannot do")
     if len([line for line in non_placeholder_lines(stop_conditions) if line.startswith("-")]) == 0:
         validation.error("Global Stop Conditions must contain concrete stop conditions")
+    for token in ["RESEARCH_SPINE.yaml", "CURRENT", "PRD", "SPEC", "closeout"]:
+        if token not in spine_binding:
+            validation.error(f"Spine Binding must reference {token}")
     return validation
 
 
 def validate_epoch_ready(research_dir: Path) -> Validation:
+    if is_meta_framework_workspace(research_dir):
+        return validate_meta_framework_ready(research_dir)
     validation = Validation()
     current_path = research_dir / "CURRENT"
     if not validation.require_file(current_path, "CURRENT"):
@@ -6943,7 +8222,7 @@ def validate_epoch_ready(research_dir: Path) -> Validation:
         validation.error(f"direction_ref does not exist: {direction_ref.as_posix()}")
     current_status = str(status.get("status", "")).strip()
     later_versions = [path.name for path in epoch_versions(research_dir) if version_sort_key(path) > version_sort_key(epoch_dir)]
-    if later_versions and current_status not in CLOSED_VERSION_STATUSES and current_status != "paper_binding_ready":
+    if later_versions and current_status not in CLOSED_VERSION_STATUSES and current_status not in {"paper_binding_ready", "paper_bound"}:
         validation.error("cannot create next version before current epoch has closed_* status")
     out_of_scope_section = markdown_section(read_text(direction_ref), "Out-of-Scope Directions") if direction_ref.exists() else ""
     forbidden_terms = [
@@ -6953,7 +8232,7 @@ def validate_epoch_ready(research_dir: Path) -> Validation:
     ]
     current_text = "\n".join(
         read_text(path)
-        for path in [epoch_prd_source_path(epoch_dir), epoch_dir / "PLAN.md"]
+        for path in [epoch_prd_source_path(epoch_dir), epoch_dir / "RESEARCH_SPINE.yaml", epoch_dir / "TASK_QUEUE.yaml"]
         if path.exists()
     )
     for term in forbidden_terms:
@@ -6984,6 +8263,10 @@ def validate_loop_ready(research_dir: Path) -> Validation:
         validation.error(f"code-changing active task {active_task.get('id')} must define test_commands")
     for issue in validate_active_task_research_binding(active_task):
         validation.error(issue)
+    status_by_id = goal_task_status_map(queue)
+    for dep_id in goal_task_dependencies(active_task):
+        if status_by_id.get(dep_id) not in GOAL_DONE_TASK_STATUSES:
+            validation.error(f"active task {active_task.get('id')} depends_on unfinished task: {dep_id}")
     phase = str(active_task.get("phase") or "")
     if phase in {"reproduction", "reproduction_planning", "implementation", "experiment", "analysis", "result_analysis", "evaluation"}:
         status = baseline_lock_status(epoch_dir)
@@ -7054,7 +8337,9 @@ def allowed_claim_blocks(text: str) -> list[str]:
 def current_has_carry_forward(research_dir: Path, old_version: str, artifact_path: str) -> bool:
     epoch_dir = current_epoch_dir(research_dir)
     haystack = ""
-    for path in [epoch_prd_source_path(epoch_dir), epoch_dir / "SPEC.yaml"]:
+    paths = [epoch_prd_source_path(epoch_dir), epoch_dir / "RESEARCH_SPINE.yaml"]
+    paths.extend(sorted((epoch_dir / "rqs").glob("RQ*/SPEC.yaml")))
+    for path in paths:
         if path.exists():
             haystack += "\n" + read_text(path)
     if "carry_forward" not in haystack:
@@ -7120,6 +8405,12 @@ def template_version_ok(path: Path) -> bool:
 
 
 def validate_format_ready(research_dir: Path) -> Validation:
+    if is_meta_framework_workspace(research_dir):
+        repo_root = research_dir.parents[1] if research_dir.name == "research" and research_dir.parent.name == "docs" else research_dir.parent
+        validation = validate_meta_framework_ready(research_dir)
+        validation.require_file(repo_root / "CLAUDE.md", "CLAUDE.md")
+        validation.require_file(repo_root / "AGENTS.md", "AGENTS.md")
+        return validation
     validation = Validation()
     validation.require_file(research_dir / "RESEARCH_DIRECTION.md", "RESEARCH_DIRECTION.md")
     validation.require_file(research_dir / "CURRENT", "CURRENT")
@@ -7145,10 +8436,9 @@ def validate_format_ready(research_dir: Path) -> Validation:
         research_dir / "INDEX.md",
         epoch_dir / "PRD.tex",
         epoch_dir / "PRD_SUMMARY.md",
-        epoch_dir / "SPEC.yaml",
-        epoch_dir / "PLAN.md",
         epoch_dir / "STATUS.yaml",
         epoch_dir / "TASK_QUEUE.yaml",
+        epoch_dir / "EVIDENCE_GATE.yaml",
         epoch_dir / "GIT_STATE.yaml",
         epoch_dir / "closeout.md",
         epoch_dir / "PAPER_BINDING_DECISION.md",
@@ -7162,6 +8452,8 @@ def validate_format_ready(research_dir: Path) -> Validation:
 
 
 def detect_workspace_type(research_dir: Path) -> str:
+    if is_meta_framework_workspace(research_dir):
+        return "meta_framework"
     has_epoch = (research_dir / "RESEARCH_DIRECTION.md").exists() and (research_dir / "CURRENT").exists() and bool(epoch_versions(research_dir))
     legacy_markers = [
         research_dir / "prd",
@@ -7195,6 +8487,8 @@ def legacy_files(research_dir: Path) -> list[str]:
 
 
 def missing_epoch_files(research_dir: Path) -> list[str]:
+    if is_meta_framework_workspace(research_dir):
+        return []
     missing = []
     if not (research_dir / "RESEARCH_DIRECTION.md").exists():
         missing.append("docs/research/RESEARCH_DIRECTION.md")
@@ -7219,15 +8513,18 @@ def research_relative_path(research_dir: Path, path: Path) -> str:
 
 
 def rq_driven_migration_actions(status: str) -> list[str]:
+    if status == "meta_framework":
+        return ["No migration required; this repository is the research-loop meta-framework and must not create repo-local project epochs."]
     if status == "standard":
         return ["No migration required; keep RQ-local Spec, Plan, Task, and reproduction files synchronized."]
     return [
         "Run `python3 skills/research-audit/scripts/generate_research_audit.py --mode migration` to write `docs/research/audits/MIGRATION_AUDIT.md` and `docs/research/MIGRATION_PLAN.md`.",
-        "Create or repair the active epoch `docs/research/Vn/` with `PRD.tex`, `PRD_SUMMARY.md`, `BASELINE_LOCK.yaml`, `RESEARCH_SPINE.yaml`, `SPEC.yaml`, `PLAN.md`, and `TASK_QUEUE.yaml`.",
+        "Create or repair the active epoch `docs/research/Vn/` with `PRD.tex`, `PRD_SUMMARY.md`, `baselines/INDEX.yaml`, `BASELINE_LOCK.yaml`, `RESEARCH_SPINE.yaml`, `EVIDENCE_GATE.yaml`, and `TASK_QUEUE.yaml`.",
         "Populate version-level baseline search artifacts: `search/candidate_baselines.yaml`, `search/dataset_candidates.yaml`, and `search/paper_experiment_designs.yaml`.",
+        "Convert search candidates into curated baseline dossiers under `baselines/Bxxx/{BASELINE_CARD.yaml,PAPER_CARD.yaml,DATASET_CARD.yaml,EXPERIMENT_DESIGN.yaml,REUSE_DECISION.yaml}` and index them in `baselines/INDEX.yaml`.",
         "For every declared RQ in `RESEARCH_SPINE.yaml`, create `docs/research/Vn/rqs/RQxx/RQ.md`, `SPEC.yaml`, `PLAN.md`, `TASKS.yaml`, and `reproduction/{SOURCE_LOCK.yaml,REPRODUCTION_SPEC.yaml,VERIFICATION.yaml,IMMUTABLE_BASE.yaml}`.",
         "Move executable contracts from legacy `docs/research/spec/` and `docs/research/plans/` into RQ-local `SPEC.yaml`, `PLAN.md`, and `TASKS.yaml`; keep unresolved fragments under migration blockers.",
-        "Update epoch `SPEC.yaml.rq_specs` so each RQ points to `rqs/RQxx/SPEC.yaml` and `rqs/RQxx/PLAN.md`.",
+        "Update `RESEARCH_SPINE.yaml.research_questions` so each RQ points to `rqs/RQxx/SPEC.yaml` and `rqs/RQxx/PLAN.md`.",
         "Mark migrated artifacts as `carry_forward_candidates` only; do not promote legacy insight or old artifacts to paper evidence without hashes, commands, logs, and passed audit.",
         "Run `validate_research.py --mode rq-driven-ready`, `--mode baseline-lock-ready`, `--mode epoch-ready`, and `--mode spine-ready` after migration.",
     ]
@@ -7235,6 +8532,17 @@ def rq_driven_migration_actions(status: str) -> list[str]:
 
 def rq_driven_format_report(research_dir: Path) -> dict[str, Any]:
     workspace_type = detect_workspace_type(research_dir)
+    if workspace_type == "meta_framework":
+        return {
+            "status": "meta_framework",
+            "is_standard": True,
+            "workspace_type": workspace_type,
+            "current_version": "",
+            "issues": [],
+            "blocking_issues": [],
+            "advisory_issues": [],
+            "migration_actions": rq_driven_migration_actions("meta_framework"),
+        }
     version = current_epoch_name(research_dir)
     epoch_dir = research_dir / version if version else research_dir / "V0"
     blocking: list[str] = []
@@ -7272,28 +8580,21 @@ def rq_driven_format_report(research_dir: Path) -> dict[str, Any]:
         if not declared_rqs:
             blocking.append(f"{epoch_dir.name}/RESEARCH_SPINE.yaml must declare at least one research_questions entry.")
 
-        spec_path = epoch_dir / "SPEC.yaml"
-        spec = load_yaml(spec_path)
-        if spec_path.exists():
-            if spec.get("role") != "epoch_aggregate_index":
-                blocking.append(f"{epoch_dir.name}/SPEC.yaml must declare role: epoch_aggregate_index.")
-            if spec.get("prd_ref") != "PRD.tex":
-                blocking.append(f"{epoch_dir.name}/SPEC.yaml must point prd_ref to PRD.tex.")
-            rq_specs = [item for item in as_list(spec.get("rq_specs")) if isinstance(item, dict)]
-            if not rq_specs:
-                blocking.append(f"{epoch_dir.name}/SPEC.yaml must list rq_specs for every declared RQ.")
-            indexed_rqs = {str(item.get("rq_id")) for item in rq_specs if item.get("rq_id")}
-            for rq_id in declared_rqs:
-                if rq_id not in indexed_rqs:
-                    blocking.append(f"{epoch_dir.name}/SPEC.yaml rq_specs missing declared RQ: {rq_id}")
-            for item in rq_specs:
-                rq_id = str(item.get("rq_id") or "<missing>")
-                for key in ["spec_ref", "plan_ref"]:
-                    ref = str(item.get(key) or "")
-                    if not ref:
-                        blocking.append(f"{epoch_dir.name}/SPEC.yaml rq_specs entry {rq_id} missing {key}.")
-                    elif not (epoch_dir / ref).exists():
-                        blocking.append(f"{epoch_dir.name}/SPEC.yaml rq_specs entry {rq_id} {key} does not exist: {ref}")
+        for rq in as_list(spine.get("research_questions")):
+            if not isinstance(rq, dict) or not rq.get("id"):
+                continue
+            rq_id = str(rq.get("id"))
+            expected_refs = {
+                "rq_dir": f"rqs/{rq_id}",
+                "spec_ref": f"rqs/{rq_id}/SPEC.yaml",
+                "plan_ref": f"rqs/{rq_id}/PLAN.md",
+            }
+            for key, expected_ref in expected_refs.items():
+                ref = str(rq.get(key) or "")
+                if ref != expected_ref:
+                    blocking.append(f"{epoch_dir.name}/RESEARCH_SPINE.yaml {rq_id} {key} must be {expected_ref}.")
+                elif key.endswith("_ref") and not (epoch_dir / ref).exists():
+                    blocking.append(f"{epoch_dir.name}/RESEARCH_SPINE.yaml {rq_id} {key} does not exist: {ref}")
 
     if blocking:
         status = "migration_required"
@@ -7383,16 +8684,17 @@ def migration_audit_text(research_dir: Path) -> str:
                 "### Phase 1 — Initialize Research Corridor",
                 "",
                 "1. Run `research-init` to scaffold `docs/research/`.",
-                "2. Write `RESEARCH_DIRECTION.md` with the 8 required sections: Direction Status, Research Seed, Research Corridor, Out-of-Scope Directions, Prior Work Basis, Desired Paper Shape, Autonomy Boundary, Global Stop Conditions.",
+                "2. Write `RESEARCH_DIRECTION.md` with the fixed Big-RQ template: Direction Status, Big Research Question, Why This Question Matters, Core Hypothesis, Research Corridor, Out-of-Scope Directions, Minimum Viable Research, Evidence Contract, Global Stop Conditions, Autonomy Boundary, Spine Binding.",
                 "3. Set `CURRENT` to `V0`.",
                 "",
                 "### Phase 2 — Bootstrap First Epoch",
                 "",
                 "4. Create `V0/PRD.tex` and render `V0/PRD.pdf` or record `V0/render_blocker.md`.",
-                "5. Create `V0/BASELINE_LOCK.yaml` and fill baseline/dataset/metric/design decisions from websearch and repo search.",
-                "6. Run `generate_research_spec.py --rq RQ01` to create `V0/SPEC.yaml` and `V0/rqs/RQ01/SPEC.yaml`.",
-                "7. Ensure `V0/RESEARCH_SPINE.yaml` sets `direction_ref: ../RESEARCH_DIRECTION.md` and defines at least one RQ.",
-                "8. Run `validate_research.py --mode rq-driven-ready`, `--mode baseline-lock-ready`, and `--mode format-ready` to verify structure.",
+                "5. Create `V0/baselines/INDEX.yaml` and one `V0/baselines/Bxxx/` dossier for each curated baseline selected from websearch and repo search.",
+                "6. Create `V0/BASELINE_LOCK.yaml`; it must reference `baselines/INDEX.yaml` and selected baseline/dataset/design dossier cards.",
+                "7. Run `generate_research_spec.py --rq RQ01` to create `V0/rqs/RQ01/SPEC.yaml` and bind the RQ through `RESEARCH_SPINE.yaml`.",
+                "8. Ensure `V0/RESEARCH_SPINE.yaml` sets `direction_ref: ../RESEARCH_DIRECTION.md` and defines at least one RQ.",
+                "9. Run `validate_research.py --mode rq-driven-ready`, `--mode baseline-lock-ready`, and `--mode format-ready` to verify structure.",
                 "",
                 "## Human Review Required",
                 "",
@@ -7418,24 +8720,25 @@ def migration_audit_text(research_dir: Path) -> str:
                 "",
                 "3. Convert `prd/research_prd.md` / `prd/research_prd.tex` → `V0/PRD.tex`; render `V0/PRD.pdf` or record `V0/render_blocker.md`.",
                 "4. Create one `V0/rqs/RQxx/` directory for each RQ discovered in the legacy PRD or spec.",
-                "5. Extract baseline, dataset, metric, and reusable experiment-design candidates into `V0/BASELINE_LOCK.yaml`.",
-                "6. Split `spec/global_spec.yaml` into RQ-local `V0/rqs/RQxx/SPEC.yaml`; keep `V0/SPEC.yaml` as the epoch aggregate index.",
-                "7. Split `plans/plan_queue.yaml` into RQ-local `V0/rqs/RQxx/PLAN.md` and `TASKS.yaml`, then let `V0/TASK_QUEUE.yaml` reference `rq_id`, `rq_spec_ref`, and `rq_task_ref`.",
-                "8. Convert `insights/insight_log.md` → `V0/wiki/epoch_summary.md` and `V0/wiki/open_questions.md` as migration candidates, not claim evidence.",
+                "5. Extract baseline, dataset, metric, and reusable experiment-design candidates into `V0/baselines/` dossiers.",
+                "6. Write `V0/BASELINE_LOCK.yaml` only as the final version decision; it must reference selected dossier cards.",
+                "7. Split `spec/global_spec.yaml` into RQ-local `V0/rqs/RQxx/SPEC.yaml`; bind each RQ through `RESEARCH_SPINE.yaml` refs.",
+                "8. Split `plans/plan_queue.yaml` into RQ-local `V0/rqs/RQxx/PLAN.md` and `TASKS.yaml`, then let `V0/TASK_QUEUE.yaml` reference `rq_id`, `rq_spec_ref`, and `rq_task_ref`.",
+                "9. Convert `insights/insight_log.md` → `V0/wiki/epoch_summary.md` and `V0/wiki/open_questions.md` as migration candidates, not claim evidence.",
                 "",
                 "### Phase 3 — Bind the Spine",
                 "",
-                "9. Create `V0/RESEARCH_SPINE.yaml` with `direction_ref: ../RESEARCH_DIRECTION.md`.",
-                "10. Map existing RQs from the legacy PRD into `research_questions`.",
-                "11. Map existing claims/experiments into the spine chain: `RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`.",
-                "12. Mark all migrated artifacts as `carry_forward_candidates`, not paper evidence.",
+                "10. Create `V0/RESEARCH_SPINE.yaml` with `direction_ref: ../RESEARCH_DIRECTION.md`.",
+                "11. Map existing RQs from the legacy PRD into `research_questions`.",
+                "12. Map existing claims/experiments into the spine chain: `RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`.",
+                "13. Mark all migrated artifacts as `carry_forward_candidates`, not paper evidence.",
                 "",
                 "### Phase 4 — Validate",
                 "",
-                "13. Run `validate_research.py --mode rq-driven-ready`.",
-                "14. Run `validate_research.py --mode baseline-lock-ready`.",
-                "15. Run `validate_research.py --mode epoch-ready`.",
-                "16. Run `validate_research.py --mode spine-ready`.",
+                "14. Run `validate_research.py --mode rq-driven-ready`.",
+                "15. Run `validate_research.py --mode baseline-lock-ready`.",
+                "16. Run `validate_research.py --mode epoch-ready`.",
+                "17. Run `validate_research.py --mode spine-ready`.",
                 "",
                 "## Human Review Required",
                 "",
@@ -7454,11 +8757,12 @@ def migration_audit_text(research_dir: Path) -> str:
                 "",
                 "1. Determine whether legacy files are superseded by current epoch files. If yes, archive legacy folders (do not delete without human confirmation).",
                 "2. If the epoch is missing `RESEARCH_SPINE.yaml`, create it from the current PRD and bind `direction_ref: ../RESEARCH_DIRECTION.md`.",
-                "3. Ensure `Vn/BASELINE_LOCK.yaml` captures the current version's baseline, dataset, metric, and borrowed experiment-design decisions.",
-                "4. Ensure every declared RQ has `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` and RQ-local reproduction metadata.",
-                "5. Populate `RESEARCH_SPINE.yaml` with the full evidence chain (`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`).",
-                "6. Run `validate_research.py --mode rq-driven-ready` and `--mode baseline-lock-ready` to verify the version/RQ filesystem contract.",
-                "7. Run `validate_research.py --mode spine-ready` and `--mode format-ready`.",
+                "3. Ensure `Vn/baselines/INDEX.yaml` and selected `Vn/baselines/Bxxx/` dossier cards exist.",
+                "4. Ensure `Vn/BASELINE_LOCK.yaml` captures the current version's baseline, dataset, metric, and borrowed experiment-design decisions and references the dossier cards.",
+                "5. Ensure every declared RQ has `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` and RQ-local reproduction metadata.",
+                "6. Populate `RESEARCH_SPINE.yaml` with the full evidence chain (`RQ -> Claim -> Experiment -> Evidence -> Figure/Table -> Paper Section`).",
+                "7. Run `validate_research.py --mode rq-driven-ready` and `--mode baseline-lock-ready` to verify the version/RQ filesystem contract.",
+                "8. Run `validate_research.py --mode spine-ready` and `--mode format-ready`.",
                 "",
                 "## Human Review Required",
                 "",
@@ -7501,11 +8805,12 @@ def migration_plan_text(research_dir: Path) -> str:
             "2. 撰写 `RESEARCH_DIRECTION.md`，包含 8 个必需章节。",
             "3. 设置 `CURRENT=V0`。",
             "4. 创建初始 PRD 并写入 `V0/PRD.tex`，同时生成 `V0/PRD.pdf` 或 `render_blocker.md`。",
-            "5. 创建 `V0/BASELINE_LOCK.yaml`，从 websearch / repo search 中锁定 baseline、dataset、metric 和实验设计。",
-            "6. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
-            "7. 在 Spine 中定义第一个 RQ，并创建 `V0/rqs/RQ01/`。",
-            "8. 写入 `V0/rqs/RQ01/SPEC.yaml`、`PLAN.md`、`TASKS.yaml` 与 `reproduction/*`。",
-            "9. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
+            "5. 创建 `V0/baselines/INDEX.yaml` 与 `V0/baselines/Bxxx/` dossier，将 websearch / repo search 候选转成 curated baseline knowledge。",
+            "6. 创建 `V0/BASELINE_LOCK.yaml`，只记录最终 baseline、dataset、metric 和实验设计决策，并引用 dossier card。",
+            "7. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "8. 在 Spine 中定义第一个 RQ，并创建 `V0/rqs/RQ01/`。",
+            "9. 写入 `V0/rqs/RQ01/SPEC.yaml`、`PLAN.md`、`TASKS.yaml` 与 `reproduction/*`。",
+            "10. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
         ]
     elif workspace_type == "legacy_flat":
         steps = [
@@ -7513,24 +8818,26 @@ def migration_plan_text(research_dir: Path) -> str:
             "2. 设置 `CURRENT=V0`。",
             "3. 转换 `prd/research_prd.md` / `prd/research_prd.tex` → `V0/PRD.tex`。",
             "4. 从 legacy PRD/spec 中抽取 RQ 列表，并为每个 RQ 创建 `V0/rqs/RQxx/`。",
-            "5. 将 legacy baseline、dataset、metric 和实验设计候选写入 `V0/BASELINE_LOCK.yaml`。",
-            "6. 将 `spec/global_spec.yaml` 拆成 RQ-local `V0/rqs/RQxx/SPEC.yaml`；`V0/SPEC.yaml` 仅保留 epoch aggregate index 与 `rq_specs`。",
-            "7. 将 `plans/plan_queue.yaml` 拆成 RQ-local `PLAN.md` / `TASKS.yaml`，并让 `V0/TASK_QUEUE.yaml` 通过 `rq_id`、`rq_spec_ref`、`rq_task_ref` 引用它们。",
-            "8. 转换 `insights/insight_log.md` → `V0/wiki/epoch_summary.md` 和 `open_questions.md`，只作为迁移候选。",
-            "9. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
-            "10. 将 legacy 中的 RQ/Claim/Experiment 映射进 Spine Matrix。",
-            "11. 标记所有迁移 artifact 为 `carry_forward_candidates`，不作为论文证据。",
-            "12. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
+            "5. 将 legacy baseline、dataset、metric 和实验设计候选整理到 `V0/baselines/` dossier，并写入 `V0/baselines/INDEX.yaml`。",
+            "6. 将最终选择写入 `V0/BASELINE_LOCK.yaml`，并引用 `baselines/Bxxx/*` card。",
+            "7. 将 `spec/global_spec.yaml` 拆成 RQ-local `V0/rqs/RQxx/SPEC.yaml`；通过 `RESEARCH_SPINE.yaml` 绑定每个 RQ 的 `spec_ref` / `plan_ref`。",
+            "8. 将 `plans/plan_queue.yaml` 拆成 RQ-local `PLAN.md` / `TASKS.yaml`，并让 `V0/TASK_QUEUE.yaml` 通过 `rq_id`、`rq_spec_ref`、`rq_task_ref` 引用它们。",
+            "9. 转换 `insights/insight_log.md` → `V0/wiki/epoch_summary.md` 和 `open_questions.md`，只作为迁移候选。",
+            "10. 创建 `V0/RESEARCH_SPINE.yaml`，设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
+            "11. 将 legacy 中的 RQ/Claim/Experiment 映射进 Spine Matrix。",
+            "12. 标记所有迁移 artifact 为 `carry_forward_candidates`，不作为论文证据。",
+            "13. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
         ]
     elif workspace_type == "mixed":
         steps = [
             "1. 评估 legacy 文件是否被当前 epoch 文件取代；若已取代，归档 legacy 目录。",
             "2. 若 `Vn/RESEARCH_SPINE.yaml` 缺失，从当前 PRD 创建并设置 `direction_ref: ../RESEARCH_DIRECTION.md`。",
-            "3. 补齐 `Vn/BASELINE_LOCK.yaml`，使版本级 baseline/dataset/metric/design 决策成为 RQ-local reproduction 的输入。",
-            "4. 补齐每个 RQ 的 `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` 与 `reproduction/*`。",
-            "5. 补全 Spine Matrix（RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section）。",
-            "6. 对无法归属到 RQ 的 legacy spec/plan/insight 建立 migration blocker，不进入当前执行真源。",
-            "7. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
+            "3. 补齐 `Vn/baselines/INDEX.yaml` 与 selected baseline dossier card。",
+            "4. 补齐 `Vn/BASELINE_LOCK.yaml`，使版本级 baseline/dataset/metric/design 决策引用 dossier 并成为 RQ-local reproduction 的输入。",
+            "5. 补齐每个 RQ 的 `Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml}` 与 `reproduction/*`。",
+            "6. 补全 Spine Matrix（RQ → Claim → Experiment → Evidence → Figure/Table → Paper Section）。",
+            "7. 对无法归属到 RQ 的 legacy spec/plan/insight 建立 migration blocker，不进入当前执行真源。",
+            "8. 运行 `rq-driven-ready`、`baseline-lock-ready`、`format-ready`、`epoch-ready`、`spine-ready` 验证。",
         ]
     else:
         steps = [
@@ -7551,6 +8858,7 @@ def migration_plan_text(research_dir: Path) -> str:
             "```",
             "RESEARCH_DIRECTION.md (研究走廊边界)",
             "  └─> Vn/RESEARCH_SPINE.yaml (direction_ref 必须指向它)",
+            "        └─> Vn/baselines/INDEX.yaml (curated baseline dossier index)",
             "        └─> Vn/BASELINE_LOCK.yaml (version-level baseline / dataset / metric / design lock)",
             "        └─> RQ1, RQ2, ... (必须落在 RESEARCH_DIRECTION.md 范围内)",
             "              └─> Vn/rqs/RQxx/{RQ.md,SPEC.yaml,PLAN.md,TASKS.yaml,reproduction/*}",
@@ -7604,6 +8912,8 @@ def validate_rq_driven_ready(research_dir: Path) -> Validation:
 
 
 def validate_baseline_lock_ready(research_dir: Path) -> Validation:
+    if is_meta_framework_workspace(research_dir):
+        return validate_meta_framework_ready(research_dir)
     validation = validate_epoch_ready(research_dir)
     if not validation.ok:
         return validation
@@ -7946,9 +9256,17 @@ def validate_task_graph(
 
 def validate_spec(research_dir: Path) -> Validation:
     validation = Validation()
+    version = current_epoch_name(research_dir)
+    if version:
+        epoch_dir = research_dir / version
+        spine = load_yaml(epoch_dir / "RESEARCH_SPINE.yaml")
+        for issue in validate_rq_contracts(epoch_dir, spine):
+            validation.error(issue.message)
+    global_spec = load_yaml(research_dir / "spec" / "global_spec.yaml")
+    if version and not as_list(global_spec.get("rq_chain")):
+        return validation
     for relative_path in SPEC_FILES:
         validation.require_file(research_dir / "spec" / relative_path, f"spec/{relative_path}")
-    global_spec = load_yaml(research_dir / "spec" / "global_spec.yaml")
     if not as_list(global_spec.get("rq_chain")):
         validation.error("global_spec.yaml has no RQ -> Hypothesis -> Claim -> Experiment chain")
 
@@ -8120,7 +9438,8 @@ def validate_plan(research_dir: Path) -> Validation:
         validation.error("no dated research plan exists")
         return validation
     ids = collect_spec_ids(research_dir)
-    current_spec_hash = hash_path(research_dir / version / "SPEC.yaml") if version else hash_path(research_dir / "spec")
+    current_contract_hash = hash_path(research_dir / version / "rqs") if version else hash_path(research_dir / "spec")
+    legacy_spec_hash = hash_path(research_dir / version / "SPEC.yaml") if version else hash_path(research_dir / "spec")
     current_paper_hash = hash_path(research_dir / "paper")
     for plan_dir in plan_dirs:
         plan_yaml = plan_dir / "plan.yaml"
@@ -8128,10 +9447,14 @@ def validate_plan(research_dir: Path) -> Validation:
             continue
         payload = load_yaml(plan_yaml)
         versions = payload.get("source_versions", {}) if isinstance(payload.get("source_versions"), dict) else {}
-        if not versions.get("spec_hash"):
-            validation.error(f"plan {plan_dir.name} missing source_versions.spec_hash")
-        elif versions.get("spec_hash") != current_spec_hash:
-            validation.error(f"plan {plan_dir.name} has stale spec hash")
+        if versions.get("rq_contract_hash"):
+            if versions.get("rq_contract_hash") != current_contract_hash:
+                validation.error(f"plan {plan_dir.name} has stale RQ contract hash")
+        elif versions.get("spec_hash"):
+            if versions.get("spec_hash") != legacy_spec_hash:
+                validation.error(f"plan {plan_dir.name} has stale legacy spec hash")
+        else:
+            validation.error(f"plan {plan_dir.name} missing source_versions.rq_contract_hash")
         if not versions.get("prd_hash") or not versions.get("paper_hash") or not versions.get("git_commit"):
             validation.error(f"plan {plan_dir.name} missing PRD/paper/git source hash")
         elif versions.get("paper_hash") != current_paper_hash:
@@ -8336,6 +9659,58 @@ def validate_loop_prompt_ready(research_dir: Path) -> Validation:
     return validation
 
 
+def validate_goal_ready(research_dir: Path) -> Validation:
+    validation = validate_epoch_ready(research_dir)
+    if not validation.ok:
+        return validation
+    epoch_dir = current_epoch_dir(research_dir)
+    goal_path = epoch_dir / "goal.md"
+    lock_path = epoch_dir / "GOAL_LOCK.yaml"
+    if not validation.require_file(goal_path, "goal.md"):
+        return validation
+    if not validation.require_file(lock_path, "GOAL_LOCK.yaml"):
+        return validation
+    goal_text = read_text(goal_path)
+    lock = load_yaml(lock_path)
+    if lock.get("schema_version") != GOAL_LOCK_SCHEMA_VERSION:
+        validation.error(f"GOAL_LOCK.yaml schema_version must be {GOAL_LOCK_SCHEMA_VERSION}")
+    if str(lock.get("version") or "") != epoch_dir.name:
+        validation.error(f"GOAL_LOCK.yaml version must match active epoch {epoch_dir.name}")
+    if str(lock.get("target_executor") or "") not in GOAL_TARGET_EXECUTORS:
+        validation.error("GOAL_LOCK.yaml target_executor must be codex, claude-code, or both")
+    if str(lock.get("goal_ref") or "") != "goal.md":
+        validation.error("GOAL_LOCK.yaml goal_ref must be goal.md")
+    goal_hash = str(lock.get("goal_hash") or "")
+    if goal_hash and goal_hash != hash_path(goal_path):
+        validation.error("GOAL_LOCK.yaml goal_hash does not match goal.md")
+    source_refs = lock.get("source_refs") if isinstance(lock.get("source_refs"), dict) else {}
+    source_hashes = lock.get("source_hashes") if isinstance(lock.get("source_hashes"), dict) else {}
+    for key, expected_ref in GOAL_SOURCE_REFS.items():
+        ref = str(source_refs.get(key) or "")
+        if ref != expected_ref:
+            validation.error(f"GOAL_LOCK.yaml source_refs.{key} must be {expected_ref}")
+            continue
+        source_path = resolve_epoch_ref(epoch_dir, ref)
+        if not source_path.exists():
+            validation.error(f"GOAL_LOCK.yaml source {key} does not exist: {ref}")
+            continue
+        expected_hash = str(source_hashes.get(key) or "")
+        actual_hash = hash_path(source_path)
+        if not expected_hash:
+            validation.error(f"GOAL_LOCK.yaml source_hashes.{key} missing")
+        elif expected_hash != actual_hash:
+            validation.error(f"GOAL_LOCK.yaml stale source hash for {key}: {ref}")
+    for required in ["TASK_QUEUE.yaml", "BASELINE_LOCK.yaml", "GOAL_LOCK.yaml", "RESEARCH_DIRECTION.md", "EVIDENCE_GATE.yaml"]:
+        if required not in goal_text:
+            validation.error(f"goal.md missing required long-loop clause: {required}")
+    if "单步执行真源仍然是 `TASK_QUEUE.yaml`" not in goal_text:
+        validation.error("goal.md must state that TASK_QUEUE.yaml remains the single-step execution source")
+    for required in ["RQ Contract Coverage", "Outstanding Task Graph", "independent runnable tasks", "runnable unblocked task"]:
+        if required not in goal_text:
+            validation.error(f"goal.md missing dependency-aware scheduling clause: {required}")
+    return validation
+
+
 def validate_insight(research_dir: Path) -> Validation:
     validation = Validation()
     validation.require_file(research_dir / "insights" / "insight_log.md", "insights/insight_log.md")
@@ -8469,17 +9844,6 @@ def validate_spine(research_dir: Path) -> Validation:
             if str(fid) not in figures:
                 validation.error(f"spine paper_section {sec.get('id')} references unknown figure/table_id: {fid}")
 
-    spec_path = epoch_dir / "SPEC.yaml"
-    if spec_path.exists():
-        spec = load_yaml(spec_path)
-        spec_experiments = {str(e.get("id")) for e in as_list(spec.get("experiments")) if isinstance(e, dict) and e.get("id")}
-        for eid in experiments:
-            if eid not in spec_experiments:
-                validation.error(f"spine experiment {eid} missing from SPEC.yaml experiments")
-        for seid in spec_experiments:
-            if seid not in experiments:
-                validation.warn(f"SPEC.yaml experiment {seid} not declared in RESEARCH_SPINE.yaml")
-
     return validation
 
 
@@ -8490,6 +9854,7 @@ def validate_research(research_dir: Path, mode: str) -> Validation:
         "loop-ready": validate_loop_ready,
         "spine-ready": validate_spine,
         "loop-prompt-ready": validate_loop_prompt_ready,
+        "goal-ready": validate_goal_ready,
         "closeout-ready": validate_closeout_ready,
         "paper-binding-ready": validate_paper_binding_ready,
         "format-ready": validate_format_ready,
@@ -8507,6 +9872,8 @@ def validate_research(research_dir: Path, mode: str) -> Validation:
     }
     if mode not in validators:
         raise ValueError(f"unknown validation mode: {mode}")
+    if is_meta_framework_workspace(research_dir) and mode not in {"direction-ready", "format-ready", "migration-ready"}:
+        return validate_meta_framework_ready(research_dir)
     return validators[mode](research_dir)
 
 

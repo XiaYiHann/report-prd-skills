@@ -37,6 +37,7 @@ from research_workspace import (  # noqa: E402
     read_text,
     task_search_required,
     write_task_run_report,
+    write_epoch_goal_files,
     write_yaml,
 )
 
@@ -53,6 +54,9 @@ VALID_FAILURE_CLASSES = {
     "confirmed_research_falsification",
 }
 VALID_EXECUTORS = {"codex", "claude-code", "manual"}
+VALID_GOAL_TARGETS = {"codex", "claude-code", "both"}
+DONE_TASK_STATUSES = {"completed", "skipped"}
+BLOCKED_TASK_STATUSES = {"blocked", "failed_execution", "failed_harness"}
 
 
 def today_string() -> str:
@@ -92,6 +96,35 @@ def _gate_id(gate: dict[str, Any]) -> str:
     return str(gate.get("gate_id") or gate.get("id") or "")
 
 
+def _task_dependencies(task: dict[str, Any]) -> list[str]:
+    raw = task.get("depends_on", task.get("dependencies", []))
+    if isinstance(raw, str):
+        return [raw] if raw else []
+    return [str(item) for item in as_list(raw) if str(item)]
+
+
+def _task_status_by_id(tasks: list[dict[str, Any]]) -> dict[str, str]:
+    return {_task_id(task): str(task.get("status") or "") for task in tasks if _task_id(task)}
+
+
+def _task_runnable(task: dict[str, Any], status_by_id: dict[str, str]) -> bool:
+    if str(task.get("status") or "") != "pending":
+        return False
+    for dep_id in _task_dependencies(task):
+        if status_by_id.get(dep_id) not in DONE_TASK_STATUSES:
+            return False
+    return True
+
+
+def _activate_task(queue: dict[str, Any], gate: dict[str, Any], task: dict[str, Any], gate_id: str) -> None:
+    task["status"] = "active"
+    _sync_gate_task_status(queue, _task_id(task), "active")
+    gate["status"] = "active"
+    queue["queue_status"] = "active"
+    queue["current_gate"] = gate_id
+    queue["current_task"] = _task_id(task)
+
+
 def _sync_gate_task_status(queue: dict[str, Any], task_id: str, status: str) -> None:
     for gate in as_list(queue.get("gates")):
         if not isinstance(gate, dict):
@@ -112,22 +145,31 @@ def evaluate_gate_after_task(queue: dict[str, Any], gate_id: str) -> None:
         task for task in tasks
         if str(task.get("gate_id") or gate_id) == gate_id
     ]
-    if any(str(task.get("status")) in {"blocked", "failed_execution", "failed_harness"} for task in gate_tasks):
+    status_by_id = _task_status_by_id(tasks)
+    blocked = [task for task in gate_tasks if str(task.get("status")) in BLOCKED_TASK_STATUSES]
+    pending = [task for task in gate_tasks if str(task.get("status")) == "pending"]
+    runnable = [task for task in pending if _task_runnable(task, status_by_id)]
+
+    if runnable:
+        gate["blocked_tasks"] = [_task_id(task) for task in blocked]
+        _activate_task(queue, gate, runnable[0], gate_id)
+        return
+
+    if blocked:
         gate["status"] = "blocked"
+        gate["blocked_tasks"] = [_task_id(task) for task in blocked]
         queue["queue_status"] = "blocked"
         queue["current_gate"] = gate_id
         queue["current_task"] = None
         return
 
-    pending = [task for task in gate_tasks if str(task.get("status")) == "pending"]
     if pending:
-        next_task = pending[0]
-        next_task["status"] = "active"
-        _sync_gate_task_status(queue, _task_id(next_task), "active")
-        gate["status"] = "active"
-        queue["queue_status"] = "active"
+        gate["status"] = "blocked"
+        gate["blocked_tasks"] = []
+        gate["block_reason"] = "no runnable task; pending tasks wait on unfinished dependencies"
+        queue["queue_status"] = "blocked"
         queue["current_gate"] = gate_id
-        queue["current_task"] = _task_id(next_task)
+        queue["current_task"] = None
         return
 
     if gate_tasks and all(str(task.get("status")) in {"completed", "skipped"} for task in gate_tasks):
@@ -231,13 +273,21 @@ def update_git_state(epoch_dir: Path, commit_hash: str | None, task_id: str, sta
     write_yaml(git_path, git_state, force=True)
 
 
-def update_status_yaml(epoch_dir: Path, task_id: str, status: str) -> None:
+def update_status_yaml(epoch_dir: Path, task_id: str, status: str, queue: dict[str, Any] | None = None) -> None:
     status_path = epoch_dir / "STATUS.yaml"
     payload = load_yaml(status_path) if status_path.exists() else {}
     payload["last_completed_task"] = task_id
     if status in ("blocked", "failed_execution", "failed_harness"):
-        payload["status"] = "gate_blocked"
+        queue_payload = queue if isinstance(queue, dict) else load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+        blocked_tasks = list(payload.get("blocked_tasks") or [])
+        if task_id not in blocked_tasks:
+            blocked_tasks.append(task_id)
+        payload["blocked_tasks"] = blocked_tasks
         payload["blocked_task"] = task_id
+        if str(queue_payload.get("queue_status") or "") == "active" and queue_payload.get("current_task"):
+            payload["status"] = "running"
+        else:
+            payload["status"] = "gate_blocked"
     elif status in ("done", "completed"):
         if payload.get("status") in ("gate_blocked", "blocked"):
             pass  # Don't override blocked status unless unblocked explicitly
@@ -245,6 +295,17 @@ def update_status_yaml(epoch_dir: Path, task_id: str, status: str) -> None:
             payload["status"] = "running"
 
     write_yaml(status_path, payload, force=True)
+
+
+def refresh_goal_contract(epoch_dir: Path) -> None:
+    lock_path = epoch_dir / "GOAL_LOCK.yaml"
+    target = "both"
+    if lock_path.exists():
+        payload = load_yaml(lock_path)
+        locked_target = str(payload.get("target_executor") or "")
+        if locked_target in VALID_GOAL_TARGETS:
+            target = locked_target
+    write_epoch_goal_files(epoch_dir, target_executor=target, force=True)
 
 
 def parse_bool(value: str) -> bool:
@@ -430,15 +491,19 @@ def main() -> int:
     print(f"[OK] GIT_STATE.yaml updated")
 
     # 4. Update STATUS.yaml
-    update_status_yaml(epoch_dir, args.task_id, status)
+    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    update_status_yaml(epoch_dir, args.task_id, status, queue)
     print(f"[OK] STATUS.yaml updated")
 
     # 5. Write task run report
     write_run_report_from_args(epoch_dir, version, args.task_id, status, commit_hash, gate_id, blocker_reason, args)
     print(f"[OK] runs/{args.task_id}_report.yaml written")
 
-    # 6. Emit blocker prompt if the queue is blocked
-    queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    # 6. Refresh the version-level long-loop goal after queue/status drift.
+    refresh_goal_contract(epoch_dir)
+    print(f"[OK] GOAL_LOCK.yaml refreshed")
+
+    # 7. Emit blocker prompt if the queue is blocked
     if str(queue.get("queue_status", "")) in ("blocked", "audit_required"):
         current_gate = str(queue.get("current_gate") or gate_id or "unknown")
         active = [t for t in as_list(queue.get("tasks")) if str(t.get("status")) == "active"]

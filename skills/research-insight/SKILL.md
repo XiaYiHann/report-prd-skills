@@ -38,14 +38,16 @@ Do not use it for code execution, broad replanning, PRD rewriting, Paper Binding
 1. `docs/research/RESEARCH_DIRECTION.md`
 2. `docs/research/CURRENT`
 3. `docs/research/{CURRENT}/STATUS.yaml`
-4. `docs/research/{CURRENT}/PRD.md`
-5. `docs/research/{CURRENT}/SPEC.yaml`
-6. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
-7. `docs/research/{CURRENT}/LOOP_LOG.md`
-8. `docs/research/{CURRENT}/runs/`
-9. `docs/research/{CURRENT}/artifacts/`
-10. `docs/research/{CURRENT}/wiki/*`
-11. `docs/research/explore/sessions/` only when promoting saved exploration
+4. `docs/research/{CURRENT}/PRD.tex`
+5. `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+6. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+7. `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+8. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+9. `docs/research/{CURRENT}/LOOP_LOG.md`
+10. `docs/research/{CURRENT}/runs/`
+11. `docs/research/{CURRENT}/artifacts/`
+12. `docs/research/{CURRENT}/wiki/*`
+13. `docs/research/explore/sessions/` only when promoting saved exploration
 
 Old versions are context only. Read old `closeout.md`, `wiki/epoch_summary.md`, `wiki/evidence_map.md`, and `wiki/next_version_seed.md`; do not let old PRDs override the current epoch.
 
@@ -101,6 +103,6 @@ Every promoted insight must include:
 - Do not claim an exploratory observation is stable.
 - Do not invent experiments, artifacts, stdout/stderr, citations, benchmark values, hashes, or Git commits.
 - Do not use prompt-only scaffold as result evidence.
-- Do not promote legacy insight to current claim evidence unless current `PRD.md` or `SPEC.yaml` explicitly carries it forward.
+- Do not promote legacy insight to current claim evidence unless current `PRD.tex`, `RESEARCH_SPINE.yaml`, or RQ-local `SPEC.yaml` explicitly carries it forward.
 
 Insight explains evidence. It does not create evidence.

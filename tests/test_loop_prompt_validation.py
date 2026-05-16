@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
 from research_workflow_helpers import *  # noqa: F403
 
 SHARED_SCRIPT_DIR = REPO_ROOT / "skills" / "research-init" / "_shared" / "scripts"  # noqa: F405
 sys.path.insert(0, str(SHARED_SCRIPT_DIR))
 
 from research_workspace import generate_plan  # noqa: E402
+
+pytestmark = pytest.mark.integration
 
 
 class LoopPromptValidationTests(unittest.TestCase):  # noqa: F405
