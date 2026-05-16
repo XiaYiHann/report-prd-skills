@@ -106,7 +106,7 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
 安装后文件布局：
 
 ```text
-~/.claude/skills/
+~/.agents/skills/      # canonical skill store
   research/            # unified autonomous controller
   research-explore/    # pure exploration
   research-insight/    # evidence-grounded interpretation
@@ -115,10 +115,12 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
   research-goal/       # Vn goal synthesis
   research-audit/      # cross-file consistency audit
 
-~/.claude/skills/      # 内部 compiler module；不是用户入口
+~/.agents/skills/      # 内部 compiler module；不是用户入口
   research-paper/      # scripts only; no SKILL.md
   research-spec/       # scripts only; no SKILL.md
   research-plan/       # scripts only; no SKILL.md
+
+~/.claude/skills -> ~/.agents/skills
 
 ~/.claude/agents/
   research-math.md     research-literature.md  research-reproduce.md
@@ -126,7 +128,7 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
   research-paper.md    research-audit.md
 ```
 
-安装器同时会收敛 `~/.agents/skills` 中由 research-loop 管理的同名入口：可见 skill 和内部 compiler module 会指向 `~/.claude/skills` 的安装真源，`research-prd` 这类 retired 入口会整目录删除。若旧环境中 `~/.claude/skills` 整体指向 `~/.agents/skills`，安装器会先把 `~/.claude/skills` 物化为真实目录，再把 `.agents` 下的 research-loop 入口改成 symlink。这样 Codex/Claude 的技能发现不会继续读到旧的 `research-spec`、`research-plan`、`research-paper` 用户入口。
+安装器以 `~/.agents/skills` 为唯一安装真源，并把 `~/.claude/skills` 整体收敛为指向它的 symlink。`--force` 会先删除 research-loop 管理过的历史入口，再安装当前 manifest；`research-prd`、`research-ppt`、`research-evidence`、`research-writing` 会整目录删除，`research-spec`、`research-plan`、`research-paper` 只保留内部脚本且不得包含 `SKILL.md`。这样 Codex/Claude 的技能发现不会继续读到旧用户入口。
 
 ## Charter-bounded Epoch Research Loop
 

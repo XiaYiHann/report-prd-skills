@@ -192,8 +192,8 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
     @pytest.mark.integration
     def test_installer_installs_skills_and_project_agents_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "claude" / "skills"
-            agents_skills = Path(tmp) / "agents" / "skills"
+            target = Path(tmp) / "agents" / "skills"
+            claude_skills = Path(tmp) / "claude" / "skills"
             project_agents = Path(tmp) / "project" / ".claude" / "agents"
             for old_name in [
                 "report-init",
@@ -205,6 +205,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 "report-brainstorming",
                 "research-writing",
                 "research-evidence",
+                "research-ppt",
             ]:
                 (target / old_name).mkdir(parents=True)
                 (target / old_name / "SKILL.md").write_text("old\n", encoding="utf-8")
@@ -213,13 +214,10 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 (target / module_name / "SKILL.md").write_text("old visible skill\n", encoding="utf-8")
             (target / "research-prd").mkdir(parents=True)
             (target / "research-prd" / "SKILL.md").write_text("old visible skill\n", encoding="utf-8")
-            for name in [*SKILL_NAMES, *INTERNAL_COMPILER_MODULE_NAMES, "research-prd"]:
-                (agents_skills / name).mkdir(parents=True)
-                (agents_skills / name / "SKILL.md").write_text("old agents skill\n", encoding="utf-8")
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
-            env["RESEARCH_LOOP_AGENTS_SKILLS_DIR"] = str(agents_skills)
+            env["RESEARCH_LOOP_CLAUDE_SKILLS_DIR"] = str(claude_skills)
             env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
 
             result = subprocess.run(
@@ -242,11 +240,8 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             self.assertTrue((target / "research-spec" / "scripts" / "validate_research.py").exists())
             self.assertTrue((target / "research-plan" / "scripts" / "generate_research_plan.py").exists())
             self.assertTrue((target / "research-paper" / "scripts" / "generate_research_paper.py").exists())
-            for name in [*SKILL_NAMES, *INTERNAL_COMPILER_MODULE_NAMES]:
-                entry = agents_skills / name
-                self.assertTrue(entry.is_symlink(), name)
-                self.assertEqual(os.readlink(entry), str(target / name))
-            self.assertFalse((agents_skills / "research-prd").exists())
+            self.assertTrue(claude_skills.is_symlink())
+            self.assertEqual(os.readlink(claude_skills), str(target))
             self.assertFalse((target / "report" / "SKILL.md").exists())
             for old_name in [
                 "report-init",
@@ -256,10 +251,10 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 "report-paper",
                 "report-spec",
                 "report-brainstorming",
-                "research-writing",
-                "research-evidence",
             ]:
                 self.assertTrue((target / old_name).exists(), f"non-target legacy file should not be deleted: {old_name}")
+            for retired_name in ["research-prd", "research-ppt", "research-writing", "research-evidence"]:
+                self.assertFalse((target / retired_name).exists(), retired_name)
             self.assertIn("Installed research-loop skills", result.stdout)
             self.assertIn("Installed internal compiler modules", result.stdout)
             self.assertIn("Installed Claude Code subagents", result.stdout)
@@ -277,6 +272,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_LOOP_CLAUDE_SKILLS_DIR"] = str(Path(tmp) / "claude-link" / "skills")
             env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(Path(tmp) / "project" / ".claude" / "agents")
 
             skipped = subprocess.run(
@@ -302,27 +298,28 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 check=False,
             )
             self.assertEqual(overwritten.returncode, 0, overwritten.stdout + overwritten.stderr)
-            self.assertIn("research overwritten", overwritten.stdout)
+            self.assertIn("Removing existing research-loop managed skill entries before reinstall", overwritten.stdout)
             self.assertIn("# research", (existing / "SKILL.md").read_text(encoding="utf-8"))
 
     @pytest.mark.integration
-    def test_installer_materializes_claude_skills_before_agents_link_sync(self) -> None:
+    def test_installer_relinks_claude_skills_to_agents_canonical_store(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             claude_root = Path(tmp) / "claude"
-            target = claude_root / "skills"
-            agents_skills = Path(tmp) / "agents" / "skills"
-            agents_skills.mkdir(parents=True)
+            claude_skills = claude_root / "skills"
+            target = Path(tmp) / "agents" / "skills"
+            target.mkdir(parents=True)
             claude_root.mkdir(parents=True)
-            os.symlink(agents_skills, target)
-            (agents_skills / "local-only-skill").mkdir()
-            (agents_skills / "local-only-skill" / "SKILL.md").write_text("keep\n", encoding="utf-8")
-            for name in [*SKILL_NAMES, *INTERNAL_COMPILER_MODULE_NAMES, "research-prd"]:
-                (agents_skills / name).mkdir(parents=True)
-                (agents_skills / name / "SKILL.md").write_text("old agents skill\n", encoding="utf-8")
+            (claude_skills / "local-only-skill").mkdir(parents=True)
+            (claude_skills / "local-only-skill" / "SKILL.md").write_text("keep\n", encoding="utf-8")
+            for name in [*SKILL_NAMES, *INTERNAL_COMPILER_MODULE_NAMES, "research-prd", "research-ppt"]:
+                (target / name).mkdir(parents=True)
+                (target / name / "SKILL.md").write_text("old agents skill\n", encoding="utf-8")
+            (claude_skills / "research-ppt").mkdir(parents=True)
+            (claude_skills / "research-ppt" / "SKILL.md").write_text("old claude skill\n", encoding="utf-8")
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
-            env["RESEARCH_LOOP_AGENTS_SKILLS_DIR"] = str(agents_skills)
+            env["RESEARCH_LOOP_CLAUDE_SKILLS_DIR"] = str(claude_skills)
             env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(Path(tmp) / "project" / ".claude" / "agents")
 
             result = subprocess.run(
@@ -336,15 +333,18 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             )
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertFalse(target.is_symlink())
+            self.assertTrue(claude_skills.is_symlink())
+            self.assertEqual(os.readlink(claude_skills), str(target))
             self.assertTrue((target / "local-only-skill" / "SKILL.md").exists())
-            for name in [*SKILL_NAMES, *INTERNAL_COMPILER_MODULE_NAMES]:
+            for name in SKILL_NAMES:
                 self.assertTrue((target / name).exists(), name)
-                self.assertTrue((agents_skills / name).is_symlink(), name)
-                self.assertEqual(os.readlink(agents_skills / name), str(target / name))
+                self.assertTrue((target / name / "SKILL.md").exists(), name)
+            for name in INTERNAL_COMPILER_MODULE_NAMES:
+                self.assertTrue((target / name).exists(), name)
+                self.assertFalse((target / name / "SKILL.md").exists(), name)
             self.assertFalse((target / "research-prd").exists())
-            self.assertFalse((agents_skills / "research-prd").exists())
-            self.assertIn("Materialized", result.stdout)
+            self.assertFalse((target / "research-ppt").exists())
+            self.assertIn("Linked", result.stdout)
 
     @pytest.mark.integration
     def test_installer_supports_agents_only_user_agents_and_init_workspace(self) -> None:
@@ -356,6 +356,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_LOOP_CLAUDE_SKILLS_DIR"] = str(Path(tmp) / "claude-link" / "skills")
             env["RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR"] = str(user_agents)
 
             result = subprocess.run(
@@ -395,6 +396,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
+            env["RESEARCH_LOOP_CLAUDE_SKILLS_DIR"] = str(Path(tmp) / "claude-link" / "skills")
             env["RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR"] = str(project_agents)
 
             result = subprocess.run(

@@ -5,8 +5,9 @@ REPO_URL="${RESEARCH_LOOP_REPO_URL:-${RESEARCH_EXECUTION_SKILLS_REPO_URL:-${REPO
 REPO_REF="${RESEARCH_LOOP_REPO_REF:-${RESEARCH_EXECUTION_SKILLS_REF:-${REPORT_PRD_SKILLS_REF:-main}}}"
 CACHE_DIR="${RESEARCH_LOOP_CACHE_DIR:-${HOME}/.claude/research-loop}"
 SOURCE_DIR="${RESEARCH_EXECUTION_SKILLS_SOURCE_DIR:-${RESEARCH_LOOP_SOURCE_DIR:-${REPORT_PRD_SKILLS_SOURCE_DIR:-}}}"
-SKILLS_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${RESEARCH_LOOP_SKILLS_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}}"
 AGENTS_SKILLS_DIR="${RESEARCH_LOOP_AGENTS_SKILLS_DIR:-${AGENTS_SKILLS_DIR:-${HOME}/.agents/skills}}"
+SKILLS_TARGET_DIR="${RESEARCH_EXECUTION_SKILLS_TARGET_DIR:-${RESEARCH_LOOP_SKILLS_DIR:-$AGENTS_SKILLS_DIR}}"
+CLAUDE_SKILLS_LINK="${RESEARCH_LOOP_CLAUDE_SKILLS_DIR:-${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}}"
 PROJECT_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR:-${RESEARCH_LOOP_PROJECT_AGENTS_DIR:-.claude/agents}}"
 USER_AGENTS_TARGET_DIR="${RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR:-${RESEARCH_LOOP_USER_AGENTS_DIR:-${HOME}/.claude/agents}}"
 
@@ -35,6 +36,10 @@ INTERNAL_COMPILER_MODULES=(
 
 RETIRED_SKILL_ENTRIES=(
   research-prd
+  research-ppt
+  research-evidence
+  research-writing
+  research-brainstorming
 )
 
 CLAUDE_SUBAGENTS=(
@@ -53,8 +58,9 @@ usage() {
 Usage: install.sh [options]
 
 Installs the research-loop skill family for Claude Code. By default it installs
-research skills into ~/.claude/skills and user-level subagents into
-~/.claude/agents. It does not initialize docs/research unless requested.
+research skills into ~/.agents/skills, keeps ~/.claude/skills as a symlink to
+that canonical store, and installs user-level subagents into ~/.claude/agents.
+It does not initialize docs/research unless requested.
 
 Options:
   --init-workspace   create the docs/research epoch scaffold
@@ -75,8 +81,9 @@ Environment:
   RESEARCH_LOOP_REPO_REF                    default: main
   RESEARCH_LOOP_CACHE_DIR                   default: ~/.claude/research-loop
   RESEARCH_EXECUTION_SKILLS_SOURCE_DIR      install from local checkout
-  RESEARCH_EXECUTION_SKILLS_TARGET_DIR      default: ~/.claude/skills
-  RESEARCH_LOOP_AGENTS_SKILLS_DIR           default: ~/.agents/skills compatibility links
+  RESEARCH_EXECUTION_SKILLS_TARGET_DIR      default: ~/.agents/skills
+  RESEARCH_LOOP_AGENTS_SKILLS_DIR           default: ~/.agents/skills canonical store
+  RESEARCH_LOOP_CLAUDE_SKILLS_DIR           default: ~/.claude/skills symlink
   RESEARCH_EXECUTION_USER_AGENTS_TARGET_DIR default: ~/.claude/agents
   RESEARCH_EXECUTION_SUBAGENTS_TARGET_DIR   default: ./.claude/agents
 EOF
@@ -213,6 +220,24 @@ remove_retired_skill_entry() {
   remove_managed_skill_path "$SKILLS_TARGET_DIR" "$skill"
 }
 
+remove_retired_skill_entries_from() {
+  local root="$1"
+  for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
+    remove_managed_skill_path "$root" "$retired_skill"
+  done
+}
+
+remove_research_loop_entries_for_reinstall() {
+  local root="$1"
+  for skill in "${SKILLS[@]}"; do
+    remove_managed_skill_path "$root" "$skill"
+  done
+  for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
+    remove_managed_skill_path "$root" "$module"
+  done
+  remove_retired_skill_entries_from "$root"
+}
+
 same_physical_dir() {
   local left="$1"
   local right="$2"
@@ -224,75 +249,53 @@ same_physical_dir() {
   [[ "$(cd "$left" && pwd -P)" == "$(cd "$right" && pwd -P)" ]]
 }
 
-materialize_skills_target_if_agents_backed() {
-  if [[ "$DRY_RUN" == "true" || ! -L "$SKILLS_TARGET_DIR" ]]; then
-    return
-  fi
+migrate_skill_dir_entries() {
+  local source_dir="$1"
+  local dest_dir="$2"
+  [[ -d "$source_dir" && ! -L "$source_dir" ]] || return
 
-  run_mkdir "$AGENTS_SKILLS_DIR"
-  local skills_real
-  local agents_real
-  skills_real="$(cd "$SKILLS_TARGET_DIR" && pwd -P)"
-  agents_real="$(cd "$AGENTS_SKILLS_DIR" && pwd -P)"
-  if [[ "$skills_real" != "$agents_real" ]]; then
-    return
-  fi
-
-  local tmp_dir
-  tmp_dir="$(mktemp -d "${SKILLS_TARGET_DIR}.tmp.XXXXXX")"
-  cp -a "$SKILLS_TARGET_DIR/." "$tmp_dir/"
-  rm "$SKILLS_TARGET_DIR"
-  mv "$tmp_dir" "$SKILLS_TARGET_DIR"
-  log "Materialized $SKILLS_TARGET_DIR as canonical skills directory before .agents compatibility sync"
+  shopt -s nullglob dotglob
+  local entry
+  for entry in "$source_dir"/*; do
+    local name
+    name="$(basename "$entry")"
+    [[ "$name" == "." || "$name" == ".." ]] && continue
+    if [[ ! -e "$dest_dir/$name" && ! -L "$dest_dir/$name" ]]; then
+      mv "$entry" "$dest_dir/$name"
+    fi
+  done
+  shopt -u nullglob dotglob
 }
 
-sync_agents_skill_link() {
-  local name="$1"
-  local source="$SKILLS_TARGET_DIR/$name"
-  local dest="$AGENTS_SKILLS_DIR/$name"
-
+ensure_claude_skills_symlink() {
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY RUN: would link $dest -> $source"
+    log "DRY RUN: would make $CLAUDE_SKILLS_LINK a symlink to $SKILLS_TARGET_DIR"
     return
   fi
 
-  [[ -e "$source" || -L "$source" ]] || die "missing installed skill/module for compatibility link: $name"
-  rm -rf "$dest"
-  ln -s "$source" "$dest"
-  log "$name linked into $AGENTS_SKILLS_DIR"
-}
-
-sync_agents_skill_entries() {
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY RUN: would synchronize research-loop entries in $AGENTS_SKILLS_DIR"
-    for skill in "${SKILLS[@]}"; do
-      sync_agents_skill_link "$skill"
-    done
-    for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
-      sync_agents_skill_link "$module"
-    done
-    for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
-      remove_managed_skill_path "$AGENTS_SKILLS_DIR" "$retired_skill"
-    done
+  if [[ "$CLAUDE_SKILLS_LINK" == "$SKILLS_TARGET_DIR" ]]; then
+    log "Claude skills path is the canonical skills store"
     return
   fi
 
-  run_mkdir "$AGENTS_SKILLS_DIR"
-  AGENTS_SKILLS_DIR="$(cd "$AGENTS_SKILLS_DIR" && pwd)"
-  if same_physical_dir "$AGENTS_SKILLS_DIR" "$SKILLS_TARGET_DIR"; then
-    log "Agent skill compatibility path already resolves to skills target"
-    return
+  mkdir -p "$(dirname "$CLAUDE_SKILLS_LINK")"
+  if [[ -L "$CLAUDE_SKILLS_LINK" ]]; then
+    if [[ "$(readlink -f "$CLAUDE_SKILLS_LINK")" == "$(cd "$SKILLS_TARGET_DIR" && pwd -P)" ]]; then
+      log "$CLAUDE_SKILLS_LINK already points to canonical skills store"
+      return
+    fi
+    rm "$CLAUDE_SKILLS_LINK"
+  elif [[ -e "$CLAUDE_SKILLS_LINK" ]]; then
+    if same_physical_dir "$CLAUDE_SKILLS_LINK" "$SKILLS_TARGET_DIR"; then
+      log "Claude skills path already resolves to canonical skills store"
+      return
+    fi
+    migrate_skill_dir_entries "$CLAUDE_SKILLS_LINK" "$SKILLS_TARGET_DIR"
+    rm -rf "$CLAUDE_SKILLS_LINK"
   fi
 
-  for skill in "${SKILLS[@]}"; do
-    sync_agents_skill_link "$skill"
-  done
-  for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
-    sync_agents_skill_link "$module"
-  done
-  for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
-    remove_managed_skill_path "$AGENTS_SKILLS_DIR" "$retired_skill"
-  done
+  ln -s "$SKILLS_TARGET_DIR" "$CLAUDE_SKILLS_LINK"
+  log "Linked $CLAUDE_SKILLS_LINK -> $SKILLS_TARGET_DIR"
 }
 
 resolve_source_dir() {
@@ -342,10 +345,16 @@ else
 fi
 
 if [[ "$INSTALL_SKILLS" == "true" ]]; then
-  materialize_skills_target_if_agents_backed
   run_mkdir "$SKILLS_TARGET_DIR"
   if [[ "$DRY_RUN" != "true" ]]; then
     SKILLS_TARGET_DIR="$(cd "$SKILLS_TARGET_DIR" && pwd)"
+  fi
+  ensure_claude_skills_symlink
+  if [[ "$FORCE" == "true" ]]; then
+    log "Removing existing research-loop managed skill entries before reinstall"
+    remove_research_loop_entries_for_reinstall "$SKILLS_TARGET_DIR"
+  else
+    remove_retired_skill_entries_from "$SKILLS_TARGET_DIR"
   fi
   log "Installed research-loop skills:"
   for skill in "${SKILLS[@]}"; do
@@ -358,10 +367,7 @@ if [[ "$INSTALL_SKILLS" == "true" ]]; then
   for module in "${INTERNAL_COMPILER_MODULES[@]}"; do
     copy_internal_module "$module"
   done
-  for retired_skill in "${RETIRED_SKILL_ENTRIES[@]}"; do
-    remove_retired_skill_entry "$retired_skill"
-  done
-  sync_agents_skill_entries
+  remove_retired_skill_entries_from "$SKILLS_TARGET_DIR"
 else
   log "Skills installation skipped."
 fi
