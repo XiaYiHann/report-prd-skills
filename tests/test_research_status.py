@@ -39,6 +39,10 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertEqual(payload["current_experiment"]["active_task"]["id"], "T_G0_001")
         self.assertIn("success_criteria", payload["current_experiment"]["active_task"])
         self.assertTrue(payload["next_actions"])
+        self.assertIn("plain_language_summary", payload)
+        self.assertIn("current_state", payload["plain_language_summary"])
+        self.assertIn("T_G0_001", payload["plain_language_summary"]["current_state"])
+        self.assertIn("next_step", payload["plain_language_summary"])
         self.assertIn("loop-ready", payload["validators"])
 
     def test_research_status_markdown_is_concise_and_read_only(self) -> None:
@@ -50,12 +54,34 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("# Research Status", result.stdout)
+        self.assertIn("## Beginner Summary", result.stdout)
+        self.assertIn("missing_or_blocked", result.stdout)
+        self.assertIn("next_step", result.stdout)
         self.assertIn("## Current Goal", result.stdout)
         self.assertIn("## Experiment Progress", result.stdout)
         self.assertIn("## RQ Progress", result.stdout)
         self.assertIn("## Next Actions", result.stdout)
         self.assertIn("T_G0_001", result.stdout)
         self.assertIn("Web search prior work and baselines", result.stdout)
+
+    def test_research_status_blockers_include_repair_and_verify_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_fast(repo)
+            baseline = read_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml")
+            baseline["status"] = "needs_human_review"
+            write_yaml(research_dir / "V0" / "BASELINE_LOCK.yaml", baseline)
+
+            result = run_cmd(["python3", str(STATUS_SCRIPT), "--repo", str(repo), "--json", "--no-validators"])  # noqa: F405
+            payload = json.loads(result.stdout)
+            baseline_blocker = next(item for item in payload["blockers"] if item["type"] == "baseline_lock")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("problem", baseline_blocker)
+        self.assertIn("repair", baseline_blocker)
+        self.assertIn("verify", baseline_blocker)
+        self.assertIn("BASELINE_LOCK.yaml", payload["plain_language_summary"]["missing"])
+        self.assertIn("baseline-lock-ready", payload["plain_language_summary"]["verify"])
 
 
 if __name__ == "__main__":

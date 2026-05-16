@@ -168,6 +168,12 @@ def _blocked_status(status: str) -> bool:
     return status.lower() in {"blocked", "gate_blocked", "failed", "error", "needs_human_review"}
 
 
+def _epoch_ref(version: str, ref: str) -> str:
+    if not version:
+        return ref
+    return f"docs/research/{version}/{ref}"
+
+
 def _dependency_ids(task: dict[str, Any]) -> list[str]:
     return [str(dep) for dep in as_list(task.get("depends_on")) if dep]
 
@@ -325,24 +331,61 @@ def _collect_blockers(
     queue: dict[str, Any],
     baseline: dict[str, Any],
     open_reviews: list[dict[str, Any]],
+    version: str,
 ) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     for task in as_list(queue.get("tasks")):
         if isinstance(task, dict) and _blocked_status(_task_status(task)):
-            blockers.append({"type": "task", "id": _task_id(task), "title": str(task.get("title") or ""), "status": _task_status(task)})
+            task_id = _task_id(task)
+            blockers.append(
+                {
+                    "type": "task",
+                    "id": task_id,
+                    "title": str(task.get("title") or ""),
+                    "status": _task_status(task),
+                    "problem": f"Task `{task_id}` is blocked.",
+                    "repair": f"Inspect `{_epoch_ref(version, 'TASK_QUEUE.yaml')}` and the matching blocker or run report under `{_epoch_ref(version, 'runs/')}`.",
+                    "verify": "Run research-status again; run the task-specific validator or harness named in the task.",
+                }
+            )
     for gate in as_list(queue.get("gates")):
         if isinstance(gate, dict) and _blocked_status(str(gate.get("status") or "")):
-            blockers.append({"type": "gate", "id": str(gate.get("gate_id") or ""), "title": str(gate.get("name") or ""), "status": str(gate.get("status") or "")})
+            gate_id = str(gate.get("gate_id") or "")
+            blockers.append(
+                {
+                    "type": "gate",
+                    "id": gate_id,
+                    "title": str(gate.get("name") or ""),
+                    "status": str(gate.get("status") or ""),
+                    "problem": f"Gate `{gate_id}` is blocked.",
+                    "repair": f"Inspect gate tasks in `{_epoch_ref(version, 'TASK_QUEUE.yaml')}` and audit results under `{_epoch_ref(version, 'audits/')}`.",
+                    "verify": "Run the relevant validator mode, then run research-status again.",
+                }
+            )
     baseline_status = str(baseline.get("status") or "")
     if baseline_status.lower() in {"blocked", "needs_human_review", "failed"}:
-        blockers.append({"type": "baseline_lock", "id": "BASELINE_LOCK.yaml", "title": baseline_status, "status": baseline_status})
+        blockers.append(
+            {
+                "type": "baseline_lock",
+                "id": "BASELINE_LOCK.yaml",
+                "title": baseline_status,
+                "status": baseline_status,
+                "problem": f"`BASELINE_LOCK.yaml` is `{baseline_status}`.",
+                "repair": f"Complete G0 search evidence, update `{_epoch_ref(version, 'baselines/INDEX.yaml')}`, then update `{_epoch_ref(version, 'BASELINE_LOCK.yaml')}` with locked selections or a documented human-reviewed blocker.",
+                "verify": "Run `validate_research.py --mode baseline-lock-ready` and then research-status again.",
+            }
+        )
     for request in open_reviews:
+        request_id = str(request.get("id") or request.get("request_id") or "")
         blockers.append(
             {
                 "type": "human_review",
-                "id": str(request.get("id") or request.get("request_id") or ""),
+                "id": request_id,
                 "title": str(request.get("title") or request.get("reason") or ""),
                 "status": str(request.get("status") or ""),
+                "problem": f"Human review `{request_id or '<unknown>'}` is still open.",
+                "repair": f"Resolve the request in `{_epoch_ref(version, 'HUMAN_REVIEW_REQUESTS.yaml')}` or record the explicit human decision in the referenced artifact.",
+                "verify": "Run research-status again and confirm the review no longer appears as open.",
             }
         )
     return blockers
@@ -402,6 +445,70 @@ def _next_actions(payload: dict[str, Any], queue: dict[str, Any]) -> list[dict[s
     return actions
 
 
+def _plain_language_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    role = str(payload.get("workspace_role") or "")
+    version = str(payload.get("current_version") or "")
+    gate = str(payload.get("current_gate") or "")
+    active = payload.get("active_task") if isinstance(payload.get("active_task"), dict) else {}
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    actions = payload.get("next_actions") if isinstance(payload.get("next_actions"), list) else []
+    baseline_status = str(payload.get("baseline_lock_status") or "")
+    evidence_gate = payload.get("evidence_gate") if isinstance(payload.get("evidence_gate"), dict) else {}
+
+    if role == "meta_framework":
+        return {
+            "current_state": "这是 research-loop 框架仓库；当前没有 repo-local active epoch。",
+            "missing": "具体研究项目需要在下游仓库初始化 `docs/research/`。",
+            "next_step": "在下游项目运行 research-init，或在已有项目运行 research-status。",
+            "verify": "本仓库只验证 framework schema、skills、installer 和 tests。",
+            "read_first": ["README.md", "START_HERE.md", "docs/research/RESEARCH_DIRECTION.md"],
+        }
+    if role == "missing":
+        return {
+            "current_state": "`docs/research/` 不存在。",
+            "missing": "缺少 research workspace。",
+            "next_step": "运行 research-init 创建 workspace。",
+            "verify": "重新运行 research-status。",
+            "read_first": ["START_HERE.md"],
+        }
+    if not version:
+        return {
+            "current_state": "research workspace 存在，但还没有可解析的 active epoch。",
+            "missing": "`CURRENT` 或 `Vn/` epoch 结构不完整。",
+            "next_step": "运行 migration audit 或重新执行 research-init。",
+            "verify": "运行 `validate_research.py --mode epoch-ready`。",
+            "read_first": ["docs/research/RESEARCH_DIRECTION.md", "docs/research/CURRENT"],
+        }
+
+    first_action = actions[0] if actions and isinstance(actions[0], dict) else {}
+    first_blocker = blockers[0] if blockers and isinstance(blockers[0], dict) else {}
+    current_state = f"当前版本 `{version}` 停在 `{gate or 'unknown gate'}`。"
+    if active:
+        current_state += f" Active task 是 `{active.get('id', '')}`：{active.get('title', '')}。"
+
+    if first_blocker:
+        missing = str(first_blocker.get("problem") or first_blocker.get("title") or first_blocker.get("status") or "存在 blocker。")
+        next_step = str(first_blocker.get("repair") or first_action.get("description") or "先修复当前 blocker。")
+        verify = str(first_blocker.get("verify") or "重新运行 research-status。")
+    else:
+        required = evidence_gate.get("next_required_gate") or gate or "next declared gate"
+        missing = f"下一步证据门禁是 `{required}`；baseline lock 当前为 `{baseline_status or 'N/A'}`。"
+        next_step = str(first_action.get("description") or "继续执行 TASK_QUEUE.yaml 中的 active task。")
+        verify = "完成任务后写入 run report，并重新运行 research-status 或对应 validator。"
+
+    return {
+        "current_state": current_state,
+        "missing": missing,
+        "next_step": next_step,
+        "verify": verify,
+        "read_first": [
+            "docs/research/RESEARCH_DIRECTION.md",
+            f"docs/research/{version}/goal.md",
+            f"docs/research/{version}/TASK_QUEUE.yaml",
+        ],
+    }
+
+
 def build_status(research_dir: Path, include_validators: bool = True) -> dict[str, Any]:
     direction = research_dir / "RESEARCH_DIRECTION.md"
     version = current_epoch_name(research_dir)
@@ -430,6 +537,7 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
         "evidence_gate": {},
         "open_human_reviews": [],
         "validators": {},
+        "plain_language_summary": {},
     }
 
     if version:
@@ -491,8 +599,12 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
                 "open_human_reviews": open_reviews,
             }
         )
-        payload["blockers"] = _collect_blockers(queue, baseline, open_reviews)
+        payload["blockers"] = _collect_blockers(queue, baseline, open_reviews, version)
         payload["next_actions"] = _next_actions(payload, queue)
+        payload["plain_language_summary"] = _plain_language_summary(payload)
+
+    if not payload.get("plain_language_summary"):
+        payload["plain_language_summary"] = _plain_language_summary(payload)
 
     if include_validators and research_dir.exists():
         payload["validators"] = _validator_status(research_dir)
@@ -508,6 +620,7 @@ def render_markdown(status: dict[str, Any]) -> str:
     gate = status.get("evidence_gate") if isinstance(status.get("evidence_gate"), dict) else {}
     claim_counts = gate.get("claim_counts") if isinstance(gate.get("claim_counts"), dict) else {}
     validators = status.get("validators") if isinstance(status.get("validators"), dict) else {}
+    beginner = status.get("plain_language_summary") if isinstance(status.get("plain_language_summary"), dict) else {}
 
     lines = [
         "# Research Status",
@@ -517,6 +630,13 @@ def render_markdown(status: dict[str, Any]) -> str:
         f"- current_version: `{status.get('current_version', '') or 'N/A'}`",
         f"- version_status: `{status.get('version_status', '') or 'N/A'}`",
         f"- current_gate: `{status.get('current_gate', '') or 'N/A'}`",
+        "",
+        "## Beginner Summary",
+        f"- current_state: {beginner.get('current_state') or 'N/A'}",
+        f"- missing_or_blocked: {beginner.get('missing') or 'N/A'}",
+        f"- next_step: {beginner.get('next_step') or 'N/A'}",
+        f"- verify: {beginner.get('verify') or 'N/A'}",
+        f"- read_first: {', '.join(beginner.get('read_first') or []) or 'N/A'}",
         "",
         "## Current Goal",
         f"- title: {goal.get('prd_title') or 'N/A'}",
@@ -569,6 +689,12 @@ def render_markdown(status: dict[str, Any]) -> str:
         for item in blockers[:8]:
             if isinstance(item, dict):
                 lines.append(f"- `{item.get('type', '')}:{item.get('id', '')}` {item.get('title') or item.get('status') or ''}")
+                if item.get("problem"):
+                    lines.append(f"  - problem: {item.get('problem')}")
+                if item.get("repair"):
+                    lines.append(f"  - repair: {item.get('repair')}")
+                if item.get("verify"):
+                    lines.append(f"  - verify: {item.get('verify')}")
     else:
         lines.append("- blockers: none")
     if open_reviews:

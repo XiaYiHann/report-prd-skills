@@ -4,6 +4,23 @@
 
 目标不是让 prompt-only 文档替代实验，而是让 agent executor 在 Git-backed epoch 协议下执行任务，并通过 `update_state.py`、run report、artifact hash 和 audit hard gate 留下可验证证据。
 
+## 新手先读
+
+第一次使用不要先背完整协议树。先读 [`START_HERE.md`](START_HERE.md)，只建立五层心智模型：
+
+```text
+Direction -> Goal -> Task Queue -> Evidence/Audit -> Wiki/Closeout
+```
+
+四个最小问题：
+
+1. 我在哪里：本仓库是框架仓库，具体研究应在下游项目的 `docs/research/` 中执行。
+2. 先看哪里：下游项目先看 `docs/research/RESEARCH_DIRECTION.md` 和当前 `Vn/goal.md`。
+3. 先跑什么：用 `research-status` 做只读状态检查，再按 `TASK_QUEUE.yaml` 的 active task 前进。
+4. 卡住看哪里：先看 `research-status` 顶部摘要，再看 `Vn/runs/`、`Vn/audits/` 和 `Vn/HUMAN_REVIEW_REQUESTS.yaml`。
+
+高频术语见 [`GLOSSARY.md`](GLOSSARY.md)。完整设计、schema、门禁和安装说明见下文。
+
 ## 本仓库边界
 
 本仓库是 `research-loop` 元框架仓库，只维护技能、schema、controller、installer、agent policy、测试与文档。仓库自身的 `docs/research/` 只能作为框架方向和 policy/template 说明；不得把本仓库当作具体 project-research 工作区，不得在本仓库绑定真实 dataset、baseline、metric、method、benchmark result、paper claim 或 paper binding。
@@ -110,7 +127,7 @@ RESEARCH_EXECUTION_SKILLS_SOURCE_DIR="$PWD" bash install.sh --force
   research/            # unified autonomous controller
   research-explore/    # pure exploration
   research-insight/    # evidence-grounded interpretation
-  research-status/     # read-only status snapshot
+  research-status/     # read-only experiment progress
   research-update/     # framework skill update and verification
   research-init/       # workspace initialization
   research-goal/       # Vn goal synthesis

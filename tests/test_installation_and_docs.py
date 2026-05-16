@@ -34,6 +34,20 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertGreaterEqual(len(rows), 2)
         self.assertTrue(rows[0].startswith("| [`research`](skills/research/SKILL.md)"), rows[0])
 
+    def test_readme_has_beginner_onboarding_surface(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        start_here = (REPO_ROOT / "START_HERE.md").read_text(encoding="utf-8")
+        glossary = (REPO_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
+
+        self.assertIn("## 新手先读", readme)
+        self.assertIn("START_HERE.md", readme)
+        self.assertIn("GLOSSARY.md", readme)
+        self.assertIn("Direction -> Goal -> Task Queue -> Evidence/Audit -> Wiki/Closeout", readme)
+        self.assertIn("先回答四个问题", start_here)
+        self.assertIn("Beginner Summary", start_here)
+        self.assertIn("## Baseline Lock", glossary)
+        self.assertIn("## Evidence Gate", glossary)
+
     def test_spec_plan_paper_are_documented_as_internal_research_stages(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         research = (REPO_ROOT / "skills" / "research" / "SKILL.md").read_text(encoding="utf-8")
