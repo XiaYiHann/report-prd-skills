@@ -84,11 +84,12 @@ Never interpret `failed_execution` or `failed_harness` as confirmed research fal
 3. Reviewer 只读日志，回答：**该失败是否 contradict 当前 RQ 的核心假设？**
    - 不影响假设，仅场景不适用 → Controller 标记 RQ: `scope_contracted`
    - 轻微削弱假设 → Controller 标记 RQ: `hypothesis_weakened`
-   - 核心假设被 falsified → Controller 标记 RQ: `blocked`，冻结后续所有 dependent RQ
+   - 核心假设被 falsified → Controller 标记 RQ: `blocked`
+  # blocked 只影响该 RQ，不阻塞版本内其他并行 RQ
 
 ### 硬规则
 
 - Worker **不得**自行标记 `blocked` / `completed` / `method_validity`。
 - Controller **不得**在 subagent review 完成前擅自更新 RQ 状态。
-- RQ 进入 `blocked` 时，compounding 链**必须**中断，冻结所有下游 RQ。
+- 一个 RQ 进入 `blocked`**不阻塞**版本内其他 RQ 的继续执行。
 - 方法论文的 stop 条件：**subagent review 结论为 falsified** 或 **人类显式喊停**，不是"失败两次"。

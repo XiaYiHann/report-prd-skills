@@ -5,8 +5,9 @@ direction_ref: ../RESEARCH_DIRECTION.md
 source_prd_hash: null
 
 # RQ-Driven Research Spine
-# 每个 RQ 是一个递进的问题；RQ1 的结论成为 RQ2 的前提（compounding）。
-# Controller 根据 status 和 depends_on 自动调度活跃 RQ。
+# 同一版本（Vn）内的所有 RQ 并行执行，互不阻塞。
+# 版本结束后，insight 通过 wiki/next_version_seed.md 传递，
+# 人类审阅后创建 V_{n+1}，这就是 compounding。
 # 详见 PIPELINE.md §2-§3。
 
 research_questions:
@@ -15,13 +16,6 @@ research_questions:
     status: draft
     # RQ 生命周期：draft → g0_search → g1_reproduce → g2_harness → g3_experiment
     #              → evidence_sufficient → completed | scope_contracted | hypothesis_weakened | blocked
-    depends_on: []
-    # 空列表 = root RQ，无需前置结论即可启动。
-    # 非空列表 = compounding 输入；仅当所有前置 RQ 为 completed 时才激活。
-    output_claim: null
-    # RQ01 完成后得出的核心结论（一句话），自动成为 RQ02 的前提。
-    next_rq_trigger: null
-    # 激活下一个 RQ 的条件，例如 "RQ01 evidence_sufficient and claim validated"
     rq_dir: rqs/RQ01
     spec_ref: rqs/RQ01/SPEC.yaml
     plan_ref: rqs/RQ01/PLAN.md
@@ -31,13 +25,10 @@ research_questions:
       g2_harness: draft   # 实验框架构建状态
       g3_experiments: []  # 实验记录列表，见下方示例
 
-  # 示例：第二个 RQ（compounding 依赖 RQ01）
+  # 示例：同一版本内的第二个并行 RQ
   # - id: RQ02
-  #   text: "【待填写：依赖 RQ01 结论的下一个问题】"
-  #   status: pending
-  #   depends_on: [RQ01]
-  #   output_claim: null
-  #   next_rq_trigger: null
+  #   text: "【待填写：与 RQ01 并行的另一个问题】"
+  #   status: draft
   #   rq_dir: rqs/RQ02
   #   spec_ref: rqs/RQ02/SPEC.yaml
   #   plan_ref: rqs/RQ02/PLAN.md
