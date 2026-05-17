@@ -15,6 +15,18 @@ paper_type: method
 # - benchmark: releases a dataset or evaluation protocol.
 # - survey: synthesizes existing literature.
 
+# Method Paper Claim Protection (单一真源)
+# 当 paper_type = method 时，以下规则自动生效：
+method_paper_protections:
+  # RQ 失败 ≠ 方法失败
+  rq_failure_scope: "rq_state_update_only"
+  # 只有 subagent review 确认核心假设被 falsified，或人类显式喊停，才能停止方法验证
+  stop_condition: "subagent_falsified_or_human_stop"
+  # 负结果必须进入 wiki 作为 first-class insight，不得丢弃
+  negative_result_policy: "first_class_wiki_entry"
+  # 禁止从单个 RQ 的失败推断方法整体无效，禁止将 method 降级为 finding
+  claim_downgrade_protection: true
+
 tdd_required:
   enabled: true
   # For ALL paper types. L0 (static) -> L1 (deterministic) -> L2 (smoke) -> L3 (full).

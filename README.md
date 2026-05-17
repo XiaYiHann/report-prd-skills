@@ -406,20 +406,17 @@ Paper Binding 只能在当前版本 `status=closed_stable` 或 `paper_binding_re
 
 ## Subagent Policy
 
-Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML frontmatter 的 Markdown 文件：
+Claude Code project-level subagents 安装在 `.claude/agents/`，但框架只识别 **3 个角色**：
 
-| Subagent | 职责 |
-|----------|------|
-| `research-math` | 数学公式、符号检查 |
-| `research-literature` | 文献搜索、baseline 分析 |
-| `research-reproduce` | 复现 baseline |
-| `research-coding` | 实现方法代码 |
-| `research-experiment` | 运行声明实验 |
-| `research-analysis` | 结果分析、异常检测、pivot 提案 |
-| `research-paper` | 论文 placeholder 安全更新 |
-| `research-audit` | 跨文件一致性检查 |
+| 角色 | 职责 | 典型 subagent 名 |
+|------|------|-----------------|
+| **Controller** | 读 `RESEARCH_SPINE.yaml` + `STATUS.yaml`，调度任务，管理状态，spawn Worker / Reviewer | `/research` |
+| **Worker** | 执行分配任务（coding / experiment / analysis / literature / math），产出证据 | `research-coding`, `research-experiment`, `research-literature`, `research-math` 等 |
+| **Reviewer** | 按需 spawn，只读日志，判断失败是否影响 RQ 核心假设，不产出代码 | `research-audit`（当用作 reviewer 时） |
 
-主 agent（`/research` controller）始终负责：状态推进、gate 判定、active task 执行、wiki/closeout。
+所有 specialist subagent 都是 **Worker 角色的特化**，不是独立角色。Controller 不区分"哪个 subagent"，只给 bounded goal："对 RQ01 执行 L3 实验"或"审查 RQ02 的 failure_report"。
+
+主 agent（`/research` controller）始终负责：状态推进、gate 判定、spawn Worker/Reviewer、wiki/closeout。
 
 在 goal mode 中，subagent 是优先执行路径，不是可有可无的装饰。`prefer_subagents`: 优先使用 subagent 执行 literature、reproduction、coding、experiment、analysis、math、paper、audit 等 bounded specialist work；除非任务过小、没有匹配 subagent、或下一步被主 controller 的状态更新阻塞，否则不要把这些工作全部留在主会话内完成。main controller remains responsible for state updates、gate decisions、final evidence admission、`update_state.py`、`TASK_QUEUE.yaml` 与 `STATUS.yaml`。subagent 的输出必须列出命令、改动文件、artifact/hash 与残余 blocker；prompt-only subagent note 不能充当实验或 claim evidence。
 

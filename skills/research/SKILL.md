@@ -105,9 +105,9 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 
   使用 docs/research/{CURRENT}/goal.md 作为目标输入。
 
-目标模式以 `TASK_QUEUE.yaml` 为调度真源，并以 `goal.md` 中的 dependency graph 判断 runnable task set。
-默认串行推进当前 active task；若执行器支持并行、依赖已满足且文件范围不冲突，可并行推进正交 runnable tasks。
-遇到 blocker 时只冻结依赖该 blocker 的后继分支；遇到 stale lock、human review、gate_blocked、closed_* 或无可运行任务时停止。
+目标模式以 `RESEARCH_SPINE.yaml` 为 RQ 调度真源，`rqs/RQxx/TASKS.yaml` 为 per-RQ 任务列表。
+所有非终态 RQ 并行推进；每个 RQ 在自己的 g0-g3 生命周期轨道上独立运行，互不阻塞。
+遇到 RQ-level blocker 时只冻结该 RQ，其他 RQ 继续；遇到版本级 stale lock、human review、gate_blocked、closed_* 或所有 RQ 到达终态时停止。
 ```
 
 若当前已处于目标模式迭代中，则跳过此提示，直接进入执行流程。
@@ -149,6 +149,68 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - **Document-writing vs Execution autonomy boundary**:
   - When writing, editing, or compiling research documents (PRD, SPEC, PLAN, RESEARCH_SPINE, ai_loop_prompt.md, goal.md, CODEX_GOAL_TEMPLATE.md), if user intent is unclear, contradictory, or a decision would change the research direction, core hypothesis, baseline selection, metric choice, or evidence boundary: **stop and ask the user before proceeding**. Do not choose the most convenient interpretation.
   - When executing the active task (running experiments, writing implementation code, running harnesses, collecting artifacts, running tests, reproducing baselines): **do not stop to ask for preference clarification**. Proceed autonomously. Record blockers only for missing required information (dataset paths, commands, seeds, artifacts), not for ambiguous design choices.
+
+## RQ-Parallel Controller Execution Loop
+
+Controller 的核心循环已改为 **RQ-并行模式**（取代旧的单任务队列串行模式）：
+
+```
+while True:
+    1. 读取 `Vn/RESEARCH_SPINE.yaml` 的 `research_questions[]`
+    2. 对每个 RQ：
+       - 若 status 为终态（completed / blocked / scope_contracted / hypothesis_weakened）→ 跳过
+       - 若 evidence_state.g3_experiments 中有 `status: active` → 跳过（已有 Worker 在执行）
+       - 若 evidence_state.g3_experiments 为空或全部完成 → 检查 pre_flight 是否通过
+       - pre_flight 通过 → spawn Worker，绑定 bounded_goal："RQXX g3_experiment: [具体实验描述]"
+    3. 收集所有 running Worker 的产出：
+       - 成功 → 更新该 RQ 的 evidence_state，标记实验 completed
+       - 失败 → Worker 产出 failure_report → Controller 判断 code_bug vs method_related
+         - code_bug → 修代码，重跑（RQ 状态不变）
+         - method_related → spawn Reviewer（只读日志）
+           Reviewer 结论 → Controller 更新 RQ 状态
+    4. 若所有 RQ 都到达终态：
+       - 触发版本 closeout：Agent 汇总 wiki/
+       - 等待人类审阅
+       - 人类确认后，创建 V_{n+1} 或 paper binding
+       - break
+    5. 若遇到版本级 blocker（stale lock / human review / gate_blocked / closed_*）→ break，等待人类
+```
+
+### 关键变化
+
+| 旧模式 | 新模式 |
+|--------|--------|
+| 调度真源：`TASK_QUEUE.yaml` | 调度真源：`RESEARCH_SPINE.yaml` |
+| 串行推进一个 active task | 并行推进所有非终态 RQ |
+| `TASK_QUEUE.yaml` 管理全局任务状态 | `TASK_QUEUE.yaml` 降级为 per-RQ 的 `rqs/RQxx/TASKS.yaml` |
+| 一个 task blocked 冻结全局 | 一个 RQ blocked 只冻结该 RQ |
+
+### Worker spawn 契约
+
+Controller 给 Worker 的 bounded_goal 格式：
+
+```
+You are a Worker. Execute the following task for RQ01:
+- Task: g3_experiment / e1_solver_smoke
+- Pre-flight: V0/scripts/pre_flight.sh passed
+- SPEC: V0/rqs/RQ01/SPEC.yaml
+- PLAN: V0/rqs/RQ01/PLAN.md
+- Do NOT modify STATUS.yaml, RESEARCH_SPINE.yaml, or PAPER_TYPE.yaml.
+- On failure: HALT immediately, produce failure_report, return to Controller.
+```
+
+### Reviewer spawn 契约
+
+Controller 给 Reviewer 的 bounded_goal 格式：
+
+```
+You are a Reviewer. Read-only audit:
+- RQ: RQ01
+- Failure report: V0/runs/TASK_001_review_package/
+- Question: Does this failure contradict RQ01's core hypothesis?
+- Do NOT write code. Do NOT modify any files.
+- Output: one of {no_impact, scope_contraction, hypothesis_weakened, falsified}
+```
 
 ## Internal Compiler Pipeline
 
