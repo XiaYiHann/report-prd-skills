@@ -67,6 +67,11 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("idea/spec defect", docs)
         self.assertIn("TASK_XXX_blocker.md", docs)
         self.assertIn("正交 runnable tasks", docs)
+        self.assertIn("repair-then-execute", docs)
+        self.assertIn("latest approved design source", docs)
+        self.assertIn("do not stop after a repair-only pass", docs)
+        self.assertIn("Subagent Execution Contract", docs)
+        self.assertIn("main controller remains responsible for state updates", docs)
         for forbidden in [
             "当前下一步",
             "current-next-step",

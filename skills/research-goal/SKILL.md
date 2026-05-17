@@ -42,10 +42,11 @@ Read in order:
 - blocked / failed tasks must first enter code-review-first triage so the executor can distinguish implementation or harness defects from idea/spec defects before declaring the branch genuinely blocked;
 - `goal.md` must include a `## Blocked Task Triage Review` section that records the code-review-first triage rule, review order, and classification rule for blocked tasks;
 - blocked / failed tasks must emit `runs/TASK_XXX_blocker.md` with the triage conclusion, reviewed evidence, and recovery decision before gate-blocked handoff;
+- `goal.md` must include a `## Drift Repair Then Execute Policy` section with `repair_then_execute`: when drift can be repaired against a single latest approved design source, repair stale contracts first, run `goal-ready` after the drift repair, and do not stop after a repair-only pass; continue executing the runnable task set until all goal tasks complete or a true human-owned blocker remains;
 - baseline decisions come from `BASELINE_LOCK.yaml` and `baselines/INDEX.yaml`;
 - no fabricated data, stdout/stderr, artifact, hash, citation, or paper result;
 - stop conditions for stale contracts, blocked gates, human review, closeout, and Paper Binding;
-- subagent dispatch rules for literature, reproduction, coding, experiment, analysis, paper, and audit work.
+- `goal.md` must include a `## Subagent Execution Contract` section: dispatch literature, reproduction, coding, experiment, analysis, math, paper, and audit work to the corresponding subagent when useful, while the main controller remains responsible for state updates, gate decisions, and evidence admission.
 
 `GOAL_LOCK.yaml` records:
 

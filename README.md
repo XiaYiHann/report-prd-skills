@@ -421,6 +421,8 @@ Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML fr
 
 主 agent（`/research` controller）始终负责：状态推进、gate 判定、active task 执行、wiki/closeout。
 
+在 goal mode 中，subagent 是执行加速器，不是状态控制器。主 controller 可以把 literature、reproduction、coding、experiment、analysis、math、paper、audit 等 bounded subtask 分派给对应 subagent，但 main controller remains responsible for state updates、gate decisions、final evidence admission、`update_state.py`、`TASK_QUEUE.yaml` 与 `STATUS.yaml`。subagent 的输出必须列出命令、改动文件、artifact/hash 与残余 blocker；prompt-only subagent note 不能充当实验或 claim evidence。
+
 ## Search and Evidence Acquisition Policy
 
 Search is a hard evidence-acquisition step, not a writing aid. 新 epoch 默认先执行 `G0_SEARCH_LOCK`，在该 gate 内完成 raw search logs、curated `baselines/INDEX.yaml` 和 version-level `BASELINE_LOCK.yaml`，再执行 `G1_REPRODUCTION_LOCK`；proposed-method experiment 不能在 search、baseline lock 和 reproduction early gates resolved 之前成为 active task，除非存在明确 human waiver 和 audit 记录。
@@ -613,6 +615,8 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 ### Goal Mode 自动循环
 
 Codex 与 Claude Code 均以当前版本的 `goal.md` 作为长程目标输入，以 `GOAL_LOCK.yaml` 校验目标是否仍匹配当前 PRD、Spine、RQ-local contracts、Task Queue、Evidence Gate 与状态文件。目标模式不引入独立循环插件；每轮执行以 `TASK_QUEUE.yaml` 为调度真源，默认串行推进当前 active task，但可在 `goal.md` 标出的 `runnable_parallel_set` 内并行推进正交且文件范围不冲突的任务。单个 blocker 只冻结显式依赖它的后继任务；当 task 卡住时，必须先做 code-review-first triage 再决定 repair、pivot 或 human review。不相关 runnable tasks 应继续执行，直到 stale lock、human review、gate_blocked、closeout 或无可运行任务。
+
+Goal mode 的默认语义是 repair-then-execute，而不是 drift-only audit。若执行前发现合同漂移，executor 必须先判断是否存在单一的 latest approved design source；若存在且修复不会改变 research direction、核心假设、baseline、metric、dataset 或 evidence boundary，则先修复 stale secondary contracts、刷新 `goal.md` / `GOAL_LOCK.yaml`、运行 `goal-ready`，随后继续执行 runnable task set。do not stop after a repair-only pass；只有不可自动修复的人类决策点、无 runnable unblocked task、`gate_blocked` 或 `closed_*` 才是合法停止条件。
 
 ### 执行 Backend / Agent Executor
 

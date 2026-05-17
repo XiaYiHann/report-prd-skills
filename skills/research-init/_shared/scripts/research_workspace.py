@@ -1895,6 +1895,19 @@ Read:
 - If this goal requires **writing or modifying PRD, SPEC, PLAN, RESEARCH_SPINE, or goal.md**, and you encounter ambiguity about the user's intent, contradictory requirements, or a scope/hypothesis/methodology decision: **stop and ask the user** before proceeding. Record the ambiguity in `HUMAN_REVIEW_REQUESTS.yaml`.
 - If this goal requires **implementation or experiment execution** (code, harness, test, artifact collection), proceed autonomously. Do not ask for preference clarification. Record blockers only for missing required files or commands.
 
+## Repair Then Execute
+
+- Use repair-then-execute when drift has a single latest approved design source.
+- Repair stale secondary contracts, refresh `goal.md` / `GOAL_LOCK.yaml`, run `goal-ready` after the drift repair, then continue the runnable task set.
+- do not stop after a repair-only pass.
+- Stop only for a human-owned decision, no runnable unblocked task, `gate_blocked`, or `closed_*`.
+
+## Subagent Execution Contract
+
+- Delegate bounded specialist work to the relevant project subagent when useful.
+- The main controller remains responsible for state updates, gate decisions, evidence admission, and `update_state.py`.
+- Subagent output must list commands, changed files, artifacts/hashes when applicable, and residual blockers.
+
 ## Validation
 
 Run:
@@ -3121,6 +3134,14 @@ active_task_source: TASK_QUEUE.yaml
 
 {blocked_triage}
 
+## Drift Repair Then Execute Policy
+
+- repair_then_execute: contract drift, stale lock files, outdated RQ-local contracts, and cross-file inconsistency are execution prerequisites, not terminal deliverables, when a single latest approved design source can be identified.
+- latest approved design source: use the current human instruction, human-approved `PRD.tex`, RQ-local `SPEC.yaml` / `PLAN.md` / `TASKS.yaml`, `TASK_QUEUE.yaml`, and `EVIDENCE_GATE.yaml` only when they agree on the same evidence boundary. If they conflict on research direction, core hypothesis, baseline, metric, dataset, or claim admission, request human review.
+- drift_repair_scope: update stale secondary contracts, refresh `goal.md` / `GOAL_LOCK.yaml`, and write a drift repair note or run report before execution; do not treat the repair itself as completing the research task.
+- validation_after_repair: run `goal-ready` after the drift repair, then continue executing the runnable task set from `TASK_QUEUE.yaml`.
+- completion_rule: do not stop after a repair-only pass; continue executing the runnable task set until all goal tasks are completed, a closed status is reached, or no runnable unblocked task remains without a human-owned decision.
+
 ## 执行目标
 
 把当前 `{version}` 从现有 gate 状态推进到明确终态：`closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable` 或 `paper_bound`。如果遇到缺失信息、复现失败、证据不足或人工决策点，必须显式写入 blocker，而不是继续扩写叙事。
@@ -3163,8 +3184,10 @@ active_task_source: TASK_QUEUE.yaml
 - 所有未完成 task 都不再 runnable，或剩余任务全部依赖已阻塞分支、缺失证据或显式人工决策；此时停止等待人类接管。
 - 需要新增 `Vn+1`，但当前版本尚未 closeout。
 
-## 子智能体调度
+## Subagent Execution Contract
 
+- main controller remains responsible for state updates, gate decisions, final evidence admission, `update_state.py`, `LOOP_LOG.md`, `TASK_QUEUE.yaml`, `STATUS.yaml`, and `GOAL_LOCK.yaml`.
+- Delegate bounded specialist work to subagents when the active task naturally matches a role; assign concrete `allowed_files`, expected artifacts, and validation commands, then review and integrate their result before state update.
 - literature / benchmark / baseline selection -> `research-literature`
 - baseline reproduction -> `research-reproduce`
 - method or harness implementation -> `research-coding`
@@ -3172,7 +3195,8 @@ active_task_source: TASK_QUEUE.yaml
 - analysis / anomaly / pivot -> `research-analysis`
 - math or formulation -> `research-math`
 - paper placeholder update -> `research-paper`
-- cross-file consistency and gate check -> `research-audit`
+- cross-file consistency, drift repair review, and gate check -> `research-audit`
+- A subagent report is evidence only when it names commands, changed files, artifacts, hashes when applicable, and residual blockers; prompt-only subagent notes cannot satisfy experiment evidence.
 
 ## 最终回复要求
 
@@ -10081,6 +10105,12 @@ def validate_goal_ready(research_dir: Path) -> Validation:
         "code-review-first triage",
         "implementation defect",
         "idea/spec defect",
+        "Drift Repair Then Execute Policy",
+        "repair_then_execute",
+        "latest approved design source",
+        "do not stop after a repair-only pass",
+        "Subagent Execution Contract",
+        "main controller remains responsible for state updates",
     ]:
         if required not in goal_text:
             validation.error(f"goal.md missing dependency-aware scheduling clause: {required}")
