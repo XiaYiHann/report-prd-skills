@@ -1025,6 +1025,68 @@ def epoch_active_task_id(queue: dict[str, Any]) -> str | None:
     return str(active[0].get("task_id") or active[0].get("id") or "") or None
 
 
+def _is_rq_final(status: str) -> bool:
+    """Check if RQ status is terminal."""
+    return status in {"completed", "blocked", "scope_contracted", "hypothesis_weakened"}
+
+
+def _rq_evidence_state_summary(evidence_state: dict[str, Any]) -> dict[str, Any]:
+    """Summarize RQ evidence_state into human-readable progress."""
+    g0 = evidence_state.get("g0_search", "draft")
+    g1 = evidence_state.get("g1_reproduce", "draft")
+    g2 = evidence_state.get("g2_harness", "draft")
+    g3_list = as_list(evidence_state.get("g3_experiments"))
+    g3_done = sum(1 for e in g3_list if str(e.get("status")) == "completed")
+    g3_total = len(g3_list)
+    g3_active = any(str(e.get("status")) == "active" for e in g3_list)
+    return {
+        "g0": g0,
+        "g1": g1,
+        "g2": g2,
+        "g3_completed": g3_done,
+        "g3_total": g3_total,
+        "g3_active": g3_active,
+    }
+
+
+def _scan_research_spine(epoch_dir: Path) -> dict[str, Any]:
+    """Read RESEARCH_SPINE.yaml and return all RQs with their scheduling status."""
+    spine_path = epoch_dir / "RESEARCH_SPINE.yaml"
+    if not spine_path.exists():
+        return {"has_spine": False, "rqs": []}
+    spine = load_yaml(spine_path)
+    rqs = []
+    for item in as_list(spine.get("research_questions")):
+        if not isinstance(item, dict):
+            continue
+        rq_id = str(item.get("id") or "")
+        status = str(item.get("status") or "draft")
+        evidence_state = item.get("evidence_state", {})
+        summary = _rq_evidence_state_summary(evidence_state)
+        runnable = (
+            not _is_rq_final(status)
+            and summary["g0"] not in {"draft", "pending"}
+            and summary["g1"] not in {"draft", "pending"}
+            and summary["g2"] not in {"draft", "pending"}
+            and not summary["g3_active"]
+        )
+        rqs.append({
+            "id": rq_id,
+            "status": status,
+            "text": str(item.get("text") or "")[:60],
+            "runnable": runnable,
+            "evidence_summary": summary,
+            "rq_dir": str(item.get("rq_dir") or f"rqs/{rq_id}"),
+        })
+    return {
+        "has_spine": True,
+        "rqs": rqs,
+        "runnable_count": sum(1 for r in rqs if r["runnable"]),
+        "final_count": sum(1 for r in rqs if _is_rq_final(r["status"])),
+        "active_count": sum(1 for r in rqs if r["evidence_summary"]["g3_active"]),
+    }
+
+
 def write_epoch_status(epoch_dir: Path, status_value: str, dry_run: bool, dry_run_writes: list[str], repo: Path) -> None:
     status_path = epoch_dir / "STATUS.yaml"
     if dry_run:
@@ -1238,13 +1300,15 @@ def epoch_contract_summary(research_dir: Path, repo: Path, args: argparse.Namesp
 
     status = load_yaml(epoch_dir / "STATUS.yaml")
     queue = load_yaml(epoch_dir / "TASK_QUEUE.yaml")
+    spine_scan = _scan_research_spine(epoch_dir)
     workspace = epoch_rel(repo, research_dir)
-    return {
+    result = {
         "controller_mode": "epoch_contract",
         "workspace": workspace,
         "current_version": version,
         "status": status.get("status"),
         "active_task": epoch_active_task_id(queue),
+        "active_rqs": spine_scan,
         "blocked": status.get("status") == "gate_blocked",
         "actions": actions,
         "dry_run_writes": dry_run_writes,
@@ -1252,10 +1316,12 @@ def epoch_contract_summary(research_dir: Path, repo: Path, args: argparse.Namesp
         "execution_backend": {
             "mode": "codex_or_claude_code_agent",
             "implemented": True,
-            "note": "Agent executor contract; /research owns internal Spec/Plan/Paper compiler passes and validates gates without running experiment harnesses.",
+            "note": "Agent executor contract; /research owns internal Spec/Plan/Paper compiler passes and validates gates without running experiment harnesses. RQ-parallel scheduling via RESEARCH_SPINE.yaml.",
         },
         "task_queue": (epoch_dir / "TASK_QUEUE.yaml").as_posix(),
+        "research_spine": (epoch_dir / "RESEARCH_SPINE.yaml").as_posix(),
     }
+    return result
 
 
 def parse_args() -> argparse.Namespace:

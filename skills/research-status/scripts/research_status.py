@@ -380,9 +380,22 @@ def _rq_progress(epoch_dir: Path, spine: dict[str, Any]) -> list[dict[str, Any]]
             if isinstance(task, dict) and _task_status(task).lower() in {"active", "ready", "pending"}:
                 next_task = _summarize_task(task)
                 break
+        # Read evidence_state from RESEARCH_SPINE.yaml (new RQ-driven model)
+        evidence_state = rq.get("evidence_state", {}) if isinstance(rq.get("evidence_state"), dict) else {}
+        g0 = evidence_state.get("g0_search", "draft")
+        g1 = evidence_state.get("g1_reproduce", "draft")
+        g2 = evidence_state.get("g2_harness", "draft")
+        g3_list = as_list(evidence_state.get("g3_experiments"))
+        g3_done = sum(1 for e in g3_list if str(e.get("status")) == "completed")
+        g3_total = len(g3_list)
+        g3_active = any(str(e.get("status")) == "active" for e in g3_list)
+        rq_status = str(rq.get("status") or "draft")
+        is_final = rq_status in {"completed", "blocked", "scope_contracted", "hypothesis_weakened"}
         progress.append(
             {
                 "id": rq_id,
+                "status": rq_status,
+                "is_final": is_final,
                 "statement": _clean_scalar(
                     research_question.get("statement")
                     or rq.get("text")
@@ -404,6 +417,12 @@ def _rq_progress(epoch_dir: Path, spine: dict[str, Any]) -> list[dict[str, Any]]
                     "baselines": [str(item) for item in as_list(experiment_contract.get("baselines"))],
                     "metrics": [str(item) for item in as_list(experiment_contract.get("metrics"))],
                     "harnesses": [str(item) for item in as_list(experiment_contract.get("harnesses"))],
+                },
+                "evidence_state": {
+                    "g0_search": g0,
+                    "g1_reproduce": g1,
+                    "g2_harness": g2,
+                    "g3_experiments": {"completed": g3_done, "total": g3_total, "active": g3_active},
                 },
             }
         )
@@ -798,11 +817,17 @@ def render_markdown(status: dict[str, Any]) -> str:
                 continue
             counts = item.get("task_counts") if isinstance(item.get("task_counts"), dict) else {}
             next_task = item.get("next_task") if isinstance(item.get("next_task"), dict) else {}
+            evidence_raw = item.get("evidence_state")
+            evidence: dict[str, Any] = evidence_raw if isinstance(evidence_raw, dict) else {}
+            g3_raw = evidence.get("g3_experiments")
+            g3: dict[str, Any] = g3_raw if isinstance(g3_raw, dict) else {}
+            status_icon = "✓" if item.get("is_final") else "▶" if g3.get("active") else "○"
             lines.append(
-                f"- `{item.get('id', '')}` {item.get('statement') or 'N/A'} "
-                f"(approval={item.get('approval_status') or 'N/A'}, tasks={counts.get('total', 0)}, "
-                f"active={counts.get('active', 0)}, done={counts.get('done', counts.get('completed', 0))}, "
-                f"next={next_task.get('id') or 'N/A'})"
+                f"- {status_icon} `{item.get('id', '')}` {item.get('statement') or 'N/A'} "
+                f"(status={item.get('status') or 'draft'}, "
+                f"g0={evidence.get('g0_search', 'draft')}, g1={evidence.get('g1_reproduce', 'draft')}, g2={evidence.get('g2_harness', 'draft')}, "
+                f"g3={g3.get('completed', 0)}/{g3.get('total', 0)}, "
+                f"tasks={counts.get('total', 0)}, next={next_task.get('id') or 'N/A'})"
             )
     else:
         lines.append("- none")
