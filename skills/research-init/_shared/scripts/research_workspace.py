@@ -5084,9 +5084,28 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(agent_dir / "GIT_POLICY.md", markdown_template(git_policy_template()), force)
 
     epoch_dir = research_dir / version
-    for dirname in ["plans", "runs", "artifacts", "audits", "search", "baselines", "reproduction", "rqs", "wiki"]:
+    for dirname in ["plans", "runs", "artifacts", "audits", "search", "baselines", "reproduction", "rqs", "wiki", "scripts"]:
         (epoch_dir / dirname).mkdir(parents=True, exist_ok=True)
     prd_tex = epoch_dir / "PRD.tex"
+    # Copy pre_flight.sh template into epoch scripts/
+    templates_dir = Path(__file__).resolve().parent.parent / "templates"
+    pre_flight_template = templates_dir / "pre_flight.sh"
+    if pre_flight_template.exists():
+        write_text(epoch_dir / "scripts" / "pre_flight.sh", pre_flight_template.read_text(), force)
+    else:
+        write_text(epoch_dir / "scripts" / "pre_flight.sh", "#!/usr/bin/env bash\n# pre_flight.sh template not found; copy from skills/research-init/_shared/templates/\n", force)
+    for path in [
+        epoch_dir / "plans" / ".gitkeep",
+        epoch_dir / "runs" / ".gitkeep",
+        epoch_dir / "artifacts" / ".gitkeep",
+        epoch_dir / "audits" / ".gitkeep",
+        epoch_dir / "search" / ".gitkeep",
+        epoch_dir / "baselines" / ".gitkeep",
+        epoch_dir / "reproduction" / ".gitkeep",
+        epoch_dir / "rqs" / ".gitkeep",
+        epoch_dir / "scripts" / ".gitkeep",
+    ]:
+        write_text(path, "", force)
     write_text(prd_tex, research_prd_tex(title, purpose), force)
     render_pdf_from_tex(prd_tex, epoch_dir / "PRD.pdf", force)
     write_text(epoch_dir / "PRD_SUMMARY.md", markdown_template(epoch_prd_summary_template(version, title, purpose)), force)

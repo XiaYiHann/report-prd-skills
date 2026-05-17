@@ -9,7 +9,7 @@ description: "Use when a research workspace under docs/research needs the defaul
 
 `research` is the unified epoch contract controller for Codex / Claude Code agent executors.
 
-It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and owns the bounded research lifecycle through Direction, PRD, internal Spec compilation, internal Plan compilation, Task Queue, Next Action, execution, gate, insight interpretation, wiki, closeout, paper draft, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute `TASK_QUEUE.yaml` active task as the agent executor and must submit structured evidence with `update_state.py`.
+It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and owns the bounded research lifecycle through Direction, PRD, internal Spec compilation, internal Plan compilation, RQ Spine, Next Action, execution, gate, insight interpretation, wiki, closeout, paper draft, and paper binding. It does not provide an independent resident backend; Codex / Claude Code execute per-RQ tasks from `rqs/RQxx/TASKS.yaml` as the agent executor and must submit structured evidence with `update_state.py`. `Vn/TASK_QUEUE.yaml` remains as a global aggregated view of all RQ tasks for compatibility, but the scheduling truth source is `RESEARCH_SPINE.yaml`.
 
 新版系统是 **Charter-bounded + Git-backed + Explore-enabled Epoch Research Loop**：
 
@@ -28,8 +28,9 @@ It inspects `docs/research/`, resolves the current epoch from `CURRENT`, and own
 `Vn/rqs/RQxx/PLAN.md` schedules RQ-local evidence generation.
 `Vn/rqs/RQxx/INSIGHT_REVIEW.yaml` records the AI draft and the human verdict; only human-reviewed insights can become durable wiki knowledge.
 `Vn/reproduction/REPRODUCTION_LEDGER.yaml` records reusable reproduction assets, compatibility audits, delta checks, and borrowed experiment designs across RQs.
-`Vn/TASK_QUEUE.yaml` defines available work.  
-The active task from `Vn/TASK_QUEUE.yaml` defines the current loop task.  
+`Vn/RESEARCH_SPINE.yaml` defines the RQ set and their evidence states.
+Per-RQ `rqs/RQxx/TASKS.yaml` defines the runnable task list for each RQ.
+The active RQs are all non-final entries in `RESEARCH_SPINE.yaml.research_questions[]`.
 `Vn/GIT_STATE.yaml` records Git checkpoints.  
 `docs/research/explore/` records pure exploration sessions.  
 Runs and artifacts provide evidence.  
@@ -94,8 +95,8 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 读完上述文件后，检查是否满足目标模式执行条件。若以下条件**全部满足**，且当前不是由 Codex / Claude Code 目标模式驱动的一次执行迭代，则**仅输出目标模式启动建议，不执行任何任务**：
 
 - `STATUS.yaml.status` 为 `prd_locked`、`spec_ready`、`plan_ready` 或 `running`
-- `TASK_QUEUE.yaml` 中有 `status: active` 或 `status: pending` 的任务
-- `TASK_QUEUE.yaml` 中有具体的、非占位符的 Active Task
+- `RESEARCH_SPINE.yaml` 中有非终态（non-final）的 RQ
+- `RESEARCH_SPINE.yaml` 中的 RQ 有具体的、非占位符的任务定义
 - `goal-ready` 通过，或 `GOAL_LOCK.yaml` 明确指出 stale source 需要先刷新
 
 满足条件时输出：
@@ -120,10 +121,10 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - PRD, Spec, Plan, and paper draft generation are internal compiler passes owned by `/research`. Users should not need to invoke retired compiler skills directly during the normal lifecycle.
 - Internal Spec/Plan/Paper passes may run automatically, but their gates cannot auto-pass: `spec-ready`, `loop-ready`/plan gate, `paper-ready`, and `paper-binding-ready` remain hard validation boundaries.
 - Paper is semi-internal: placeholder-complete draft generation is automatic, but Paper Binding remains blocked until `PAPER_BINDING_DECISION.md` explicitly records `paper_binding_ready: true` and audit passes.
-- Execute only the active task from `Vn/TASK_QUEUE.yaml`; do not skip `TASK_QUEUE.yaml`.
-- Do not execute a task that lacks `research_binding`. Every active task must declare whether it is `direction_bootstrap`, `spine_bound`, `maintenance`, or `paper_binding`.
+- Execute per-RQ tasks from `rqs/RQxx/TASKS.yaml`; do not skip `RESEARCH_SPINE.yaml`.
+- `TASK_QUEUE.yaml` is a global aggregated view for quick inspection, auto-synchronized from per-RQ `TASKS.yaml` by `update_state.py`. Do not treat it as the scheduling truth source.
 - For `spine_bound` work, `research_binding` must trace the task to `RESEARCH_SPINE.yaml` through `rq_id`, `claim_ids`, `experiment_ids`, and `evidence_ids`; experiment, analysis, and result-binding tasks must bind concrete experiment and evidence ids before execution.
-- Treat `TASK_QUEUE.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
+- Treat per-RQ `TASKS.yaml` as gate-aware state: Task statuses are `pending`, `active`, `completed`, `blocked`, `failed_execution`, `failed_harness`, and `skipped`; Gate statuses are `pending`, `active`, `audit_required`, `audit_failed`, `passed`, `blocked`, and `falsified`.
 - Treat `docs/research/agent/SEARCH_POLICY.md` and `docs/research/agent/REPRODUCTION_POLICY.md` as hard execution policies.
 - Default epochs start with `G0_SEARCH_LOCK`, which must produce `search/` logs, curated `baselines/INDEX.yaml` dossier entries, and version-level `BASELINE_LOCK.yaml`, and then `G1_REPRODUCTION_LOCK`; do not activate reproduction, proposed-method implementation, or experiment tasks until baseline lock is `locked`, selected baseline/dataset/design refs resolve to dossier cards, and the relevant gate is `passed`, explicitly human-waived, or explicitly marked as `failed_harness` with recorded evidence and human waiver. A gate in `blocked` or `falsified` status is not an exemption; it stops activation.
 - Every approved RQ must run reproduction coverage before innovation or experiment work. Coverage may resolve to `reuse_allowed`, `delta_check_required`, `new_reproduction_required`, or `reuse_blocked`; it must be recorded in `REPRODUCTION_LEDGER.yaml`.
@@ -237,7 +238,7 @@ Spec/Plan/Paper can be implicit, but their gates cannot be implicit. Every faile
 
 ## Goal Mode Integration
 
-`/research` is designed to run as a stateless-per-iteration worker under Codex or Claude Code goal mode. Each iteration reads persisted state from files, executes one atomic task, updates state, and exits. The next iteration picks up where the previous left off through `goal.md`, `GOAL_LOCK.yaml`, and `TASK_QUEUE.yaml`.
+`/research` is designed to run as a stateless-per-iteration worker under Codex or Claude Code goal mode. Each iteration reads persisted state from files, scans `RESEARCH_SPINE.yaml` for all non-final RQs, spawns Workers for runnable RQs, collects results, updates per-RQ state, and exits. The next iteration picks up where the previous left off through `goal.md`, `GOAL_LOCK.yaml`, and `RESEARCH_SPINE.yaml`.
 
 Goal mode is an execution contract, not a drift-audit endpoint. If the executor finds contract drift before the active task, it must first decide whether there is a single latest approved design source. Repairable drift is handled with repair-then-execute: update stale secondary contracts, refresh `goal.md` / `GOAL_LOCK.yaml`, run `goal-ready` after the drift repair, and then continue executing the runnable task set. Do not stop after a repair-only pass. Stop only when the repair would change a human-owned decision, no runnable unblocked task remains, or the epoch reaches a closed / blocked state.
 
@@ -255,18 +256,24 @@ Each iteration:
 
 1. Read `RESEARCH_DIRECTION.md` and `CURRENT`
 2. Read `Vn/STATUS.yaml` — if `status` is `closed_*` or `paper_bound`, **stop and output completion signal**
-3. Read the active task from `Vn/TASK_QUEUE.yaml`.
-4. Read `Vn/TASK_QUEUE.yaml` for task details (success criteria, test commands, evidence requirements)
-5. Execute the atomic task described in the active task entry.
+3. Read `Vn/RESEARCH_SPINE.yaml` — identify all non-final RQs
+4. For each non-final RQ:
+   a. Read `rqs/RQxx/TASKS.yaml` for per-RQ task details
+   b. Check pre_flight gate (run `scripts/pre_flight.sh` if not passed)
+   c. Spawn Worker with bounded goal bound to this RQ
+   d. On completion, update `rqs/RQxx/TASKS.yaml` and `RESEARCH_SPINE.yaml` evidence_state
+   e. On failure, Worker HALTs and returns failure_report; Controller decides code_bug vs method_related
+5. Collect all running Worker results; spawn Reviewer only for method-related failures
 6. Record Git state before and after
 7. Write `Vn/runs/TASK_XXX_report.md` with commands, evidence, diff summary, and commit hash
 8. Update state files:
    - `LOOP_LOG.md` — append loop entry
-   - `TASK_QUEUE.yaml` — mark current task done, activate next
-   - Update `TASK_QUEUE.yaml` to reflect the next atomic task.
-   - `STATUS.yaml` — update status if gate completed or blocked
+   - `RESEARCH_SPINE.yaml` — update RQ evidence_state
+   - `rqs/RQxx/TASKS.yaml` — mark per-RQ tasks done
+   - `TASK_QUEUE.yaml` — auto-sync aggregated view from all per-RQ TASKS.yaml (by update_state.py)
+   - `STATUS.yaml` — update status if all RQs final or version blocked
    - `GIT_STATE.yaml` — record commit hash
-9. If the completed task crosses a gate boundary, call `research-insight` to update `Vn/wiki/*`
+9. If an RQ crosses a gate boundary, call `research-insight` to update `Vn/wiki/*`
 
 ### Completion signal
 
@@ -319,7 +326,7 @@ Conflict resolution: If `STATUS.yaml` and `PAPER_BINDING_DECISION.md` disagree, 
 - `docs/research/RESEARCH_DIRECTION.md`
 - `docs/research/CURRENT`
 - `docs/research/Vn/STATUS.yaml`
-- `docs/research/Vn/TASK_QUEUE.yaml`
+- `docs/research/Vn/TASK_QUEUE.yaml` (global aggregated view; auto-synced from per-RQ `TASKS.yaml` by `update_state.py`; kept for compatibility)
 - `docs/research/Vn/LOOP_LOG.md`
 - `docs/research/Vn/GIT_STATE.yaml`
 - `docs/research/Vn/git_log.md`
@@ -328,7 +335,7 @@ Conflict resolution: If `STATUS.yaml` and `PAPER_BINDING_DECISION.md` disagree, 
 - `docs/research/Vn/closeout.md`
 - `docs/research/Vn/PAPER_BINDING_DECISION.md`
 - `docs/research/Vn/STATUS.yaml` (per-epoch state; legacy `state.yaml` is fallback only)
-- `docs/research/Vn/TASK_QUEUE.yaml`
+- `docs/research/Vn/TASK_QUEUE.yaml` (global aggregated view; auto-synced from per-RQ `TASKS.yaml` by `update_state.py`; kept for compatibility)
 - `docs/research/plans/plan_queue.yaml` (legacy)
 - dated plans under `docs/research/plans/YYYY-MM-DD-purpose/`
 - audit reports under `docs/research/audits/YYYY-MM-DD-audit/`
@@ -357,7 +364,7 @@ Use docs/research/{CURRENT}/goal.md as the Codex or Claude Code goal-mode input.
 
 ## Agent Executor Boundary
 
-Codex / Claude Code are the supported agent executors. They read the active task from `Vn/TASK_QUEUE.yaml`, perform the task in their own runtime, and call `update_state.py` with commands, stdout/stderr paths, exit code, artifact hashes, tests, git state, and blockers.
+Codex / Claude Code are the supported agent executors. They scan `Vn/RESEARCH_SPINE.yaml` for non-final RQs, read per-RQ tasks from `rqs/RQxx/TASKS.yaml`, spawn Workers for runnable RQs, collect results, and call `update_state.py` with commands, stdout/stderr paths, exit code, artifact hashes, tests, git state, and blockers.
 
 `--executor prompt-only` remains only as a legacy-controller compatibility slot. The epoch controller does not run an independent backend and must not claim that it ran harnesses or generated experimental evidence.
 
