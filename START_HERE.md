@@ -10,7 +10,7 @@
 
 2. 我应该先看哪个文件？
 
-   下游研究项目先看 `docs/research/RESEARCH_DIRECTION.md`，再看 `docs/research/CURRENT` 指向的 `Vn/goal.md`。`goal.md` 是当前版本目标和依赖图，`TASK_QUEUE.yaml` 才是 task 调度真源。
+   下游研究项目先看 `docs/research/RESEARCH_DIRECTION.md`，再看 `docs/research/CURRENT` 指向的 `Vn/goal.md`。`goal.md` 是当前版本目标和依赖图；RQ 调度真源是 `RESEARCH_SPINE.yaml`，单个 RQ 的执行真源是 `rqs/RQxx/TASKS.yaml`，`TASK_QUEUE.yaml` 只是兼容聚合视图。
 
 3. 我现在该跑什么命令？
 
@@ -38,15 +38,16 @@
 ```text
 Direction  决定研究边界
 Goal       决定当前 Vn 的长期目标
-Task Queue 决定依赖边、可运行 task 集合和默认 active task
+RQ Spine 决定版本级可运行 RQ 集合，RQ-local TASKS 决定单个 RQ 的具体执行任务
 Evidence   决定哪些结果可以支持 claim
 Audit      决定是否允许推进或绑定论文
 Wiki       沉淀 human-reviewed insight，服务下一版 RQ
+Closeout   决定当前版本如何 compounding 到 V1/V2 或进入论文绑定
 ```
 
 ## 暂时不用先理解的内容
 
-第一次使用时，不需要先读完所有 schema、paper binding、migration audit、legacy controller 和内部 compiler 细节。先让 `research-status` 告诉你当前状态，再按 `TASK_QUEUE.yaml` 中当前可运行 task 前进；默认串行，只有依赖满足且文件范围不冲突的正交任务才可并行。
+第一次使用时，不需要先读完所有 schema、paper binding、migration audit、legacy controller 和内部 compiler 细节。先让 `research-status` 告诉你当前状态，再按 `RESEARCH_SPINE.yaml` 中的 runnable RQ 和对应 `rqs/RQxx/TASKS.yaml` 前进；`TASK_QUEUE.yaml` 只保留为扁平兼容视图。
 
 ## 不能省略的硬边界
 

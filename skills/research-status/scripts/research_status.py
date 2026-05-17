@@ -212,6 +212,20 @@ def _summarize_task(task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _summarize_rq_task(rq_id: str, task: dict[str, Any]) -> dict[str, Any]:
+    summary = _summarize_task(task)
+    summary["rq_id"] = rq_id
+    if not summary.get("success_criteria"):
+        summary["success_criteria"] = [str(item) for item in as_list(task.get("pass_criteria"))]
+    if not summary.get("output_refs"):
+        summary["output_refs"] = [str(item) for item in as_list(task.get("expected_artifacts"))]
+    summary["preconditions"] = [str(item) for item in as_list(task.get("preconditions"))]
+    summary["commands"] = [str(item) for item in as_list(task.get("commands"))]
+    summary["blocker_criteria"] = [str(item) for item in as_list(task.get("blocker_criteria"))]
+    summary["evidence_level_on_pass"] = str(task.get("evidence_level_on_pass") or "")
+    return summary
+
+
 def _runnable_tasks(queue: dict[str, Any]) -> list[dict[str, Any]]:
     tasks_by_id = _tasks_by_id(queue)
     runnable: list[dict[str, Any]] = []
@@ -220,6 +234,32 @@ def _runnable_tasks(queue: dict[str, Any]) -> list[dict[str, Any]]:
         if status in {"pending", "ready"} and _dependencies_satisfied(task, tasks_by_id):
             runnable.append(_summarize_task(task))
     return runnable
+
+
+def _rq_frontier_tasks(rq_progress: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
+    for rq in rq_progress:
+        if not isinstance(rq, dict):
+            continue
+        next_task = rq.get("next_task")
+        if isinstance(next_task, dict):
+            tasks.append(next_task)
+        for task in as_list(rq.get("blocked_tasks")):
+            if isinstance(task, dict):
+                tasks.append(task)
+    return tasks
+
+
+def _rq_frontier_is_authoritative(rq_progress: list[dict[str, Any]]) -> bool:
+    for task in _rq_frontier_tasks(rq_progress):
+        status = _task_status(task).lower()
+        if status == "active" or _blocked_status(status):
+            return True
+    return False
+
+
+def _rq_frontier_task_counts(rq_progress: list[dict[str, Any]]) -> dict[str, int]:
+    return _task_counts(_rq_frontier_tasks(rq_progress))
 
 
 def _task_brief(task: dict[str, Any]) -> str:
@@ -239,17 +279,21 @@ def _gate_brief(gate: dict[str, Any]) -> str:
 
 
 def _project_summary(payload: dict[str, Any], queue: dict[str, Any]) -> dict[str, Any]:
+    workspace_role = str(payload.get("workspace_role") or "")
     research_goal = payload.get("research_goal") if isinstance(payload.get("research_goal"), dict) else {}
     epoch_progress = payload.get("epoch_progress") if isinstance(payload.get("epoch_progress"), dict) else {}
     blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
     next_actions = payload.get("next_actions") if isinstance(payload.get("next_actions"), list) else []
+    rq_progress = payload.get("rq_progress") if isinstance(payload.get("rq_progress"), list) else []
     tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    rq_frontier_tasks = _rq_frontier_tasks(rq_progress)
+    summary_tasks = rq_frontier_tasks if _rq_frontier_is_authoritative(rq_progress) else tasks
     gates = [gate for gate in as_list(epoch_progress.get("gates")) if isinstance(gate, dict)]
 
     completed_tasks = [_task_brief(task) for task in tasks if _complete_status(_task_status(task))]
-    active_tasks = [_task_brief(task) for task in tasks if _task_status(task).lower() == "active"]
-    pending_tasks = [_task_brief(task) for task in tasks if _task_status(task).lower() in {"pending", "ready"}]
-    blocked_tasks = [_task_brief(task) for task in tasks if _blocked_status(_task_status(task))]
+    active_tasks = [_task_brief(task) for task in summary_tasks if _task_status(task).lower() == "active"]
+    pending_tasks = [_task_brief(task) for task in summary_tasks if _task_status(task).lower() in {"pending", "ready"}]
+    blocked_tasks = [_task_brief(task) for task in summary_tasks if _blocked_status(_task_status(task))]
     completed_gates = [_gate_brief(gate) for gate in gates if _clean_scalar(gate.get("status") or "").lower() == "passed"]
     remaining_gates = [_gate_brief(gate) for gate in gates if _clean_scalar(gate.get("status") or "").lower() != "passed"]
     blocker_briefs: list[str] = []
@@ -263,7 +307,10 @@ def _project_summary(payload: dict[str, Any], queue: dict[str, Any]) -> dict[str
     if next_actions and isinstance(next_actions[0], dict):
         next_step = _clean_scalar(next_actions[0].get("description") or "")
     if not next_step:
-        next_step = "继续执行当前计划中的 active task。"
+        if workspace_role == "meta_framework":
+            next_step = "检查 README/START_HERE/skills/tests，维护 framework 合同；本仓库不存在 repo-local active epoch。"
+        else:
+            next_step = "继续从 `RESEARCH_SPINE.yaml` 中选择 runnable RQ，并执行对应 `rqs/RQxx/TASKS.yaml` 中的下一步任务；`TASK_QUEUE.yaml` 仅作聚合视图。"
 
     background_parts = [
         _clean_scalar(research_goal.get("prd_title") or ""),
@@ -378,7 +425,7 @@ def _rq_progress(epoch_dir: Path, spine: dict[str, Any]) -> list[dict[str, Any]]
         next_task = {}
         for task in tasks:
             if isinstance(task, dict) and _task_status(task).lower() in {"active", "ready", "pending"}:
-                next_task = _summarize_task(task)
+                next_task = _summarize_rq_task(rq_id, task)
                 break
         # Read evidence_state from RESEARCH_SPINE.yaml (new RQ-driven model)
         evidence_state = rq.get("evidence_state", {}) if isinstance(rq.get("evidence_state"), dict) else {}
@@ -407,7 +454,7 @@ def _rq_progress(epoch_dir: Path, spine: dict[str, Any]) -> list[dict[str, Any]]
                 "task_counts": _task_counts(tasks),
                 "next_task": next_task,
                 "blocked_tasks": [
-                    _summarize_task(task)
+                    _summarize_rq_task(rq_id, task)
                     for task in tasks
                     if isinstance(task, dict) and _blocked_status(_task_status(task))
                 ],
@@ -429,11 +476,36 @@ def _rq_progress(epoch_dir: Path, spine: dict[str, Any]) -> list[dict[str, Any]]
     return progress
 
 
+def _rq_active_task(rq_progress: list[dict[str, Any]]) -> dict[str, Any]:
+    for rq in rq_progress:
+        next_task = rq.get("next_task")
+        if isinstance(next_task, dict) and _task_status(next_task).lower() == "active":
+            return next_task
+    return {}
+
+
+def _rq_runnable_tasks(rq_progress: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    status_priority = {"active": 0, "ready": 1, "pending": 2}
+    candidates: list[tuple[int, int, dict[str, Any]]] = []
+    for index, rq in enumerate(rq_progress):
+        if bool(rq.get("is_final")):
+            continue
+        next_task = rq.get("next_task")
+        if not isinstance(next_task, dict):
+            continue
+        status = _task_status(next_task).lower()
+        if status in status_priority:
+            candidates.append((status_priority[status], index, next_task))
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return [task for _, _, task in candidates]
+
+
 def _collect_blockers(
     queue: dict[str, Any],
     baseline: dict[str, Any],
     open_reviews: list[dict[str, Any]],
     version: str,
+    rq_progress: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     for task in as_list(queue.get("tasks")):
@@ -451,6 +523,29 @@ def _collect_blockers(
                         f"Review implementation diff, harness output, stdout/stderr, artifact hashes, and spec/plan delta "
                         f"under `{_epoch_ref(version, 'TASK_QUEUE.yaml')}` and the matching run report or blocker note in `{_epoch_ref(version, 'runs/')}` "
                         f"to classify implementation defect, harness defect, or idea/spec defect."
+                    ),
+                    "verify": "Run the task-specific validator or harness again after triage, then run research-status again.",
+                }
+            )
+    for rq in rq_progress or []:
+        rq_id = str(rq.get("id") or "")
+        for task in as_list(rq.get("blocked_tasks")):
+            if not isinstance(task, dict):
+                continue
+            task_id = str(task.get("id") or "")
+            blockers.append(
+                {
+                    "type": "task",
+                    "id": task_id,
+                    "rq_id": rq_id,
+                    "title": str(task.get("title") or ""),
+                    "status": _task_status(task),
+                    "triage": "code-review-first",
+                    "problem": f"RQ-local task `{task_id}` under `{rq_id}` is blocked; first do code-review-first triage.",
+                    "repair": (
+                        f"Review `{_epoch_ref(version, f'rqs/{rq_id}/TASKS.yaml')}`, the matching run report under "
+                        f"`{_epoch_ref(version, 'runs/')}`, and the RQ-local artifacts to classify implementation defect, "
+                        f"harness defect, or idea/spec defect."
                     ),
                     "verify": "Run the task-specific validator or harness again after triage, then run research-status again.",
                 }
@@ -510,10 +605,24 @@ def _validator_status(research_dir: Path) -> dict[str, dict[str, Any]]:
     return statuses
 
 
+def _meta_framework_validator_status() -> dict[str, dict[str, Any]]:
+    return {
+        mode: {
+            "ok": None,
+            "applicable": False,
+            "issue_count": 0,
+            "issues": [],
+            "reason": "meta_framework_workspace",
+        }
+        for mode in VALIDATOR_MODES
+    }
+
+
 def _next_actions(payload: dict[str, Any], queue: dict[str, Any]) -> list[dict[str, str]]:
     actions: list[dict[str, str]] = []
     current_experiment = payload.get("current_experiment") if isinstance(payload.get("current_experiment"), dict) else {}
     active = current_experiment.get("active_task") if isinstance(current_experiment.get("active_task"), dict) else {}
+    rq_progress = payload.get("rq_progress") if isinstance(payload.get("rq_progress"), list) else []
     blocked_task = None
     blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
     for item in blockers:
@@ -540,13 +649,19 @@ def _next_actions(payload: dict[str, Any], queue: dict[str, Any]) -> list[dict[s
                 "description": f"Continue `{active.get('title', '')}` and produce {outputs or 'declared evidence artifacts'}.",
             }
         )
-    for task in _runnable_tasks(queue)[:5]:
+    rq_runnable = _rq_runnable_tasks(rq_progress)
+    task_candidates = rq_runnable if rq_runnable else _runnable_tasks(queue)
+    for task in task_candidates[:5]:
         if task.get("id") != active.get("id"):
             actions.append(
                 {
                     "type": "runnable_task",
                     "target": str(task.get("id") or ""),
-                    "description": f"`{task.get('title', '')}` has no unfinished dependencies.",
+                    "description": (
+                        f"`{task.get('title', '')}` has no unfinished dependencies."
+                        if task.get("rq_id")
+                        else f"`{task.get('title', '')}` has no unfinished dependencies."
+                    ),
                 }
             )
     if not actions and payload.get("blockers"):
@@ -563,7 +678,7 @@ def _next_actions(payload: dict[str, Any], queue: dict[str, Any]) -> list[dict[s
             {
                 "type": "inspect_queue",
                 "target": str(payload.get("current_gate") or ""),
-                "description": "No active or dependency-free task is currently declared; inspect TASK_QUEUE.yaml.",
+                "description": "No active or dependency-free task is currently declared; inspect RESEARCH_SPINE.yaml and the corresponding rqs/RQxx/TASKS.yaml, then use TASK_QUEUE.yaml only as an aggregate view.",
             }
         )
     return actions
@@ -620,19 +735,36 @@ def _plain_language_summary(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         required = evidence_gate.get("next_required_gate") or gate or "next declared gate"
         missing = f"下一步证据门禁是 `{required}`；baseline lock 当前为 `{baseline_status or 'N/A'}`。"
-        next_step = str(first_action.get("description") or "继续执行 TASK_QUEUE.yaml 中的 active task。")
+        next_step = str(
+            first_action.get("description")
+            or "继续执行 `RESEARCH_SPINE.yaml` 中 runnable RQ 对应的 `rqs/RQxx/TASKS.yaml` 任务；`TASK_QUEUE.yaml` 仅作聚合视图。"
+        )
         verify = "完成任务后写入 run report，并重新运行 research-status 或对应 validator。"
+
+    read_first = [
+        "docs/research/RESEARCH_DIRECTION.md",
+        f"docs/research/{version}/goal.md",
+        f"docs/research/{version}/RESEARCH_SPINE.yaml",
+    ]
+    active_rq_id = str(active.get("rq_id") or "")
+    if active_rq_id:
+        read_first.append(f"docs/research/{version}/rqs/{active_rq_id}/TASKS.yaml")
+    elif actions and isinstance(actions[0], dict) and actions[0].get("target"):
+        for rq in as_list(payload.get("rq_progress")):
+            if not isinstance(rq, dict):
+                continue
+            next_task = rq.get("next_task")
+            if isinstance(next_task, dict) and str(next_task.get("id") or "") == str(actions[0].get("target") or ""):
+                read_first.append(f"docs/research/{version}/rqs/{rq.get('id')}/TASKS.yaml")
+                break
+    read_first.append(f"docs/research/{version}/TASK_QUEUE.yaml")
 
     return {
         "current_state": current_state,
         "missing": missing,
         "next_step": next_step,
         "verify": verify,
-        "read_first": [
-            "docs/research/RESEARCH_DIRECTION.md",
-            f"docs/research/{version}/goal.md",
-            f"docs/research/{version}/TASK_QUEUE.yaml",
-        ],
+        "read_first": read_first,
     }
 
 
@@ -675,10 +807,13 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
         baseline = load_yaml(epoch_dir / "BASELINE_LOCK.yaml")
         gate = load_yaml(epoch_dir / "EVIDENCE_GATE.yaml")
         human_reviews = load_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml")
-        active = _active_task(queue)
         open_reviews = _open_human_reviews(human_reviews)
         rq_progress = _rq_progress(epoch_dir, spine)
-        active_summary = _summarize_task(active) if active else {}
+        rq_frontier_counts = _rq_frontier_task_counts(rq_progress)
+        rq_frontier_authoritative = _rq_frontier_is_authoritative(rq_progress)
+        rq_active = _rq_active_task(rq_progress)
+        queue_active = _active_task(queue)
+        active_summary = rq_active or (_summarize_task(queue_active) if queue_active else {})
         payload.update(
             {
                 "version_status": str(status.get("status") or ""),
@@ -690,7 +825,8 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
                 },
                 "epoch_progress": {
                     "queue_status": str(queue.get("queue_status") or ""),
-                    "task_counts": _task_counts(as_list(queue.get("tasks"))),
+                    "task_counts": rq_frontier_counts if rq_frontier_authoritative else _task_counts(as_list(queue.get("tasks"))),
+                    "queue_task_counts": _task_counts(as_list(queue.get("tasks"))),
                     "gates": _gate_progress(queue),
                     "last_completed_task": str(status.get("last_completed_task") or ""),
                     "close_reason": str(status.get("close_reason") or ""),
@@ -726,7 +862,7 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
                 "open_human_reviews": open_reviews,
             }
         )
-        payload["blockers"] = _collect_blockers(queue, baseline, open_reviews, version)
+        payload["blockers"] = _collect_blockers(queue, baseline, open_reviews, version, rq_progress=rq_progress)
         payload["next_actions"] = _next_actions(payload, queue)
         payload["project_summary"] = _project_summary(payload, queue)
         payload["plain_language_summary"] = _plain_language_summary(payload)
@@ -737,7 +873,10 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
         payload["project_summary"] = _project_summary(payload, {})
 
     if include_validators and research_dir.exists():
-        payload["validators"] = _validator_status(research_dir)
+        if role == "meta_framework":
+            payload["validators"] = _meta_framework_validator_status()
+        else:
+            payload["validators"] = _validator_status(research_dir)
 
     return payload
 
@@ -832,6 +971,19 @@ def render_markdown(status: dict[str, Any]) -> str:
     else:
         lines.append("- none")
 
+    if status.get("current_version"):
+        version = str(status.get("current_version") or "")
+        lines.extend(
+            [
+                "",
+                "## Wiki And Compounding",
+                f"- insight_sink: `docs/research/{version}/wiki/`",
+                f"- closeout_surface: `docs/research/{version}/closeout.md`",
+                f"- next_version_seed: `docs/research/{version}/wiki/next_version_seed.md`",
+                "- compounding_rule: 当前版本的 evidence / blocker / negative result 先进入 wiki 与 closeout，再决定是否生成 V1/V2 或进入 paper binding。",
+            ]
+        )
+
     open_reviews = status.get("open_human_reviews") or []
     blockers = status.get("blockers") if isinstance(status.get("blockers"), list) else []
     lines.extend(["", "## Blockers And Review"])
@@ -868,7 +1020,10 @@ def render_markdown(status: dict[str, Any]) -> str:
         lines.extend(["", "## Validators"])
         for mode in VALIDATOR_MODES:
             value = validators.get(mode, {})
-            marker = "OK" if value.get("ok") else "BLOCKED"
+            if value.get("applicable") is False:
+                marker = "N/A"
+            else:
+                marker = "OK" if value.get("ok") else "BLOCKED"
             issue_count = value.get("issue_count", 0)
             lines.append(f"- {mode}: {marker} ({issue_count} issues)")
     return "\n".join(lines) + "\n"

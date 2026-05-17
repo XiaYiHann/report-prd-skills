@@ -1,5 +1,11 @@
 # Epoch Schema Invariance 设计规格
 
+> Historical design snapshot. Superseded by the current RQ-driven pipeline:
+> `RESEARCH_SPINE.yaml` is the version-level scheduling truth,
+> `rqs/RQxx/TASKS.yaml` is the RQ-local execution truth,
+> `TASK_QUEUE.yaml` is a compatibility aggregate view only,
+> and version compounding flows through `wiki/` + `closeout.md` into `Vn+1`.
+
 ## 概述
 
 本规格定义 `research-loop` 技能族的 epoch 版本一致性与可审计执行协议。目标是保证 `docs/research/V0`、`docs/research/V1`、`docs/research/V2` 等每一个研究版本都是同一个协议模板下的实例，而不是每一轮临时生成一套不同结构。
@@ -29,7 +35,7 @@
 
 `epoch_v1_manifest.yaml` 是 epoch 结构的唯一声明源。`research-init` 和后续 `create_epoch.py` 必须从该 manifest 创建 `Vn/`。`validate_research.py` 必须从同一个 manifest 校验所有 `Vn/`。任何新增文件、字段或 wiki 文件，都必须先进入 manifest 或明确进入下一版 schema。
 
-Codex / Claude Code 不被系统包装成 backend，而被定义为 agent executor。agent executor 执行 `NEXT_ACTION.md` 中的 active task，然后调用 `update_state.py` 提交任务状态、命令、测试、stdout/stderr 路径、artifact hash、git commit 和 blocker 信息。
+Codex / Claude Code 不被系统包装成 backend，而被定义为 agent executor。当前执行模型是：controller 从 `RESEARCH_SPINE.yaml` 识别 non-final RQ，并读取对应 `rqs/RQxx/TASKS.yaml` 的 runnable task；`TASK_QUEUE.yaml` 仅保留为兼容聚合视图；执行完成后调用 `update_state.py` 提交任务状态、命令、测试、stdout/stderr 路径、artifact hash、git commit 和 blocker 信息。
 
 audit 只读当前研究工作区，并输出结构化 PASS/WARN/FAIL。任何 P0 hard gate 失败都必须阻止 paper binding 和 closeout promotion。
 

@@ -134,7 +134,7 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - If the user invokes `/research explore`, switch to `research-explore`; do not execute a task or modify PRD.
 - If the user invokes `/research insight`, switch to `research-insight`; interpret existing evidence only and update the current epoch wiki.
 - If the user invokes `/research audit`, honor audit modes: format, migration, epoch, git, evidence, paper-binding, full.
-- Before executing the active task, record `git status --short` when Git is available.
+- Before executing a selected RQ task, record `git status --short` when Git is available.
 - After task completion, record `git diff --stat`, write a task run report, and commit only when task policy allows.
 - Never infer experiments from paper.
 - Never fabricate data, metrics, baselines, or results.
@@ -149,32 +149,22 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - If PRD is ambiguous or a research hypothesis is challenged, stop and request human review.
 - **Document-writing vs Execution autonomy boundary**:
   - When writing, editing, or compiling research documents (PRD, SPEC, PLAN, RESEARCH_SPINE, ai_loop_prompt.md, goal.md, CODEX_GOAL_TEMPLATE.md), if user intent is unclear, contradictory, or a decision would change the research direction, core hypothesis, baseline selection, metric choice, or evidence boundary: **stop and ask the user before proceeding**. Do not choose the most convenient interpretation.
-  - When executing the active task (running experiments, writing implementation code, running harnesses, collecting artifacts, running tests, reproducing baselines): **do not stop to ask for preference clarification**. Proceed autonomously. Record blockers only for missing required information (dataset paths, commands, seeds, artifacts), not for ambiguous design choices.
+  - When executing a selected RQ task (running experiments, writing implementation code, running harnesses, collecting artifacts, running tests, reproducing baselines): **do not stop to ask for preference clarification**. Proceed autonomously. Record blockers only for missing required information (dataset paths, commands, seeds, artifacts), not for ambiguous design choices.
 
 ## RQ-Parallel Controller Execution Loop
 
-Controller 的核心循环已改为 **RQ-并行模式**（取代旧的单任务队列串行模式）：
+`/research` 的 epoch-contract 模式负责 **编译、校验与暴露 RQ 运行面**，而不是伪装成常驻实验 backend。真实的 RQ 并行执行由外部 Codex / Claude Code goal-mode executor 依据 `goal.md`、`RESEARCH_SPINE.yaml` 与 `rqs/RQxx/TASKS.yaml` 调度。
+
+`research_loop.py` 在每轮迭代中的职责是：
 
 ```
 while True:
-    1. 读取 `Vn/RESEARCH_SPINE.yaml` 的 `research_questions[]`
-    2. 对每个 RQ：
-       - 若 status 为终态（completed / blocked / scope_contracted / hypothesis_weakened）→ 跳过
-       - 若 evidence_state.g3_experiments 中有 `status: active` → 跳过（已有 Worker 在执行）
-       - 若 evidence_state.g3_experiments 为空或全部完成 → 检查 pre_flight 是否通过
-       - pre_flight 通过 → spawn Worker，绑定 bounded_goal："RQXX g3_experiment: [具体实验描述]"
-    3. 收集所有 running Worker 的产出：
-       - 成功 → 更新该 RQ 的 evidence_state，标记实验 completed
-       - 失败 → Worker 产出 failure_report → Controller 判断 code_bug vs method_related
-         - code_bug → 修代码，重跑（RQ 状态不变）
-         - method_related → spawn Reviewer（只读日志）
-           Reviewer 结论 → Controller 更新 RQ 状态
-    4. 若所有 RQ 都到达终态：
-       - 触发版本 closeout：Agent 汇总 wiki/
-       - 等待人类审阅
-       - 人类确认后，创建 V_{n+1} 或 paper binding
-       - break
-    5. 若遇到版本级 blocker（stale lock / human review / gate_blocked / closed_*）→ break，等待人类
+    1. 读取 `Vn/RESEARCH_SPINE.yaml` 与所有 `rqs/RQxx/TASKS.yaml`
+    2. 运行内部 compiler / gate repair：确保 PRD -> Spec -> Plan -> Goal 合同齐全
+    3. 识别所有 non-final RQ，并判断哪些 RQ 当前 runnable
+    4. 刷新 `goal.md`、`GOAL_LOCK.yaml`、`STATUS.yaml` 与 `TASK_QUEUE.yaml` 的兼容聚合视图
+    5. 输出 runnable RQ 集合，交给外部 goal-mode executor 做 bounded worker / reviewer 调度
+    6. 若遇到 stale lock、human review、gate_blocked、closed_* 或无 runnable RQ，则停止等待人类或下一轮执行器接管
 ```
 
 ### 关键变化
@@ -238,11 +228,11 @@ Spec/Plan/Paper can be implicit, but their gates cannot be implicit. Every faile
 
 ## Goal Mode Integration
 
-`/research` is designed to run as a stateless-per-iteration worker under Codex or Claude Code goal mode. Each iteration reads persisted state from files, scans `RESEARCH_SPINE.yaml` for all non-final RQs, spawns Workers for runnable RQs, collects results, updates per-RQ state, and exits. The next iteration picks up where the previous left off through `goal.md`, `GOAL_LOCK.yaml`, and `RESEARCH_SPINE.yaml`.
+`/research` is designed to run as a stateless-per-iteration contract coordinator under Codex or Claude Code goal mode. `research_loop.py` itself refreshes compiler outputs, validates gates, and surfaces the runnable RQ set; the external goal-mode executor performs any actual Worker / Reviewer delegation and then returns structured evidence to `update_state.py`.
 
-Goal mode is an execution contract, not a drift-audit endpoint. If the executor finds contract drift before the active task, it must first decide whether there is a single latest approved design source. Repairable drift is handled with repair-then-execute: update stale secondary contracts, refresh `goal.md` / `GOAL_LOCK.yaml`, run `goal-ready` after the drift repair, and then continue executing the runnable task set. Do not stop after a repair-only pass. Stop only when the repair would change a human-owned decision, no runnable unblocked task remains, or the epoch reaches a closed / blocked state.
+Goal mode is an execution contract, not a drift-audit endpoint. If the executor finds contract drift before the selected RQ task, it must first decide whether there is a single latest approved design source. Repairable drift is handled with repair-then-execute: update stale secondary contracts, refresh `goal.md` / `GOAL_LOCK.yaml`, run `goal-ready` after the drift repair, and then continue executing the runnable RQ task set. Do not stop after a repair-only pass. Stop only when the repair would change a human-owned decision, no runnable unblocked RQ task remains, or the epoch reaches a closed / blocked state.
 
-Goal mode should prefer subagents for bounded specialist work. Use `prefer_subagents`: 优先使用 subagent for literature, reproduction, coding, experiment, analysis, math, paper, and audit subtasks unless the task is too small, no matching subagent exists, or the main controller is blocked on state updates. The main controller remains responsible for state updates, gate decisions, final evidence admission, and `update_state.py`.
+Goal mode should prefer subagents for bounded specialist work. Use `prefer_subagents`: 优先使用 subagent for literature, reproduction, coding, experiment, analysis, math, paper, and audit subtasks unless the task is too small, no matching runtime specialist exists, or the main controller is blocked on state updates. The main controller remains responsible for state updates, gate decisions, final evidence admission, and `update_state.py`. The repository-managed Claude template surface currently ships only `research-experiment`; other specialist workers/reviewers are runtime-provided or handled through the relevant skill entry.
 
 ### Starting goal mode
 
@@ -260,10 +250,10 @@ Each iteration:
 4. For each non-final RQ:
    a. Read `rqs/RQxx/TASKS.yaml` for per-RQ task details
    b. Check pre_flight gate (run `scripts/pre_flight.sh` if not passed)
-   c. Spawn Worker with bounded goal bound to this RQ
+   c. When runtime support exists, spawn Worker with bounded goal bound to this RQ
    d. On completion, update `rqs/RQxx/TASKS.yaml` and `RESEARCH_SPINE.yaml` evidence_state
    e. On failure, Worker HALTs and returns failure_report; Controller decides code_bug vs method_related
-5. Collect all running Worker results; spawn Reviewer only for method-related failures
+5. Collect all returned Worker results; spawn Reviewer only for method-related failures when runtime support exists
 6. Record Git state before and after
 7. Write `Vn/runs/TASK_XXX_report.md` with commands, evidence, diff summary, and commit hash
 8. Update state files:
@@ -298,10 +288,10 @@ The blocker note is written by the state updater and must record the code-review
 ### Loop safety rules
 
 - Never rely on previous chat memory as evidence — only persisted files are authoritative.
-- If the active task is ambiguous, write a concrete blocker instead of guessing.
+- If the selected RQ task is ambiguous, write a concrete blocker instead of guessing.
 - If the same task fails twice with the same cause, escalate to `gate_blocked`.
-- If the active task references a subagent (e.g., `research-coding`), delegate to that subagent via the Agent tool.
-- Do not expand scope beyond the active task in a single iteration.
+- If the selected RQ task references a runtime specialist or `research-experiment`, delegate via the Agent tool when available.
+- Do not expand scope beyond the selected RQ task set in a single iteration.
 
 ## Insight policy
 
@@ -413,15 +403,10 @@ Forbidden unless explicitly authorized: `git push`, `git reset --hard`, `git cle
 
 ## Claude Code Subagents
 
-When project-level subagents are installed under `.claude/agents/`, `/research` remains the controller and the subagents are specialized workers:
+When project-level subagents are installed under `.claude/agents/`, `/research` remains the controller and those agents are bounded workers/reviewers. In the current repository surface, the only shipped Claude template is:
 
-- `research-math` for formulation and notation checks.
-- `research-literature` for related work, benchmark, and baseline analysis.
-- `research-reproduce` for baseline reproduction.
-- `research-coding` for implementation under the current plan.
-- `research-experiment` for declared experiment execution.
-- `research-analysis` for anomalies, negative results, and pivot proposals.
-- `research-paper` for placeholder-safe manuscript updates.
-- `research-audit` for cross-file drift and evidence checks.
+- `research-experiment` for declared experiment execution under an RQ-local contract.
+
+Other specialist roles such as literature, reproduction, coding, analysis, math, paper, or audit may still exist as runtime-provided worker/reviewer capabilities, but they are not installed by this repository's `install.sh` and must not be documented as required local templates.
 
 Do not use a custom registry as the primary subagent format. Claude Code project agents are Markdown files with YAML frontmatter in `.claude/agents/`.

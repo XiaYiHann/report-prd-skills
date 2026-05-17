@@ -1,5 +1,11 @@
 # Epoch Schema Invariance 实现计划
 
+> Historical implementation plan. Superseded by the current RQ-driven pipeline:
+> `RESEARCH_SPINE.yaml` is the version-level scheduling truth,
+> `rqs/RQxx/TASKS.yaml` is the RQ-local execution truth,
+> `TASK_QUEUE.yaml` is a compatibility aggregate view only,
+> and version compounding flows through `wiki/` + `closeout.md` into `Vn+1`.
+
 > **给执行者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐步实现此计划。步骤使用复选框（`- [ ]`）语法以便跟踪。
 
 **目标：** 实现严格一致的 epoch schema、结构化执行证据、可失败 audit hard gate，并把 legacy 路径降级为 migration-only。

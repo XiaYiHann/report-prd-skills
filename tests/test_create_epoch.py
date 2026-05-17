@@ -55,6 +55,8 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
             v1_prd_exists = (research_dir / "V1" / "PRD.tex").exists()
             v1_prd_summary_exists = (research_dir / "V1" / "PRD_SUMMARY.md").exists()
             v1_spine_exists = (research_dir / "V1" / "RESEARCH_SPINE.yaml").exists()
+            v1_paper_type_exists = (research_dir / "V1" / "PAPER_TYPE.yaml").exists()
+            v1_preflight_exists = (research_dir / "V1" / "scripts" / "pre_flight.sh").exists()
             v1_binding_exists = (research_dir / "V1" / "PAPER_BINDING_DECISION.md").exists()
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -63,6 +65,8 @@ class CreateEpochTests(unittest.TestCase):  # noqa: F405
         self.assertTrue(v1_prd_exists)
         self.assertTrue(v1_prd_summary_exists)
         self.assertTrue(v1_spine_exists)
+        self.assertTrue(v1_paper_type_exists)
+        self.assertTrue(v1_preflight_exists)
         self.assertTrue(v1_binding_exists)
 
     def test_create_epoch_does_not_copy_completed_queue_runs_or_binding_decision(self) -> None:

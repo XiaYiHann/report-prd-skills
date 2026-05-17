@@ -44,14 +44,7 @@ INTERNAL_COMPILER_MODULE_NAMES = [
     "research-plan",
 ]
 CLAUDE_RESEARCH_AGENT_NAMES = [
-    "research-math",
-    "research-literature",
-    "research-reproduce",
-    "research-coding",
     "research-experiment",
-    "research-analysis",
-    "research-paper",
-    "research-audit",
 ]
 
 

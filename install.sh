@@ -44,11 +44,14 @@ RETIRED_SKILL_ENTRIES=(
 )
 
 CLAUDE_SUBAGENTS=(
+  research-experiment
+)
+
+RETIRED_CLAUDE_SUBAGENTS=(
   research-math
   research-literature
   research-reproduce
   research-coding
-  research-experiment
   research-analysis
   research-paper
   research-audit
@@ -239,6 +242,25 @@ remove_research_loop_entries_for_reinstall() {
   remove_retired_skill_entries_from "$root"
 }
 
+remove_managed_agent_path() {
+  local root="$1"
+  local agent="$2"
+  local path="$root/$agent.md"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN: would remove retired Claude agent $path if present"
+  elif [[ -e "$path" || -L "$path" ]]; then
+    rm -rf "$path"
+    log "$agent retired agent removed from $root"
+  fi
+}
+
+remove_retired_agent_entries_from() {
+  local root="$1"
+  for retired_agent in "${RETIRED_CLAUDE_SUBAGENTS[@]}"; do
+    remove_managed_agent_path "$root" "$retired_agent"
+  done
+}
+
 same_physical_dir() {
   local left="$1"
   local right="$2"
@@ -383,6 +405,7 @@ if [[ "$INSTALL_AGENTS" == "true" ]]; then
   if [[ "$DRY_RUN" != "true" ]]; then
     AGENTS_TARGET_DIR="$(cd "$AGENTS_TARGET_DIR" && pwd)"
   fi
+  remove_retired_agent_entries_from "$AGENTS_TARGET_DIR"
   log "Installed Claude Code subagents:"
   for agent in "${CLAUDE_SUBAGENTS[@]}"; do
     if [[ "$DRY_RUN" != "true" ]]; then

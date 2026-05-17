@@ -125,7 +125,7 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
         self.assertEqual(rq02["plan_ref"], "rqs/RQ02/PLAN.md")
         self.assertIn("ensured_rq_contracts_for_declared_rqs", result.stdout)
 
-    def test_loop_ready_requires_single_active_task_and_matching_next_action(self) -> None:
+    def test_loop_ready_requires_single_queue_active_task_when_no_rq_local_active_task_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))
             queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
@@ -135,10 +135,31 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("exactly one active task", result.stdout)
+            self.assertIn("aggregate view must declare exactly one active task when no RQ-local active task exists", result.stdout)
 
             queue["tasks"] = [queue["tasks"][0]]
             write_yaml(queue_path, queue)
+
+    def test_loop_ready_rejects_stale_queue_projection_for_active_rq_local_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
+            queue = read_yaml(queue_path)
+            for task in queue["tasks"]:
+                task["status"] = "pending"
+            queue["tasks"][0]["rq_id"] = "RQ01"
+            queue["tasks"][0]["rq_task_ref"] = "rqs/RQ01/TASKS.yaml#RQ01_T001"
+            write_yaml(queue_path, queue)
+
+            rq_tasks_path = research_dir / "V0" / "rqs" / "RQ01" / "TASKS.yaml"
+            rq_tasks = read_yaml(rq_tasks_path)
+            rq_tasks["tasks"][0]["status"] = "active"
+            write_yaml(rq_tasks_path, rq_tasks)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "loop-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("compatibility projection is stale for active RQ task", result.stdout)
 
     def test_loop_ready_requires_test_commands_for_code_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -291,6 +312,9 @@ class EpochResearchLoopTests(unittest.TestCase):  # noqa: F405
             gate = read_yaml(v1 / "EVIDENCE_GATE.yaml")
             gate["version"] = "V1"
             write_yaml(v1 / "EVIDENCE_GATE.yaml", gate)
+            paper_type = read_yaml(v1 / "PAPER_TYPE.yaml")
+            paper_type["version"] = "V1"
+            write_yaml(v1 / "PAPER_TYPE.yaml", paper_type)
             refresh_research_goal(research_dir)
 
             result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "paper-binding-ready"])

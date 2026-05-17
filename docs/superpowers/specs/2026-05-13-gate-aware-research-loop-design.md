@@ -1,15 +1,21 @@
 # Gate-Aware Research Loop 设计规格
 
+> Historical design snapshot. Superseded by the current RQ-driven pipeline:
+> `RESEARCH_SPINE.yaml` is the version-level scheduling truth,
+> `rqs/RQxx/TASKS.yaml` is the RQ-local execution truth,
+> `TASK_QUEUE.yaml` is a compatibility aggregate view only,
+> and version compounding flows through `wiki/` + `closeout.md` into `Vn+1`.
+
 ## 概述
 
 本规格定义 `research-execution-skills` 的下一阶段协议升级：在现有 epoch schema、manifest-driven workspace、结构化 run report、audit hard gate 的基础上，把研究执行链升级为 gate-aware 的机器可验证合同。
 
-当前系统已经具备 `epoch_v1_manifest.yaml`、`research_workspace.py`、`update_state.py`、`research_loop.py`、audit checks 和 epoch schema 测试。现有问题不是缺少研究循环理念，而是 Gate、Task、Harness、Audit、Insight 的状态边界尚未完全固化；`TASK_QUEUE.yaml` 仍偏 task-level；`update_state.py` 还不能表达 gate evaluation；PRD/SPEC/PLAN/TASK_QUEUE/NEXT_ACTION 之间的 hash stale 关系也尚未成为默认控制器协议。
+当前系统已经具备 `epoch_v1_manifest.yaml`、`research_workspace.py`、`update_state.py`、`research_loop.py`、audit checks 和 epoch schema 测试。该设计稿中的 `NEXT_ACTION.md`/单 active task 控制模型已经被当前实现淘汰；当前协议以 `RESEARCH_SPINE.yaml` + `rqs/RQxx/TASKS.yaml` 为执行真源，`TASK_QUEUE.yaml` 仅作兼容聚合视图，`wiki/` + `closeout.md` 负责版本 compounding。
 
 本规格的核心目标是把：
 
 ```text
-PRD -> SPEC -> PLAN -> TASK_QUEUE -> NEXT_ACTION -> RUN_REPORT -> AUDIT -> INSIGHT -> CLOSEOUT
+PRD -> RESEARCH_SPINE -> RQ-local TASKS -> RUN_REPORT -> AUDIT -> WIKI -> CLOSEOUT
 ```
 
 固定为一条可验证、可审计、可阻断的文件协议。Codex / Claude Code 仍然是实际 executor；本仓库只提供文件系统协议、状态提交入口、证据格式、审计门禁和控制器规则。
@@ -60,7 +66,7 @@ epoch_v1_manifest.yaml
 
 `epoch_v1_manifest.yaml` 仍是 epoch 结构声明源。新增 schema 字段必须优先进入 manifest 或由 manifest 引用的固定 schema 文档，不能在 README、模板和脚本中各自定义一套平行协议。
 
-`SPEC.yaml` 是机器执行合同，不是 PRD 摘要。`PLAN.md` 是 Gate runbook，不允许新增 PRD/SPEC 未声明的 dataset、baseline、metric、claim、harness。`TASK_QUEUE.yaml` 是 gate-aware 执行状态，不再只是 task list。`NEXT_ACTION.md` 是 executor 单步控制文件，只允许表达当前 active task。
+`SPEC.yaml` 是机器执行合同，不是 PRD 摘要。`PLAN.md` 是 Gate runbook，不允许新增 PRD/SPEC 未声明的 dataset、baseline、metric、claim、harness。当前执行模型中，`RESEARCH_SPINE.yaml` 是版本级 RQ 调度真源，`rqs/RQxx/TASKS.yaml` 是 RQ-local 执行真源，`TASK_QUEUE.yaml` 只是兼容聚合视图。
 
 状态推进必须经过三个层级：
 
@@ -155,8 +161,8 @@ Exit: Falsified
 
 职责：
 
-- 表达 gate-level 状态和 task-level 状态。
-- 保证同一时间默认只有一个 active task，除非并行任务显式声明且 allowed_files 不冲突。
+- 表达 gate-level 状态和 task-level 聚合状态。
+- 作为兼容视图投影当前 RQ-local runnable set，而不是充当唯一执行真源。
 
 必要结构：
 
@@ -188,25 +194,13 @@ gate status enum：
 pending, active, audit_required, audit_failed, passed, blocked, falsified
 ```
 
-### NEXT_ACTION Single-Step Contract
+### RQ-Local Execution Contract
 
 职责：
 
-- 将 executor 每轮行为限制在一个 active task。
-- 明确 allowed files、forbidden actions、required steps、harness 和 completion contract。
-
-`NEXT_ACTION.md` 必须包含：
-
-```text
-Active Task
-Objective
-Allowed Files
-Forbidden Actions
-Required Steps
-Harness
-Completion Contract
-If Blocked
-```
+- 让 executor 每轮从 `RESEARCH_SPINE.yaml` 选择 non-final RQ，并读取对应 `rqs/RQxx/TASKS.yaml` 的 active/runnable task。
+- 允许正交 runnable RQ 并行推进；单个 blocked RQ 不阻塞其它 RQ。
+- 明确 allowed files、forbidden actions、required steps、harness 和 completion contract 必须落在 RQ-local task 或其 run report 中。
 
 禁止动作至少包括：
 

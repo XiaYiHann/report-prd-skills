@@ -1,5 +1,11 @@
 # Search and Reproduction Gates 实现计划
 
+> Historical implementation plan. Superseded by the current RQ-driven pipeline:
+> `RESEARCH_SPINE.yaml` is the version-level scheduling truth,
+> `rqs/RQxx/TASKS.yaml` is the RQ-local execution truth,
+> `TASK_QUEUE.yaml` is a compatibility aggregate view only,
+> and version compounding flows through `wiki/` + `closeout.md` into `Vn+1`.
+
 > **给执行者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐步实现此计划。步骤使用复选框（`- [ ]`）语法以便跟踪。
 
 **目标：** 将 search lock 与 reproduction lock 升级为每个 epoch 的默认前置 Gate，阻止 proposed-method experiment 在 prior-work evidence substrate 尚未锁定前被激活。

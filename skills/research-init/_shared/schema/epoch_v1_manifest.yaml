@@ -15,6 +15,8 @@ required_files:
   - git_log.md
   - AUDIT_QUEUE.yaml
   - HUMAN_REVIEW_REQUESTS.yaml
+  - PAPER_TYPE.yaml
+  - scripts/pre_flight.sh
   - PAPER_CLAIM_LEDGER.yaml
   - closeout.md
   - PAPER_BINDING_DECISION.md
@@ -27,6 +29,7 @@ required_dirs:
   - baselines
   - reproduction
   - rqs
+  - scripts
   - wiki
 required_search_files:
   - search_report.md
@@ -84,6 +87,7 @@ yaml_required_fields:
     - schema_version
     - version
     - paper_type
+    - method_paper_protections
     - tdd_required
   TASK_QUEUE.yaml:
     - template_version

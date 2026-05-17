@@ -11,7 +11,7 @@ Generate or refresh the active epoch `Vn/goal.md` and `Vn/GOAL_LOCK.yaml`.
 
 This skill is a synthesis layer, not an executor. It does not run experiments,
 does not create tasks, does not modify `RESEARCH_DIRECTION.md`, and does not
-replace the internal Plan compiler or `TASK_QUEUE.yaml`.
+replace the internal Plan compiler, `RESEARCH_SPINE.yaml`, or `rqs/RQxx/TASKS.yaml`.
 
 ## Authority Chain
 
@@ -27,7 +27,7 @@ Read in order:
 8. `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
 9. `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
 10. `docs/research/{CURRENT}/rqs/RQxx/TASKS.yaml`
-11. `docs/research/{CURRENT}/TASK_QUEUE.yaml`
+11. `docs/research/{CURRENT}/TASK_QUEUE.yaml` (compatibility aggregate view)
 12. `docs/research/{CURRENT}/wiki/*` when present
 
 ## Output Contract
@@ -37,8 +37,8 @@ Read in order:
 - current Vn context and version-level objective, not merely a single-step action note;
 - every declared RQ's plan/task contract refs and all queue tasks that belong to that RQ;
 - the full version task dependency graph, including what each task does, dependency edges, waiting dependencies, blocked ancestors, unlocked descendants, runnable status, and RQ-local Spec/Plan refs;
-- `TASK_QUEUE.yaml` remains the single-step execution source;
-- orthogonal runnable tasks may continue, or run in parallel when executor support and file scopes allow, while blocked branch tasks freeze only their explicit descendants;
+- RQ 调度真源是 `RESEARCH_SPINE.yaml`，单个 RQ 的执行真源是 `rqs/RQxx/TASKS.yaml`，`TASK_QUEUE.yaml` 只是兼容聚合视图；
+- orthogonal runnable tasks may continue, or run in parallel when executor support and file scopes allow；中文约定可称为“正交 runnable tasks”；while blocked branch tasks freeze only their explicit descendants;
 - blocked / failed tasks must first enter code-review-first triage so the executor can distinguish implementation or harness defects from idea/spec defects before declaring the branch genuinely blocked;
 - `goal.md` must include a `## Blocked Task Triage Review` section that records the code-review-first triage rule, review order, and classification rule for blocked tasks;
 - blocked / failed tasks must emit `runs/TASK_XXX_blocker.md` with the triage conclusion, reviewed evidence, and recovery decision before gate-blocked handoff;
@@ -46,7 +46,7 @@ Read in order:
 - baseline decisions come from `BASELINE_LOCK.yaml` and `baselines/INDEX.yaml`;
 - no fabricated data, stdout/stderr, artifact, hash, citation, or paper result;
 - stop conditions for stale contracts, blocked gates, human review, closeout, and Paper Binding;
-- `goal.md` must include a `## Subagent Execution Contract` section with `prefer_subagents`: 优先使用 subagent 执行 bounded specialist work; dispatch literature, reproduction, coding, experiment, analysis, math, paper, and audit work to the corresponding subagent unless the task is too small, no matching subagent exists, or the main controller is blocked on state updates; the main controller remains responsible for state updates, gate decisions, and evidence admission.
+- `goal.md` must include a `## Subagent Execution Contract` section with `prefer_subagents`: 优先使用 subagent 执行 bounded specialist work; dispatch literature, reproduction, coding, experiment, analysis, math, paper, and audit work to runtime-provided specialist workers/reviewers when available, while the repository-managed Claude template surface currently only ships `research-experiment`; the main controller remains responsible for state updates, gate decisions, and evidence admission.
 
 `GOAL_LOCK.yaml` records:
 
@@ -79,6 +79,6 @@ python3 ~/.claude/skills/research-spec/scripts/validate_research.py \
 
 - Do not edit `RESEARCH_DIRECTION.md`.
 - Do not create `Vn+1`.
-- Do not bypass `TASK_QUEUE.yaml`.
+- Do not bypass `RESEARCH_SPINE.yaml` or `rqs/RQxx/TASKS.yaml`.
 - Do not turn a goal into empirical evidence.
-- Do not let `goal.md` contradict `PRD.tex`, `BASELINE_LOCK.yaml`, RQ-local `SPEC.yaml`, or `RESEARCH_SPINE.yaml`.
+- Do not let `goal.md` contradict `PRD.tex`, `BASELINE_LOCK.yaml`, RQ-local `SPEC.yaml`, `RESEARCH_SPINE.yaml`, or the compatibility contract encoded in `TASK_QUEUE.yaml`.

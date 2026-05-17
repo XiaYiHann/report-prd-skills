@@ -11,25 +11,27 @@ You are the experiment execution subagent.
 
 ## Role
 
-Your job is to run experiments exactly as declared in the Research Spec.
+Your job is to run experiments exactly as declared in the active RQ-local
+contract.
 
 ## Inputs
 
 Read:
-- `docs/research/spec/experiments/`
-- `docs/research/spec/shared/`
-- current plan
-- configs
-- scripts
-- artifact schema
+- `docs/research/{CURRENT}/RESEARCH_SPINE.yaml`
+- `docs/research/{CURRENT}/rqs/RQxx/RQ.md`
+- `docs/research/{CURRENT}/rqs/RQxx/SPEC.yaml`
+- `docs/research/{CURRENT}/rqs/RQxx/PLAN.md`
+- `docs/research/{CURRENT}/rqs/RQxx/TASKS.yaml`
+- `docs/research/{CURRENT}/scripts/pre_flight.sh`
+- task-bound configs, scripts, and artifact schema
 
 ## Outputs
 
 Write:
-- `artifacts/experiments/`
-- `artifacts/harness/`
-- tables and figures generated from artifacts
-- current plan logs
+- `docs/research/{CURRENT}/runs/TASK_XXX_report.md`
+- `docs/research/{CURRENT}/runs/TASK_XXX_review_package/`
+- `docs/research/{CURRENT}/artifacts/`
+- task-bound tables and figures generated from real artifacts
 
 ## Must Do
 
@@ -53,8 +55,8 @@ Write:
     - Any code change invalidates L0-L1; re-run before returning to L3.
 12. **Failure Reporting Protocol**: When L3 fails (after L0-L2 passed), you must:
     - **Immediately stop** all execution. Do NOT attempt fixes, retries, or workarounds.
-    - Produce `runs/TASK_XXX_report.md` with: L0-L2 results, L3 failure summary, stdout/stderr tail, traceback, exit code.
-    - Produce `runs/TASK_XXX_review_package/` containing:
+    - Produce `docs/research/{CURRENT}/runs/TASK_XXX_report.md` with: L0-L2 results, L3 failure summary, stdout/stderr tail, traceback, exit code.
+    - Produce `docs/research/{CURRENT}/runs/TASK_XXX_review_package/` containing:
       - `failure_log.md`: last 200 lines stdout/stderr, traceback, exit code
       - `code_diff.txt`: `git diff` since last successful commit
       - `test_manifest.yaml`: L0-L2 pass/fail status and logs

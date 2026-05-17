@@ -298,6 +298,40 @@ class EpochSchemaValidationTests(unittest.TestCase):  # noqa: F405
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("V0/rqs/RQ01/SPEC.yaml", result.stdout)
 
+    def test_epoch_ready_rejects_missing_preflight_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            (research_dir / "V0" / "scripts" / "pre_flight.sh").unlink()
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V0/scripts/pre_flight.sh", result.stdout)
+
+    def test_epoch_ready_rejects_invalid_paper_type(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            paper_type = read_yaml(research_dir / "V0" / "PAPER_TYPE.yaml")
+            paper_type["paper_type"] = "prototype"
+            write_yaml(research_dir / "V0" / "PAPER_TYPE.yaml", paper_type)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("PAPER_TYPE.yaml invalid paper_type", result.stdout)
+
+    def test_epoch_ready_rejects_non_boolean_tdd_required_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            research_dir = init_workspace_fast(Path(tmp))
+            paper_type = read_yaml(research_dir / "V0" / "PAPER_TYPE.yaml")
+            paper_type["tdd_required"]["enabled"] = "yes"
+            write_yaml(research_dir / "V0" / "PAPER_TYPE.yaml", paper_type)
+
+            result = run_cmd(["python3", str(VALIDATE_SCRIPT), "--research-dir", str(research_dir), "--mode", "epoch-ready"])
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("PAPER_TYPE.yaml tdd_required.enabled must be a boolean", result.stdout)
+
     def test_epoch_ready_rejects_rq_spec_id_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             research_dir = init_workspace_fast(Path(tmp))

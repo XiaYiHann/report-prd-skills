@@ -77,7 +77,7 @@ python3 ~/.claude/skills/research-audit/scripts/generate_research_audit.py \
 - Has any agent modified `RESEARCH_DIRECTION.md` without explicit user instruction?
 - Does `CURRENT` match `Vn/STATUS.yaml.version`?
 
-- Is there exactly one active task?
+- Does `TASK_QUEUE.yaml` remain a compatibility aggregate view, and if it marks an active task, does it agree with the active RQ-local task in `rqs/RQxx/TASKS.yaml`?
 - Does every task in `Vn/TASK_QUEUE.yaml` declare `research_binding` with mode `direction_bootstrap`, `spine_bound`, `maintenance`, or `paper_binding`?
 - Do all `spine_bound` task bindings resolve to valid `RESEARCH_SPINE.yaml` RQ, claim, experiment, and evidence ids?
 - Are experiment, analysis, and result-binding active tasks blocked unless they bind concrete `experiment_ids` and `evidence_ids`?

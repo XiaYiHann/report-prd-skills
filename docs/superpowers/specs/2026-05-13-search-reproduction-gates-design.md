@@ -1,5 +1,11 @@
 # Search and Reproduction Gates 设计规格
 
+> Historical design snapshot. Superseded by the current RQ-driven pipeline:
+> `RESEARCH_SPINE.yaml` is the version-level scheduling truth,
+> `rqs/RQxx/TASKS.yaml` is the RQ-local execution truth,
+> `TASK_QUEUE.yaml` is a compatibility aggregate view only,
+> and version compounding flows through `wiki/` + `closeout.md` into `Vn+1`.
+
 ## 概述
 
 本规格定义 `research-execution-skills` 的下一阶段协议升级：在已经落地的 gate-aware epoch execution protocol 基础上，把 search 和 reproduction 从辅助能力提升为每个研究 epoch 的强制前置门禁。

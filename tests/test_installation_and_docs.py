@@ -42,7 +42,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("## 新手先读", readme)
         self.assertIn("START_HERE.md", readme)
         self.assertIn("GLOSSARY.md", readme)
-        self.assertIn("Direction -> Goal -> Task Queue -> Evidence/Audit -> Wiki/Closeout", readme)
+        self.assertIn("Direction -> Goal -> RQ Spine -> Evidence/Audit -> Wiki/Closeout", readme)
         self.assertIn("先回答四个问题", start_here)
         self.assertIn("Beginner Summary", start_here)
         self.assertIn("## Baseline Lock", glossary)
@@ -176,6 +176,29 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("Audit Modernization", readme)
         self.assertIn("Explore 负责想", readme)
 
+    def test_historical_superpowers_docs_are_marked_superseded(self) -> None:
+        expected_phrase = "Superseded by the current RQ-driven pipeline"
+        for relative in [
+            "docs/superpowers/specs/2026-05-12-epoch-schema-invariance-design.md",
+            "docs/superpowers/specs/2026-05-13-search-reproduction-gates-design.md",
+            "docs/superpowers/specs/2026-05-13-gate-aware-research-loop-design.md",
+            "docs/superpowers/plans/2026-05-12-epoch-schema-invariance.md",
+            "docs/superpowers/plans/2026-05-13-search-reproduction-gates.md",
+            "docs/superpowers/plans/2026-05-13-gate-aware-research-loop.md",
+        ]:
+            text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn(expected_phrase, text, relative)
+            self.assertIn("RESEARCH_SPINE.yaml", text, relative)
+            self.assertIn("rqs/RQxx/TASKS.yaml", text, relative)
+            self.assertIn("TASK_QUEUE.yaml", text, relative)
+
+    def test_research_audit_skill_uses_rq_local_consistency_question(self) -> None:
+        skill_text = (REPO_ROOT / "skills" / "research-audit" / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("compatibility aggregate view", skill_text)
+        self.assertIn("rqs/RQxx/TASKS.yaml", skill_text)
+        self.assertNotIn("Is there exactly one active task?", skill_text)
+
     def test_failure_triage_policy_exists_and_defines_research_falsification_boundary(self) -> None:
         path = REPO_ROOT / "docs" / "research" / "agent" / "FAILURE_TRIAGE_POLICY.md"
         self.assertTrue(path.exists())
@@ -264,6 +287,9 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
                 (target / module_name / "SKILL.md").write_text("old visible skill\n", encoding="utf-8")
             (target / "research-prd").mkdir(parents=True)
             (target / "research-prd" / "SKILL.md").write_text("old visible skill\n", encoding="utf-8")
+            project_agents.mkdir(parents=True, exist_ok=True)
+            for retired_agent in ["research-math", "research-coding"]:
+                (project_agents / f"{retired_agent}.md").write_text("old agent\n", encoding="utf-8")
             env = os.environ.copy()
             env["RESEARCH_EXECUTION_SKILLS_SOURCE_DIR"] = str(REPO_ROOT)
             env["RESEARCH_EXECUTION_SKILLS_TARGET_DIR"] = str(target)
@@ -311,6 +337,8 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             self.assertIn("Next steps:", result.stdout)
             for agent_name in CLAUDE_RESEARCH_AGENT_NAMES:
                 self.assertTrue((project_agents / f"{agent_name}.md").exists(), agent_name)
+            for retired_agent in ["research-math", "research-coding"]:
+                self.assertFalse((project_agents / f"{retired_agent}.md").exists(), retired_agent)
 
     @pytest.mark.integration
     def test_installer_respects_existing_files_without_force_and_overwrites_with_force(self) -> None:
@@ -462,7 +490,7 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("DRY RUN", result.stdout)
             self.assertIn("would install skill research", result.stdout)
-            self.assertIn("would install agent research-math", result.stdout)
+            self.assertIn("would install agent research-experiment", result.stdout)
             self.assertFalse(target.exists())
             self.assertFalse(project_agents.exists())
             self.assertFalse((project / "docs").exists())

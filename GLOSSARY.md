@@ -20,11 +20,15 @@ Research Question。它是一个可证伪、可执行、可被 evidence gate 检
 
 ## Task Queue
 
-`Vn/TASK_QUEUE.yaml`。它是 task 调度真源，记录每个 task 的状态、依赖、文件范围和证据要求。默认串行推进 active task；若依赖满足且文件范围不冲突，正交 runnable tasks 可以并行推进。
+`Vn/TASK_QUEUE.yaml`。它是兼容性的扁平聚合视图，记录全局 next-action 投影、依赖摘要、文件范围和证据要求，便于 status、audit 和 legacy validator 做快速检查。它不能覆盖 `RESEARCH_SPINE.yaml` 与 `rqs/RQxx/TASKS.yaml` 的真实调度语义。
 
 ## Spine
 
-`Vn/RESEARCH_SPINE.yaml`。它把 RQ、claim、experiment、evidence、figure/table 和 paper section 连接起来，防止 paper claim 脱离实验合同。
+`Vn/RESEARCH_SPINE.yaml`。它是版本级 RQ 调度真源，同时把 RQ、claim、experiment、evidence、figure/table 和 paper section 连接起来，防止 paper claim 脱离实验合同。
+
+## RQ-local Tasks
+
+`Vn/rqs/RQxx/TASKS.yaml`。它是单个 RQ 的执行真源，定义该 RQ 的 gate-aware task surface、依赖关系、测试命令、evidence 要求与 blocker 传播规则。
 
 ## Gate
 

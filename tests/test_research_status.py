@@ -70,6 +70,7 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertIn("## Current Goal", result.stdout)
         self.assertIn("## Experiment Progress", result.stdout)
         self.assertIn("## RQ Progress", result.stdout)
+        self.assertIn("## Wiki And Compounding", result.stdout)
         self.assertIn("## Next Actions", result.stdout)
         self.assertIn("T_G0_001", result.stdout)
         self.assertIn("Web search prior work and baselines", result.stdout)
@@ -92,6 +93,35 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertIn("verify", baseline_blocker)
         self.assertIn("BASELINE_LOCK.yaml", payload["plain_language_summary"]["missing"])
         self.assertIn("baseline-lock-ready", payload["plain_language_summary"]["verify"])
+
+    def test_research_status_prefers_rq_local_active_task_over_stale_queue_projection(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_fast(repo)
+            queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
+            queue = read_yaml(queue_path)
+            queue["current_task"] = "T_G0_001"
+            for task in queue["tasks"]:
+                task["status"] = "pending"
+            write_yaml(queue_path, queue)
+
+            rq_tasks_path = research_dir / "V0" / "rqs" / "RQ01" / "TASKS.yaml"
+            rq_tasks = read_yaml(rq_tasks_path)
+            rq_tasks["tasks"][0]["status"] = "active"
+            write_yaml(rq_tasks_path, rq_tasks)
+
+            result = run_cmd(["python3", str(STATUS_SCRIPT), "--repo", str(repo), "--json", "--no-validators"])  # noqa: F405
+            payload = json.loads(result.stdout)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(payload["active_task"]["id"], "RQ01_T001")
+        self.assertEqual(payload["active_task"]["rq_id"], "RQ01")
+        self.assertEqual(payload["current_experiment"]["active_task"]["id"], "RQ01_T001")
+        self.assertEqual(payload["epoch_progress"]["task_counts"]["active"], 1)
+        self.assertIn("RQ01_T001", payload["project_summary"]["remaining"]["active_tasks"][0])
+        self.assertEqual(payload["next_actions"][0]["type"], "continue_active_task")
+        self.assertEqual(payload["next_actions"][0]["target"], "RQ01_T001")
+        self.assertIn("docs/research/V0/rqs/RQ01/TASKS.yaml", payload["plain_language_summary"]["read_first"])
 
     def test_research_status_blocked_task_prioritizes_code_review_triage(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,6 +149,17 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertIn("code-review-first triage", payload["plain_language_summary"]["next_step"])
         self.assertIn("triage", result.stdout)
         self.assertIn("review_blocked_code", result.stdout)
+
+    def test_research_status_meta_framework_validators_are_not_applicable(self) -> None:
+        result = run_cmd(["python3", str(STATUS_SCRIPT), "--repo", str(REPO_ROOT), "--json"])  # noqa: F405
+        payload = json.loads(result.stdout)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(payload["workspace_role"], "meta_framework")
+        self.assertEqual(payload["validators"]["goal-ready"]["ok"], None)
+        self.assertFalse(payload["validators"]["goal-ready"]["applicable"])
+        self.assertEqual(payload["validators"]["goal-ready"]["reason"], "meta_framework_workspace")
+        self.assertIn("framework 合同", payload["project_summary"]["next_step"])
 
 
 if __name__ == "__main__":

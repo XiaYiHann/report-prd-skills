@@ -1,5 +1,11 @@
 # Gate-Aware Research Loop 实现计划
 
+> Historical implementation plan. Superseded by the current RQ-driven pipeline:
+> `RESEARCH_SPINE.yaml` is the version-level scheduling truth,
+> `rqs/RQxx/TASKS.yaml` is the RQ-local execution truth,
+> `TASK_QUEUE.yaml` is a compatibility aggregate view only,
+> and version compounding flows through `wiki/` + `closeout.md` into `Vn+1`.
+
 > **给执行者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐步实现此计划。步骤使用复选框（`- [ ]`）语法以便跟踪。
 
 **目标：** 将现有 epoch research loop 升级为 gate-aware 执行协议，使 `TASK_QUEUE.yaml`、`NEXT_ACTION.md`、run report、`update_state.py`、audit/insight 与 stale hash 检查共同形成可验证的研究执行闭环。
@@ -822,7 +828,7 @@ git commit -m "feat(research): add gate audit and insight state files"
 - [ ] 行为 1: README 明确定义 Gate、Task、Harness、Audit、Insight。
 - [ ] 行为 2: README 不再把 milestone 作为机器状态术语。
 - [ ] 行为 3: FAILURE_TRIAGE_POLICY 定义七类失败并明确 falsification candidate/confirmed 的条件。
-- [ ] 行为 4: research skill 指示 executor 每轮只执行 `NEXT_ACTION.md` 的 active task。
+- [ ] 行为 4: research skill 指示 executor 以 `RESEARCH_SPINE.yaml` + `rqs/RQxx/TASKS.yaml` 为执行真源，并把 `TASK_QUEUE.yaml` 仅作为兼容聚合视图。
 - [ ] 行为 5: audit skill 指示 failed_execution/failed_harness 不能视为 research falsification。
 - [ ] 行为 6: docs tests 检查关键文件和关键短语存在。
 

@@ -56,6 +56,8 @@ class EpochManifestContractTests(unittest.TestCase):
                 "git_log.md",
                 "AUDIT_QUEUE.yaml",
                 "HUMAN_REVIEW_REQUESTS.yaml",
+                "PAPER_TYPE.yaml",
+                "scripts/pre_flight.sh",
                 "PAPER_CLAIM_LEDGER.yaml",
                 "closeout.md",
                 "PAPER_BINDING_DECISION.md",
