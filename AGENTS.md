@@ -36,3 +36,14 @@ Codex 每次工作先读：
 8. 确定性工作属于脚本。脚本化。
 9. 测试是证据而非装饰。验证预期。
 10. 约定优于新奇。现有文件夹结构。
+11. **角色分离（Role Separation）**：
+    - **Controller（`research-controller`）是唯一状态管理者**：独占 `STATUS.yaml`、`TASK_QUEUE.yaml`、`EVIDENCE_GATE.yaml`、`PAPER_TYPE.yaml`、`METHOD_DEFENSE.yaml` 的写权限。Controller 不执行具体研究任务（不写实验代码、不跑训练、不做数据分析）。
+    - **Specialist Subagents 只执行被分配的具体任务**：`research-experiment` 跑实验、`research-coding` 写代码、`research-audit` 做审查、`research-analysis` 做分析等。Specialist 不修改状态文件、不做调度决策、不自行判断 method validity。
+    - **Method Defense Review 必须由独立 subagent 执行**：`research-audit` 作为 reviewer，`research-experiment` 作为执行者，Controller 作为调度者，三者互相制衡。
+12. **Method Defense Gate 不可绕过（method paper 适用）**：若 epoch 的 `PAPER_TYPE.yaml` 声明 `paper_type: method`，任何实验失败后：
+    - **Controller 接收 `research-experiment` 的 failure report 和 review package**。
+    - **Controller spawn 独立 `research-audit` subagent** 做 review，输出 `runs/TASK_XXX_subagent_review.md`。
+    - **Controller 按 review 结论更新状态**：若 `method_validity: maintained` 则调度下一个适用场景；若 `falsified` 则请求 human review。
+    - **任何 specialist 不得擅自覆盖 review 结论**；如有异议，写入 `HUMAN_REVIEW_REQUESTS.yaml` 请求人类仲裁。
+    - 最终 `METHOD_DEFENSE.yaml` 的 `reviewed_by` 字段必须为 `subagent`，`self` 被视为无效。
+13. **TDD Protocol 不可绕过（所有 paper type 适用）**：任何 full experiment（L3）在首次运行前，必须先通过 L0（语法检查）、L1（公式/契约确定性测试）、L2（单 batch smoke）。L3 失败后自动回溯：若 L0-L2 从未运行 → 这是 Agent 违规，必须先补测试；若 L0-L2 通过但 L3 失败 → 由 Controller 调度 audit review。

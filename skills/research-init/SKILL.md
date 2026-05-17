@@ -77,6 +77,7 @@ The command creates the new default structure:
 - `docs/research/V0/RESEARCH_SPINE.yaml`
 - `docs/research/V0/STATUS.yaml`
 - `docs/research/V0/TASK_QUEUE.yaml`
+- `docs/research/V0/PAPER_TYPE.yaml`
 - `docs/research/V0/rqs/RQ01/SPEC.yaml`
 - `docs/research/V0/rqs/RQ01/PLAN.md`
 - `docs/research/V0/rqs/RQ01/TASKS.yaml`

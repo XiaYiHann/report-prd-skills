@@ -3300,6 +3300,13 @@ def epoch_status_payload(version: str) -> dict[str, Any]:
         "current_evidence_gate": "EVIDENCE_GATE.yaml",
         "current_gate": None,
         "last_completed_task": None,
+        "paper_type": "method",  # default; human must confirm at PRD lock
+        "test_manifest": {
+            "l0_static": False,
+            "l1_deterministic": False,
+            "l2_smoke": False,
+            "l3_full": False,
+        },
         "last_loop_report": "LOOP_LOG.md",
         "close_reason": None,
         "paper_binding": {"allowed": False, "reason": "当前版本尚未 closed_stable。"},
@@ -3789,6 +3796,26 @@ def default_frontier_map(version: str) -> dict[str, Any]:
 
 def default_human_review_requests(version: str) -> dict[str, Any]:
     return {"schema_version": 1, "epoch": version, "requests": []}
+
+
+def default_paper_type_payload(version: str) -> dict[str, Any]:
+    return {
+        "schema_version": "epoch_v1",
+        "version": version,
+        "paper_type": "method",
+        "method_defense": {
+            "enabled": True,
+            "hard_stop_conditions": [
+                "method_falsified_by_audit",
+                "all_applicable_scenes_exhausted",
+                "human_explicit_stop",
+            ],
+        },
+        "tdd_required": {
+            "enabled": True,
+        },
+        "applicability_map_ref": "APPLICABILITY_MAP.yaml",
+    }
 
 
 def default_paper_claim_ledger(version: str) -> dict[str, Any]:
@@ -5078,6 +5105,7 @@ def init_epoch_scaffold(repo: Path, research_dir: Path, title: str, purpose: str
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
     write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
     write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
+    write_yaml(epoch_dir / "PAPER_TYPE.yaml", default_paper_type_payload(version), force)
     write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
     init_rq_scaffold(epoch_dir, version, "RQ01", force)
     for filename, content in default_search_metadata(version).items():
@@ -5183,6 +5211,7 @@ def create_epoch(
     write_text(epoch_dir / "git_log.md", markdown_template(git_log_template(version)), force)
     write_yaml(epoch_dir / "AUDIT_QUEUE.yaml", default_audit_queue(version), force)
     write_yaml(epoch_dir / "HUMAN_REVIEW_REQUESTS.yaml", default_human_review_requests(version), force)
+    write_yaml(epoch_dir / "PAPER_TYPE.yaml", default_paper_type_payload(version), force)
     write_yaml(epoch_dir / "PAPER_CLAIM_LEDGER.yaml", default_paper_claim_ledger(version), force)
     init_rq_scaffold(epoch_dir, version, "RQ01", force)
     for filename, content in default_search_metadata(version).items():

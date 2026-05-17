@@ -78,6 +78,14 @@ yaml_required_fields:
     - current_task_queue
     - current_evidence_gate
     - paper_binding
+    - paper_type
+    - test_manifest
+  PAPER_TYPE.yaml:
+    - schema_version
+    - version
+    - paper_type
+    - method_defense
+    - tdd_required
   TASK_QUEUE.yaml:
     - template_version
     - version
