@@ -183,7 +183,7 @@ while True:
 |--------|--------|
 | 调度真源：`TASK_QUEUE.yaml` | 调度真源：`RESEARCH_SPINE.yaml` |
 | 串行推进一个 active task | 并行推进所有非终态 RQ |
-| `TASK_QUEUE.yaml` 管理全局任务状态 | `TASK_QUEUE.yaml` 降级为 per-RQ 的 `rqs/RQxx/TASKS.yaml` |
+| `TASK_QUEUE.yaml` 管理全局任务状态 | `TASK_QUEUE.yaml` 为全局聚合视图（兼容保留）；per-RQ 任务在 `rqs/RQxx/TASKS.yaml` |
 | 一个 task blocked 冻结全局 | 一个 RQ blocked 只冻结该 RQ |
 
 ### Worker spawn 契约
