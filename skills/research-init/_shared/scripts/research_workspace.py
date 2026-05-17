@@ -2290,9 +2290,19 @@ def epoch_spine_payload(version: str) -> dict[str, Any]:
             {
                 "id": "RQ01",
                 "text": "【待填写：当前版本的第一个可证伪研究问题】",
+                "status": "draft",
+                "depends_on": [],
+                "output_claim": None,
+                "next_rq_trigger": None,
                 "rq_dir": "rqs/RQ01",
                 "spec_ref": "rqs/RQ01/SPEC.yaml",
                 "plan_ref": "rqs/RQ01/PLAN.md",
+                "evidence_state": {
+                    "g0_search": "draft",
+                    "g1_reproduce": "draft",
+                    "g2_harness": "draft",
+                    "g3_experiments": [],
+                },
             }
         ],
         "claims": [],
@@ -3803,18 +3813,7 @@ def default_paper_type_payload(version: str) -> dict[str, Any]:
         "schema_version": "epoch_v1",
         "version": version,
         "paper_type": "method",
-        "method_defense": {
-            "enabled": True,
-            "hard_stop_conditions": [
-                "method_falsified_by_audit",
-                "all_applicable_scenes_exhausted",
-                "human_explicit_stop",
-            ],
-        },
-        "tdd_required": {
-            "enabled": True,
-        },
-        "applicability_map_ref": "APPLICABILITY_MAP.yaml",
+        "tdd_required": {"enabled": True},
     }
 
 

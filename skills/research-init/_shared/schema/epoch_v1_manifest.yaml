@@ -84,7 +84,6 @@ yaml_required_fields:
     - schema_version
     - version
     - paper_type
-    - method_defense
     - tdd_required
   TASK_QUEUE.yaml:
     - template_version

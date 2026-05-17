@@ -1,0 +1,61 @@
+---
+schema_version: epoch_v1
+version: V0
+direction_ref: ../RESEARCH_DIRECTION.md
+source_prd_hash: null
+
+# RQ-Driven Research Spine
+# 每个 RQ 是一个递进的问题；RQ1 的结论成为 RQ2 的前提（compounding）。
+# Controller 根据 status 和 depends_on 自动调度活跃 RQ。
+# 详见 PIPELINE.md §2-§3。
+
+research_questions:
+  - id: RQ01
+    text: "【待填写：当前版本的第一个可证伪研究问题】"
+    status: draft
+    # RQ 生命周期：draft → g0_search → g1_reproduce → g2_harness → g3_experiment
+    #              → evidence_sufficient → completed | scope_contracted | hypothesis_weakened | blocked
+    depends_on: []
+    # 空列表 = root RQ，无需前置结论即可启动。
+    # 非空列表 = compounding 输入；仅当所有前置 RQ 为 completed 时才激活。
+    output_claim: null
+    # RQ01 完成后得出的核心结论（一句话），自动成为 RQ02 的前提。
+    next_rq_trigger: null
+    # 激活下一个 RQ 的条件，例如 "RQ01 evidence_sufficient and claim validated"
+    rq_dir: rqs/RQ01
+    spec_ref: rqs/RQ01/SPEC.yaml
+    plan_ref: rqs/RQ01/PLAN.md
+    evidence_state:
+      g0_search: draft   # 文献/基线搜索状态
+      g1_reproduce: draft # 基线复现状态
+      g2_harness: draft   # 实验框架构建状态
+      g3_experiments: []  # 实验记录列表，见下方示例
+
+  # 示例：第二个 RQ（compounding 依赖 RQ01）
+  # - id: RQ02
+  #   text: "【待填写：依赖 RQ01 结论的下一个问题】"
+  #   status: pending
+  #   depends_on: [RQ01]
+  #   output_claim: null
+  #   next_rq_trigger: null
+  #   rq_dir: rqs/RQ02
+  #   spec_ref: rqs/RQ02/SPEC.yaml
+  #   plan_ref: rqs/RQ02/PLAN.md
+  #   evidence_state:
+  #     g0_search: draft
+  #     g1_reproduce: draft
+  #     g2_harness: draft
+  #     g3_experiments: []
+
+# g3_experiments 条目示例（由 Worker / Controller 自动填充）
+# - experiment_id: e1_solver_smoke
+#   task_ref: runs/TASK_001
+#   status: completed          # completed | failed
+#   failure_impact: null       # 失败时填写：code_bug | scene_specific | method_contradicting
+#   scope_contraction: null     # 仅 scene_specific 时填写：{excluded: [], reason: ""}
+
+claims: []
+experiments: []
+evidence: []
+figures_tables: []
+paper_sections: []

@@ -9,31 +9,13 @@ version: V0
 
 paper_type: method
 # Allowed: method | finding | system | benchmark | survey
-# - method: proposes a general algorithm/framework; Method Defense Gate is active.
-# - finding: reports a discovered phenomenon; default drift protection is active.
+# - method: proposes a general algorithm/framework.
+# - finding: reports a discovered phenomenon.
 # - system: introduces an infrastructure or tool.
 # - benchmark: releases a dataset or evaluation protocol.
 # - survey: synthesizes existing literature.
 
-method_defense:
-  enabled: true
-  # For method paper ONLY. If true, FAILURE_TRIAGE_POLICY.md Section 7
-  # (Method Scope Contraction) is enforced on every experiment failure.
-  # Agents cannot bypass; METHOD_DEFENSE.yaml must be produced before
-  # any task is marked completed after a failure.
-
-  hard_stop_conditions:
-    - method_falsified_by_audit
-    - all_applicable_scenes_exhausted
-    - human_explicit_stop
-  # Default "same_failure_twice" does NOT apply to method paper.
-
 tdd_required:
   enabled: true
-  # For ALL paper types. If true, research-experiment agent must execute
-  # L0 (static) -> L1 (deterministic) -> L2 (smoke) -> L3 (full) in order.
-  # L3 may not be run until L0-L2 are logged in the run report.
-
-applicability_map_ref: APPLICABILITY_MAP.yaml
-# For method paper. Lists scenes/tasks where the method is expected to work.
-# Updated when scope contraction occurs. New epochs inherit and extend.
+  # For ALL paper types. L0 (static) -> L1 (deterministic) -> L2 (smoke) -> L3 (full).
+  # See PIPELINE.md §4 and pre_flight.sh template.
