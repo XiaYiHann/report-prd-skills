@@ -71,6 +71,8 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("latest approved design source", docs)
         self.assertIn("do not stop after a repair-only pass", docs)
         self.assertIn("Subagent Execution Contract", docs)
+        self.assertIn("prefer_subagents", docs)
+        self.assertIn("优先使用 subagent", docs)
         self.assertIn("main controller remains responsible for state updates", docs)
         for forbidden in [
             "当前下一步",

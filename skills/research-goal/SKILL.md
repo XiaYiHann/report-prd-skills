@@ -46,7 +46,7 @@ Read in order:
 - baseline decisions come from `BASELINE_LOCK.yaml` and `baselines/INDEX.yaml`;
 - no fabricated data, stdout/stderr, artifact, hash, citation, or paper result;
 - stop conditions for stale contracts, blocked gates, human review, closeout, and Paper Binding;
-- `goal.md` must include a `## Subagent Execution Contract` section: dispatch literature, reproduction, coding, experiment, analysis, math, paper, and audit work to the corresponding subagent when useful, while the main controller remains responsible for state updates, gate decisions, and evidence admission.
+- `goal.md` must include a `## Subagent Execution Contract` section with `prefer_subagents`: 优先使用 subagent 执行 bounded specialist work; dispatch literature, reproduction, coding, experiment, analysis, math, paper, and audit work to the corresponding subagent unless the task is too small, no matching subagent exists, or the main controller is blocked on state updates; the main controller remains responsible for state updates, gate decisions, and evidence admission.
 
 `GOAL_LOCK.yaml` records:
 

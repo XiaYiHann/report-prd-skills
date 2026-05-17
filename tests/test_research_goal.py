@@ -79,6 +79,8 @@ class ResearchGoalTests(unittest.TestCase):  # noqa: F405
         self.assertIn("implementation defect", goal_text)
         self.assertIn("idea/spec defect", goal_text)
         self.assertIn("## Subagent Execution Contract", goal_text)
+        self.assertIn("prefer_subagents", goal_text)
+        self.assertIn("优先使用 subagent", goal_text)
         self.assertIn("research-coding", goal_text)
         self.assertIn("research-experiment", goal_text)
         self.assertIn("research-audit", goal_text)

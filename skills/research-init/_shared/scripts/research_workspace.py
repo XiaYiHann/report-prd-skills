@@ -1905,6 +1905,7 @@ Read:
 ## Subagent Execution Contract
 
 - Delegate bounded specialist work to the relevant project subagent when useful.
+- prefer_subagents: 优先使用 subagent 执行 bounded specialist work；主会话保留 controller 责任。
 - The main controller remains responsible for state updates, gate decisions, evidence admission, and `update_state.py`.
 - Subagent output must list commands, changed files, artifacts/hashes when applicable, and residual blockers.
 
@@ -3187,6 +3188,7 @@ active_task_source: TASK_QUEUE.yaml
 ## Subagent Execution Contract
 
 - main controller remains responsible for state updates, gate decisions, final evidence admission, `update_state.py`, `LOOP_LOG.md`, `TASK_QUEUE.yaml`, `STATUS.yaml`, and `GOAL_LOCK.yaml`.
+- prefer_subagents: 优先使用 subagent 执行 bounded specialist work；除非任务过小、没有匹配 subagent、或下一步被主 controller 的状态更新阻塞，否则不要把文献、复现、编码、实验、分析、数学、论文或审计工作全部留在主会话内完成。
 - Delegate bounded specialist work to subagents when the active task naturally matches a role; assign concrete `allowed_files`, expected artifacts, and validation commands, then review and integrate their result before state update.
 - literature / benchmark / baseline selection -> `research-literature`
 - baseline reproduction -> `research-reproduce`
@@ -10110,6 +10112,8 @@ def validate_goal_ready(research_dir: Path) -> Validation:
         "latest approved design source",
         "do not stop after a repair-only pass",
         "Subagent Execution Contract",
+        "prefer_subagents",
+        "优先使用 subagent",
         "main controller remains responsible for state updates",
     ]:
         if required not in goal_text:

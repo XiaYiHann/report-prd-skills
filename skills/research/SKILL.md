@@ -179,7 +179,7 @@ Spec/Plan/Paper can be implicit, but their gates cannot be implicit. Every faile
 
 Goal mode is an execution contract, not a drift-audit endpoint. If the executor finds contract drift before the active task, it must first decide whether there is a single latest approved design source. Repairable drift is handled with repair-then-execute: update stale secondary contracts, refresh `goal.md` / `GOAL_LOCK.yaml`, run `goal-ready` after the drift repair, and then continue executing the runnable task set. Do not stop after a repair-only pass. Stop only when the repair would change a human-owned decision, no runnable unblocked task remains, or the epoch reaches a closed / blocked state.
 
-Goal mode should use subagents for bounded specialist work when available. The main controller may delegate literature, reproduction, coding, experiment, analysis, math, paper, and audit subtasks, but the main controller remains responsible for state updates, gate decisions, final evidence admission, and `update_state.py`.
+Goal mode should prefer subagents for bounded specialist work. Use `prefer_subagents`: 优先使用 subagent for literature, reproduction, coding, experiment, analysis, math, paper, and audit subtasks unless the task is too small, no matching subagent exists, or the main controller is blocked on state updates. The main controller remains responsible for state updates, gate decisions, final evidence admission, and `update_state.py`.
 
 ### Starting goal mode
 

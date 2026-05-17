@@ -421,7 +421,7 @@ Claude Code project-level subagents 安装在 `.claude/agents/`，执行 YAML fr
 
 主 agent（`/research` controller）始终负责：状态推进、gate 判定、active task 执行、wiki/closeout。
 
-在 goal mode 中，subagent 是执行加速器，不是状态控制器。主 controller 可以把 literature、reproduction、coding、experiment、analysis、math、paper、audit 等 bounded subtask 分派给对应 subagent，但 main controller remains responsible for state updates、gate decisions、final evidence admission、`update_state.py`、`TASK_QUEUE.yaml` 与 `STATUS.yaml`。subagent 的输出必须列出命令、改动文件、artifact/hash 与残余 blocker；prompt-only subagent note 不能充当实验或 claim evidence。
+在 goal mode 中，subagent 是优先执行路径，不是可有可无的装饰。`prefer_subagents`: 优先使用 subagent 执行 literature、reproduction、coding、experiment、analysis、math、paper、audit 等 bounded specialist work；除非任务过小、没有匹配 subagent、或下一步被主 controller 的状态更新阻塞，否则不要把这些工作全部留在主会话内完成。main controller remains responsible for state updates、gate decisions、final evidence admission、`update_state.py`、`TASK_QUEUE.yaml` 与 `STATUS.yaml`。subagent 的输出必须列出命令、改动文件、artifact/hash 与残余 blocker；prompt-only subagent note 不能充当实验或 claim evidence。
 
 ## Search and Evidence Acquisition Policy
 
