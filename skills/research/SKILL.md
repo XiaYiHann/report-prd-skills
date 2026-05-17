@@ -139,7 +139,10 @@ Old versions are read-only; consult only `closeout.md` and `wiki/epoch_summary.m
 - Never fabricate data, metrics, baselines, or results.
 - Never use mock/toy/smoke outputs as claim evidence.
 - Never treat prompt-only scaffold as experiment evidence or Paper Binding evidence.
-- If execution fails, retry within the current plan's allowed scope.
+- If execution fails or a task blocks, first perform code-review-first triage on implementation diff, harness output, stdout/stderr, artifact hash, and spec/plan delta before declaring the branch genuinely blocked.
+- If the triage shows implementation or harness defect, repair and retry within the current plan's allowed scope.
+- If the triage shows idea/spec defect, record the blocker or pivot request and preserve orthogonal runnable tasks.
+- Write or update `Vn/runs/TASK_XXX_blocker.md` with the triage conclusion, review order, and recovery decision before escalating to human review.
 - Do not treat `failed_execution` or `failed_harness` as research falsification. Classify failures using `docs/research/agent/FAILURE_TRIAGE_POLICY.md`.
 - If spec is incomplete but PRD is clear, repair spec and regenerate the plan.
 - If PRD is ambiguous or a research hypothesis is challenged, stop and request human review.
@@ -217,7 +220,7 @@ When `STATUS.yaml.status` is `gate_blocked` and a blocker is documented in `Vn/r
 <promise>RESEARCH_BLOCKED</promise>
 ```
 
-The user can inspect the blocker, resolve it, refresh the stale contract if needed, and restart goal mode from the same `goal.md`.
+The blocker note is written by the state updater and must record the code-review-first triage result: implementation defect, harness defect, or idea/spec defect. The user can inspect the blocker, resolve it, refresh the stale contract if needed, and restart goal mode from the same `goal.md`.
 
 ### Loop safety rules
 

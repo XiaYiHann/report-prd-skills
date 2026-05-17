@@ -222,6 +222,89 @@ def _runnable_tasks(queue: dict[str, Any]) -> list[dict[str, Any]]:
     return runnable
 
 
+def _task_brief(task: dict[str, Any]) -> str:
+    task_id = _task_id(task)
+    title = _clean_scalar(task.get("title") or "")
+    if task_id and title:
+        return f"{task_id}: {title}"
+    return task_id or title or "unknown task"
+
+
+def _gate_brief(gate: dict[str, Any]) -> str:
+    gate_id = str(gate.get("id") or gate.get("gate_id") or "")
+    name = _clean_scalar(gate.get("name") or "")
+    status = _clean_scalar(gate.get("status") or "")
+    label = f"{gate_id}: {name}" if gate_id and name else gate_id or name or "unknown gate"
+    return f"{label} ({status or 'unknown'})"
+
+
+def _project_summary(payload: dict[str, Any], queue: dict[str, Any]) -> dict[str, Any]:
+    research_goal = payload.get("research_goal") if isinstance(payload.get("research_goal"), dict) else {}
+    epoch_progress = payload.get("epoch_progress") if isinstance(payload.get("epoch_progress"), dict) else {}
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    next_actions = payload.get("next_actions") if isinstance(payload.get("next_actions"), list) else []
+    tasks = [task for task in as_list(queue.get("tasks")) if isinstance(task, dict)]
+    gates = [gate for gate in as_list(epoch_progress.get("gates")) if isinstance(gate, dict)]
+
+    completed_tasks = [_task_brief(task) for task in tasks if _complete_status(_task_status(task))]
+    active_tasks = [_task_brief(task) for task in tasks if _task_status(task).lower() == "active"]
+    pending_tasks = [_task_brief(task) for task in tasks if _task_status(task).lower() in {"pending", "ready"}]
+    blocked_tasks = [_task_brief(task) for task in tasks if _blocked_status(_task_status(task))]
+    completed_gates = [_gate_brief(gate) for gate in gates if _clean_scalar(gate.get("status") or "").lower() == "passed"]
+    remaining_gates = [_gate_brief(gate) for gate in gates if _clean_scalar(gate.get("status") or "").lower() != "passed"]
+    blocker_briefs: list[str] = []
+    for blocker in blockers:
+        if isinstance(blocker, dict):
+            problem = _clean_scalar(blocker.get("problem") or blocker.get("title") or blocker.get("status") or "")
+            if problem:
+                blocker_briefs.append(problem)
+
+    next_step = ""
+    if next_actions and isinstance(next_actions[0], dict):
+        next_step = _clean_scalar(next_actions[0].get("description") or "")
+    if not next_step:
+        next_step = "继续执行当前计划中的 active task。"
+
+    background_parts = [
+        _clean_scalar(research_goal.get("prd_title") or ""),
+        _clean_scalar(research_goal.get("prd_purpose") or research_goal.get("minimum_viable_purpose") or ""),
+        _clean_scalar(research_goal.get("big_rq") or ""),
+        _clean_scalar(research_goal.get("core_hypothesis") or ""),
+    ]
+    background = "；".join(part for part in background_parts if part) or "当前版本的研究背景尚未完全解析。"
+
+    goal_parts = [
+        f"version={payload.get('current_version') or 'N/A'}",
+        _clean_scalar(research_goal.get("mvr_question") or ""),
+        _clean_scalar(research_goal.get("mvr_success_condition") or ""),
+    ]
+    goal = "；".join(part for part in goal_parts if part) or "当前版本目标尚未完全解析。"
+
+    completed = {
+        "task_count": len(completed_tasks),
+        "gate_count": len(completed_gates),
+        "tasks": completed_tasks[:5],
+        "gates": completed_gates[:5],
+    }
+    remaining = {
+        "task_count": len(active_tasks) + len(pending_tasks) + len(blocked_tasks),
+        "gate_count": len(remaining_gates),
+        "active_tasks": active_tasks[:5],
+        "pending_tasks": pending_tasks[:5],
+        "blocked_tasks": blocked_tasks[:5],
+        "gates": remaining_gates[:5],
+    }
+
+    return {
+        "background": background,
+        "goal": goal,
+        "completed": completed,
+        "remaining": remaining,
+        "blockers": blocker_briefs[:5],
+        "next_step": next_step,
+    }
+
+
 def _gate_progress(queue: dict[str, Any]) -> list[dict[str, Any]]:
     tasks_by_id = _tasks_by_id(queue)
     gates: list[dict[str, Any]] = []
@@ -343,9 +426,14 @@ def _collect_blockers(
                     "id": task_id,
                     "title": str(task.get("title") or ""),
                     "status": _task_status(task),
-                    "problem": f"Task `{task_id}` is blocked.",
-                    "repair": f"Inspect `{_epoch_ref(version, 'TASK_QUEUE.yaml')}` and the matching blocker or run report under `{_epoch_ref(version, 'runs/')}`.",
-                    "verify": "Run research-status again; run the task-specific validator or harness named in the task.",
+                    "triage": "code-review-first",
+                    "problem": f"Task `{task_id}` is blocked; first do code-review-first triage.",
+                    "repair": (
+                        f"Review implementation diff, harness output, stdout/stderr, artifact hashes, and spec/plan delta "
+                        f"under `{_epoch_ref(version, 'TASK_QUEUE.yaml')}` and the matching run report or blocker note in `{_epoch_ref(version, 'runs/')}` "
+                        f"to classify implementation defect, harness defect, or idea/spec defect."
+                    ),
+                    "verify": "Run the task-specific validator or harness again after triage, then run research-status again.",
                 }
             )
     for gate in as_list(queue.get("gates")):
@@ -407,6 +495,23 @@ def _next_actions(payload: dict[str, Any], queue: dict[str, Any]) -> list[dict[s
     actions: list[dict[str, str]] = []
     current_experiment = payload.get("current_experiment") if isinstance(payload.get("current_experiment"), dict) else {}
     active = current_experiment.get("active_task") if isinstance(current_experiment.get("active_task"), dict) else {}
+    blocked_task = None
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    for item in blockers:
+        if isinstance(item, dict) and item.get("type") == "task":
+            blocked_task = item
+            break
+    if blocked_task:
+        actions.append(
+            {
+                "type": "review_blocked_code",
+                "target": str(blocked_task.get("id") or ""),
+                "description": (
+                    "先做 code-review-first triage，review implementation diff、harness 输出、stdout/stderr、artifact hashes 和 spec/plan delta，"
+                    "判断是 implementation/harness defect 还是 idea/spec defect。"
+                ),
+            }
+        )
     if active:
         outputs = ", ".join(active.get("output_refs") or active.get("harness", {}).get("artifact_paths") or [])
         actions.append(
@@ -488,7 +593,10 @@ def _plain_language_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
     if first_blocker:
         missing = str(first_blocker.get("problem") or first_blocker.get("title") or first_blocker.get("status") or "存在 blocker。")
-        next_step = str(first_blocker.get("repair") or first_action.get("description") or "先修复当前 blocker。")
+        if first_blocker.get("type") == "task" and first_action:
+            next_step = str(first_action.get("description") or first_blocker.get("repair") or "先做 code-review-first triage。")
+        else:
+            next_step = str(first_blocker.get("repair") or first_action.get("description") or "先修复当前 blocker。")
         verify = str(first_blocker.get("verify") or "重新运行 research-status。")
     else:
         required = evidence_gate.get("next_required_gate") or gate or "next declared gate"
@@ -601,10 +709,13 @@ def build_status(research_dir: Path, include_validators: bool = True) -> dict[st
         )
         payload["blockers"] = _collect_blockers(queue, baseline, open_reviews, version)
         payload["next_actions"] = _next_actions(payload, queue)
+        payload["project_summary"] = _project_summary(payload, queue)
         payload["plain_language_summary"] = _plain_language_summary(payload)
 
     if not payload.get("plain_language_summary"):
         payload["plain_language_summary"] = _plain_language_summary(payload)
+    if not payload.get("project_summary"):
+        payload["project_summary"] = _project_summary(payload, {})
 
     if include_validators and research_dir.exists():
         payload["validators"] = _validator_status(research_dir)
@@ -620,6 +731,7 @@ def render_markdown(status: dict[str, Any]) -> str:
     gate = status.get("evidence_gate") if isinstance(status.get("evidence_gate"), dict) else {}
     claim_counts = gate.get("claim_counts") if isinstance(gate.get("claim_counts"), dict) else {}
     validators = status.get("validators") if isinstance(status.get("validators"), dict) else {}
+    project = status.get("project_summary") if isinstance(status.get("project_summary"), dict) else {}
     beginner = status.get("plain_language_summary") if isinstance(status.get("plain_language_summary"), dict) else {}
 
     lines = [
@@ -630,6 +742,19 @@ def render_markdown(status: dict[str, Any]) -> str:
         f"- current_version: `{status.get('current_version', '') or 'N/A'}`",
         f"- version_status: `{status.get('version_status', '') or 'N/A'}`",
         f"- current_gate: `{status.get('current_gate', '') or 'N/A'}`",
+        "",
+        "## Project Overview",
+        f"- background: {project.get('background') or 'N/A'}",
+        f"- goal: {project.get('goal') or 'N/A'}",
+        f"- completed_tasks: {project.get('completed', {}).get('task_count', 0)}",
+        f"- completed_examples: {', '.join((project.get('completed', {}).get('tasks') or [])[:3]) or 'none'}",
+        f"- completed_gates: {', '.join((project.get('completed', {}).get('gates') or [])[:3]) or 'none'}",
+        f"- remaining_tasks: {project.get('remaining', {}).get('task_count', 0)}",
+        f"- remaining_examples: {', '.join((project.get('remaining', {}).get('active_tasks') or [])[:2] + (project.get('remaining', {}).get('pending_tasks') or [])[:2] + (project.get('remaining', {}).get('blocked_tasks') or [])[:2]) or 'none'}",
+        f"- remaining_gates: {project.get('remaining', {}).get('gate_count', 0)}",
+        f"- remaining_gate_examples: {', '.join((project.get('remaining', {}).get('gates') or [])[:3]) or 'none'}",
+        f"- blockers: {', '.join(project.get('blockers') or []) or 'none'}",
+        f"- next_step: {project.get('next_step') or 'N/A'}",
         "",
         "## Beginner Summary",
         f"- current_state: {beginner.get('current_state') or 'N/A'}",
@@ -689,6 +814,8 @@ def render_markdown(status: dict[str, Any]) -> str:
         for item in blockers[:8]:
             if isinstance(item, dict):
                 lines.append(f"- `{item.get('type', '')}:{item.get('id', '')}` {item.get('title') or item.get('status') or ''}")
+                if item.get("triage"):
+                    lines.append(f"  - triage: {item.get('triage')}")
                 if item.get("problem"):
                     lines.append(f"  - problem: {item.get('problem')}")
                 if item.get("repair"):

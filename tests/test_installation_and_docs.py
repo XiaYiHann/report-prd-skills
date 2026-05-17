@@ -61,6 +61,11 @@ class InstallationAndDocsTests(unittest.TestCase):  # noqa: F405
         self.assertIn("task dependency graph", docs)
         self.assertIn("runnable_parallel_set", docs)
         self.assertIn("blocked-branch", docs)
+        self.assertIn("Blocked Task Triage Review", docs)
+        self.assertIn("code-review-first triage", docs)
+        self.assertIn("implementation defect", docs)
+        self.assertIn("idea/spec defect", docs)
+        self.assertIn("TASK_XXX_blocker.md", docs)
         self.assertIn("正交 runnable tasks", docs)
         for forbidden in [
             "当前下一步",

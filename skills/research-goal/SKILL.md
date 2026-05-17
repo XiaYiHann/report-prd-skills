@@ -39,6 +39,9 @@ Read in order:
 - the full version task dependency graph, including what each task does, dependency edges, waiting dependencies, blocked ancestors, unlocked descendants, runnable status, and RQ-local Spec/Plan refs;
 - `TASK_QUEUE.yaml` remains the single-step execution source;
 - orthogonal runnable tasks may continue, or run in parallel when executor support and file scopes allow, while blocked branch tasks freeze only their explicit descendants;
+- blocked / failed tasks must first enter code-review-first triage so the executor can distinguish implementation or harness defects from idea/spec defects before declaring the branch genuinely blocked;
+- `goal.md` must include a `## Blocked Task Triage Review` section that records the code-review-first triage rule, review order, and classification rule for blocked tasks;
+- blocked / failed tasks must emit `runs/TASK_XXX_blocker.md` with the triage conclusion, reviewed evidence, and recovery decision before gate-blocked handoff;
 - baseline decisions come from `BASELINE_LOCK.yaml` and `baselines/INDEX.yaml`;
 - no fabricated data, stdout/stderr, artifact, hash, citation, or paper result;
 - stop conditions for stale contracts, blocked gates, human review, closeout, and Paper Binding;

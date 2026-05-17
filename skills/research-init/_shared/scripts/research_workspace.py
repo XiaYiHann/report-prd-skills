@@ -1811,6 +1811,7 @@ def claude_loop_prompt_template() -> str:
 - 代码变更：运行 `git status --short` 和 `git diff --stat`
 - 实验执行：保存 stdout/stderr 到 `runs/` 目录
 - 所有任务：写 `runs/TASK_XXX_report.md`
+- 发生 `blocked` / `failed_execution` / `failed_harness` 时，额外写 `runs/TASK_XXX_blocker.md`，并记录 code-review-first triage 结论、review_order 和 recovery decision。
 
 run report 最小格式：
 ```markdown
@@ -1886,6 +1887,7 @@ Read:
 - Do not create next version unless current version is closed.
 - Do not write paper results.
 - Do not claim real benchmark execution unless actually run.
+- If execution blocks or tests fail, first review implementation diff, harness output, stdout/stderr, artifact hashes, and spec/plan delta to classify implementation defect, harness defect, or idea/spec defect before declaring the task genuinely blocked.
 - If prompt-only, explicitly mark `prompt_only_scaffold`.
 
 ## Ask vs Autonomy Boundary
@@ -2669,6 +2671,7 @@ loop_rules:
   - "Each loop defaults to one active task, but orthogonal runnable tasks may run in parallel when dependencies are satisfied and allowed_files do not conflict."
   - "After each loop, update LOOP_LOG.md."
   - "If blocked twice by same cause, escalate to gate_blocked."
+  - "If a task blocks or fails, first perform code-review-first triage on implementation diff, harness, stdout/stderr, artifact hash, and spec/plan delta before concluding whether the blocker is code, harness, or idea/spec related."
   - "If no active task exists, activate the next runnable task whose depends_on edges are satisfied; if none remains, stop for human review or closeout."
   - "Do not start a new version unless current version is closed."
   - "Stay inside RESEARCH_DIRECTION.md."
@@ -2677,6 +2680,7 @@ codex_goal_rules:
   - "Codex goal must name the version objective, runnable task set, and concrete deliverable for each selected task."
   - "Codex must run tests when code changes."
   - "Codex must cite terminal/test evidence in run report."
+  - "Blocked tasks require code-review-first triage before the branch can be treated as genuinely blocked."
   - "Codex should not perform broad literature search unless task phase=literature and network is available."
 claude_goal_rules:
   - "Do not expand scope mid-loop."
@@ -2909,6 +2913,17 @@ def goal_inline_list(items: list[Any], default: str = "none", limit: int = 4) ->
     return ", ".join(values)
 
 
+def goal_blocked_task_ids(queue: dict[str, Any]) -> list[str]:
+    blocked_ids: list[str] = []
+    for task in as_list(queue.get("tasks")):
+        if not isinstance(task, dict):
+            continue
+        task_id = goal_task_id(task)
+        if task_id and str(task.get("status") or "") in GOAL_BLOCKED_TASK_STATUSES:
+            blocked_ids.append(task_id)
+    return sorted(blocked_ids)
+
+
 def goal_rq_contract_lines(spine: dict[str, Any]) -> str:
     lines: list[str] = []
     for rq in as_list(spine.get("research_questions")):
@@ -2980,6 +2995,7 @@ def goal_outstanding_task_graph(queue: dict[str, Any]) -> str:
         unblocks = dependents_by_id.get(task_id, [])
         outputs = goal_inline_list([str(item) for item in as_list(task.get("output_refs"))], default="declared artifacts")
         criteria = goal_inline_list([str(item) for item in as_list(task.get("success_criteria"))], default="declared success criteria", limit=2)
+        triage_mode = "code-review-first" if task_status in GOAL_BLOCKED_TASK_STATUSES else "none"
         parallel_class = "parallelizable" if runnable == "yes" and not deps else "sequential_or_waiting"
         if blocked_by:
             parallel_class = "blocked_descendant"
@@ -2991,7 +3007,7 @@ def goal_outstanding_task_graph(queue: dict[str, Any]) -> str:
             f"depends_on=`{dep_text}`; waiting_on=`{goal_inline_list(waiting_on)}`; "
             f"blocked_by=`{goal_inline_list(blocked_by)}`; unblocks=`{goal_inline_list(unblocks)}`; "
             f"runnable_now=`{runnable}`; parallel_class=`{parallel_class}`; "
-            f"outputs=`{outputs}`; success=`{criteria}`; spec=`{rq_spec_ref}`; task_ref=`{rq_task_ref}`"
+            f"triage_mode=`{triage_mode}`; outputs=`{outputs}`; success=`{criteria}`; spec=`{rq_spec_ref}`; task_ref=`{rq_task_ref}`"
         )
     return "\n".join(lines) if lines else "- 当前没有 task。"
 
@@ -3025,6 +3041,19 @@ def goal_parallel_execution_lines(queue: dict[str, Any]) -> str:
     )
 
 
+def goal_blocked_triage_lines(queue: dict[str, Any]) -> str:
+    blocked_ids = goal_blocked_task_ids(queue)
+    return "\n".join(
+        [
+            f"- blocked_triage_queue: `{goal_inline_list(blocked_ids, default='none')}`",
+            "- triage_rule: blocked / failed_execution / failed_harness tasks must first enter code-review-first triage before the branch is treated as genuinely blocked.",
+            "- review_order: implementation diff -> harness command and output -> stdout/stderr -> artifact hashes -> spec/plan delta.",
+            "- classification_rule: implementation defect or harness defect => repair and rerun; idea/spec defect => blocker or pivot request, while orthogonal runnable tasks continue.",
+            "- blocker_record: write the triage conclusion into the task blocker note or run report before escalating to human review.",
+        ]
+    )
+
+
 def synthesize_epoch_goal(epoch_dir: Path, target_executor: str = "both") -> str:
     version = epoch_dir.name
     status = load_yaml(epoch_dir / "STATUS.yaml")
@@ -3041,6 +3070,7 @@ def synthesize_epoch_goal(epoch_dir: Path, target_executor: str = "both") -> str
     rq_execution_plan = goal_rq_execution_plan_lines(spine, queue)
     outstanding_task_graph = goal_outstanding_task_graph(queue)
     parallel_execution = goal_parallel_execution_lines(queue)
+    blocked_triage = goal_blocked_triage_lines(queue)
     target_executor = target_executor if target_executor in GOAL_TARGET_EXECUTORS else "both"
     return f"""---
 version: {version}
@@ -3087,6 +3117,10 @@ active_task_source: TASK_QUEUE.yaml
 
 {parallel_execution}
 
+## Blocked Task Triage Review
+
+{blocked_triage}
+
 ## 执行目标
 
 把当前 `{version}` 从现有 gate 状态推进到明确终态：`closed_success`、`closed_negative`、`closed_blocked`、`closed_falsified`、`closed_pivot_required`、`closed_stable` 或 `paper_bound`。如果遇到缺失信息、复现失败、证据不足或人工决策点，必须显式写入 blocker，而不是继续扩写叙事。
@@ -3099,6 +3133,7 @@ active_task_source: TASK_QUEUE.yaml
 - 每个完成或阻塞的 task 都必须独立更新 `LOOP_LOG.md`、对应 run report、必要的 wiki 与 audit 记录。
 - 如果某个分支 task 进入 `blocked`、`failed_execution` 或 `failed_harness`，只冻结显式依赖该 task 的 blocked descendant tasks；不依赖该 blocker 且 `depends_on` 已满足的 independent runnable tasks / orthogonal runnable tasks 必须继续执行。
 - 当一个 active task 完成或阻塞后，调度器应优先激活 `TASK_QUEUE.yaml` 中下一个 runnable unblocked task；不要因为单个分支 blocker 直接停止整个版本。
+- 当 task 进入 `blocked`、`failed_execution` 或 `failed_harness` 时，必须先做 code-review-first triage，检查 implementation diff、harness、stdout/stderr、artifact hash 和 spec/plan delta，区分 implementation defect、harness defect 与 idea/spec defect，然后再决定 repair、pivot 或 human review。
 - 代码变更必须运行相关测试；无法测试时记录 blocker 和缺失条件。
 - 文档编译、Spec/Plan 修改或 Research Spine 修改若改变研究方向、核心假设、baseline 选择、metric 或证据边界，必须停止并请求人工确认。
 
@@ -4404,6 +4439,161 @@ def task_run_report_template(version: str, task_id: str = "TASK_001") -> str:
 
 `【待填写：下一步建议】`
 """
+
+
+def task_blocker_triage_conclusion(status: str, failure_class: str | None) -> str:
+    normalized_status = status.strip().lower()
+    normalized_failure_class = (failure_class or "").strip()
+    if normalized_failure_class == "execution_failure" or normalized_status == "failed_execution":
+        return "implementation defect"
+    if normalized_failure_class == "harness_failure" or normalized_status == "failed_harness":
+        return "harness defect"
+    if normalized_failure_class in {"spec_gap", "prd_ambiguity", "research_falsification_candidate", "confirmed_research_falsification"}:
+        return "idea/spec defect"
+    if normalized_status == "blocked" and not normalized_failure_class:
+        return "unresolved"
+    return "unresolved"
+
+
+def task_blocker_recovery_decision(triage_conclusion: str) -> str:
+    if triage_conclusion == "implementation defect":
+        return "repair and rerun"
+    if triage_conclusion == "harness defect":
+        return "repair harness and rerun"
+    if triage_conclusion == "idea/spec defect":
+        return "record blocker or pivot request"
+    return "human review"
+
+
+def task_blocker_report_template(version: str, task_id: str = "TASK_001") -> str:
+    return f"""# {task_id} Blocker Note
+
+## Task
+
+- version: {version}
+- task_id: {task_id}
+- status: `【待填写：blocked / failed_execution / failed_harness】`
+- gate_id: `【待填写：gate ID】`
+- related_run_report: `runs/{task_id}_report.md`
+
+## Blocker Summary
+
+- blocker_reason: `【待填写：具体 blocker 原因】`
+- failure_class: `【待填写：execution_failure / harness_failure / spec_gap / prd_ambiguity / ...】`
+- triage_mode: `code-review-first`
+- review_order: implementation diff -> harness command and output -> stdout/stderr -> artifact hashes -> spec/plan delta
+- triage_conclusion: `【待填写：implementation defect / harness defect / idea/spec defect / unresolved】`
+- recovery_decision: `【待填写：repair and rerun / repair harness and rerun / record blocker or pivot request / human review】`
+
+## Reviewed Evidence
+
+- raw_evidence: `runs/{task_id}_report.md`
+- implementation_diff: `【待填写：git diff 或 changed files】`
+- harness_command_and_output: `【待填写：命令与输出】`
+- stdout_path: `【待填写】`
+- stderr_path: `【待填写】`
+- artifact_hashes: `【待填写】`
+- spec_plan_delta: `【待填写：与 TASK_QUEUE.yaml / goal.md / RQ-local contract 的差异】`
+
+## Follow-up
+
+- `【待填写：下一步动作】`
+"""
+
+
+def task_blocker_report_markdown(version: str, task_id: str, report: dict[str, Any]) -> str:
+    task = report.get("task") if isinstance(report.get("task"), dict) else {}
+    execution = report.get("execution") if isinstance(report.get("execution"), dict) else {}
+    evidence = report.get("evidence") if isinstance(report.get("evidence"), dict) else {}
+    gate_outcome = report.get("gate_outcome") if isinstance(report.get("gate_outcome"), dict) else {}
+    conclusion = report.get("conclusion") if isinstance(report.get("conclusion"), dict) else {}
+    next_action = report.get("next_action") if isinstance(report.get("next_action"), dict) else {}
+    status = str(task.get("status") or report.get("task_status") or "blocked")
+    failure_class = str(conclusion.get("failure_class") or "")
+    triage_conclusion = task_blocker_triage_conclusion(status, failure_class)
+    recovery_decision = task_blocker_recovery_decision(triage_conclusion)
+    blocker_reason = str(gate_outcome.get("blocker_reason") or "")
+    if not blocker_reason:
+        blockers = [str(item) for item in as_list(evidence.get("blockers")) if str(item)]
+        blocker_reason = "; ".join(blockers)
+
+    commands_run = [str(item) for item in as_list(execution.get("commands_run")) if str(item)]
+    files_changed = [str(item) for item in as_list(execution.get("files_changed")) if str(item)]
+    artifacts: list[str] = []
+    for artifact in as_list(report.get("artifacts")):
+        if isinstance(artifact, dict):
+            path = str(artifact.get("path") or "")
+            digest = str(artifact.get("sha256") or "")
+            if path and digest:
+                artifacts.append(f"{path}:sha256={digest}")
+            elif path:
+                artifacts.append(path)
+        elif artifact:
+            artifacts.append(str(artifact))
+
+    stdout_path = str(execution.get("stdout_path") or "")
+    stderr_path = str(execution.get("stderr_path") or "")
+    gate_id = str(task.get("gate_id") or report.get("gate_id") or "N/A")
+    next_recommendation = str(next_action.get("recommendation") or recovery_decision)
+    tests_passed = evidence.get("tests") if isinstance(evidence.get("tests"), dict) else {}
+    tests_summary = str(bool(tests_passed.get("passed"))) if tests_passed else "False"
+
+    def bullet_list(items: list[str], empty: str = "（无）") -> str:
+        if not items:
+            return empty
+        return "\n".join(f"- `{item}`" for item in items)
+
+    return f"""# {task_id} Blocker Note
+
+## Task
+
+- version: {version}
+- task_id: {task_id}
+- status: `{status}`
+- gate_id: `{gate_id}`
+- related_run_report: `runs/{task_id}_report.md`
+
+## Blocker Summary
+
+- blocker_reason: `{blocker_reason or 'N/A'}`
+- failure_class: `{failure_class or 'N/A'}`
+- triage_mode: `code-review-first`
+- review_order: implementation diff -> harness command and output -> stdout/stderr -> artifact hashes -> spec/plan delta
+- triage_conclusion: `{triage_conclusion}`
+- recovery_decision: `{next_recommendation}`
+
+## Reviewed Evidence
+
+- raw_evidence: `runs/{task_id}_report.md`
+- implementation_diff / files_changed:
+{bullet_list(files_changed)}
+- harness_command_and_output:
+{bullet_list(commands_run)}
+- stdout_path: `{stdout_path or 'N/A'}`
+- stderr_path: `{stderr_path or 'N/A'}`
+- artifact_hashes:
+{bullet_list(artifacts)}
+- tests_passed: `{tests_summary}`
+- spec_plan_delta: `见 TASK_QUEUE.yaml、goal.md 与当前 run report 的差异；若未单独记录，则以本次 triage 结论为准。`
+
+## Follow-up
+
+- `下一步建议：{next_recommendation}`
+- `triage_conclusion：{triage_conclusion}`
+- `related_blocker_note: runs/{task_id}_blocker.md`
+"""
+
+
+def write_task_blocker_report(epoch_dir: Path, version: str, task_id: str, report: dict[str, Any] | None = None) -> Path:
+    runs_dir = epoch_dir / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    blocker_path = runs_dir / f"{task_id}_blocker.md"
+    if report is None:
+        blocker_text = task_blocker_report_template(version, task_id)
+    else:
+        blocker_text = task_blocker_report_markdown(version, task_id, report)
+    write_text(blocker_path, blocker_text, force=True)
+    return blocker_path
 
 
 def task_run_report_payload(version: str, task_id: str = "TASK_001") -> dict[str, Any]:
@@ -6351,7 +6541,7 @@ def generate_plan(
             "literature_scout": {"when": ["version_start", "baseline_lock_needed", "new novelty claim appears", "paper_binding_related_work"]},
             "repo_explorer": {"when": ["need to locate files/modules", "read-only codebase mapping larger than 5 files"]},
             "experiment_engineer": {"when": ["implementing harness, hook, evaluator, artifact parser"]},
-            "debugger": {"when": ["same test fails twice", "gate blocked by reproducible error"]},
+            "debugger": {"when": ["same test fails twice", "gate blocked by reproducible error", "task blocked by reproducible error"]},
             "artifact_auditor": {"when": ["before closeout", "before paper binding"]},
             "wiki_synthesizer": {"when": ["after every completed gate", "before closeout"]},
             "paper_binder": {"when": ["status=closed_stable"]},
@@ -9882,11 +10072,15 @@ def validate_goal_ready(research_dir: Path) -> Validation:
         "RQ Execution Plan Matrix",
         "Outstanding Task Graph",
         "Parallel And Blocked Branch Policy",
+        "Blocked Task Triage Review",
         "version task dependency graph",
         "independent runnable tasks",
         "orthogonal runnable tasks",
         "blocked descendant tasks",
         "runnable unblocked task",
+        "code-review-first triage",
+        "implementation defect",
+        "idea/spec defect",
     ]:
         if required not in goal_text:
             validation.error(f"goal.md missing dependency-aware scheduling clause: {required}")

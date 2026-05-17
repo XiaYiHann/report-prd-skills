@@ -49,6 +49,7 @@ python3 ~/.claude/skills/research-status/scripts/research_status.py \
 
 The report must distinguish:
 
+- project-wide summary first: background, current goal, completed work, remaining work, blockers, and next step;
 - workspace role: meta-framework, epoch workspace, legacy/mixed, or missing;
 - beginner-facing plain-language summary: current state, missing/blocking condition,
   next step, verification command, and first files to read;
@@ -63,7 +64,7 @@ The report must distinguish:
 - evidence gate state: draft claims, allowed claims, next required gate, and
   conditions still blocking paper-admissible claims;
 - blockers, human review requests, and dependency-free runnable tasks;
-- blocker recovery hints: problem, repair target, and verification command;
+- blocker recovery hints: problem, triage classification, repair target, and verification command;
 - next actions: continue active task, run independent ready tasks, or resolve
   blocker;
 - validators: `direction-ready`, `epoch-ready`, `rq-driven-ready`, `baseline-lock-ready`, `goal-ready`, `loop-ready`;

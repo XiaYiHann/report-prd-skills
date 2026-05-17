@@ -36,7 +36,10 @@ from research_workspace import (  # noqa: E402
     missing_search_outputs,
     read_text,
     task_search_required,
+    task_blocker_recovery_decision,
+    task_blocker_triage_conclusion,
     write_task_run_report,
+    write_task_blocker_report,
     write_epoch_goal_files,
     write_yaml,
 )
@@ -335,6 +338,12 @@ def build_run_report_from_args(epoch_dir: Path, version: str, args: Any) -> dict
     status = normalize_task_status(args.status)
     failure_class = getattr(args, "failure_class", "") or None
     tests_passed = getattr(args, "tests_passed", None)
+    triage_conclusion = task_blocker_triage_conclusion(status, failure_class)
+    next_action_recommendation = (
+        task_blocker_recovery_decision(triage_conclusion)
+        if status in BLOCKED_TASK_STATUSES
+        else None
+    )
     return {
         "schema_version": 2,
         "report_version": 2,
@@ -397,7 +406,11 @@ def build_run_report_from_args(epoch_dir: Path, version: str, args: Any) -> dict
             "failure_class": failure_class,
             "research_interpretation_allowed": False,
         },
-        "next_action": {"recommendation": None, "wiki_update_needed": False},
+        "next_action": {
+            "recommendation": next_action_recommendation,
+            "wiki_update_needed": triage_conclusion == "idea/spec defect",
+            "insight_generated": False,
+        },
     }
 
 
@@ -405,9 +418,10 @@ def write_run_report_from_args(
     epoch_dir: Path, version: str, task_id: str, status: str,
     commit_hash: str | None, gate_id: str | None, blocker_reason: str | None,
     args: argparse.Namespace,
-) -> None:
+) -> dict[str, Any]:
     report = build_run_report_from_args(epoch_dir, version, args)
     write_task_run_report(epoch_dir, version, task_id, report)
+    return report
 
 
 def parse_args() -> argparse.Namespace:
@@ -496,8 +510,11 @@ def main() -> int:
     print(f"[OK] STATUS.yaml updated")
 
     # 5. Write task run report
-    write_run_report_from_args(epoch_dir, version, args.task_id, status, commit_hash, gate_id, blocker_reason, args)
+    report = write_run_report_from_args(epoch_dir, version, args.task_id, status, commit_hash, gate_id, blocker_reason, args)
     print(f"[OK] runs/{args.task_id}_report.yaml written")
+    if status in BLOCKED_TASK_STATUSES:
+        write_task_blocker_report(epoch_dir, version, args.task_id, report)
+        print(f"[OK] runs/{args.task_id}_blocker.md written")
 
     # 6. Refresh the version-level long-loop goal after queue/status drift.
     refresh_goal_contract(epoch_dir)

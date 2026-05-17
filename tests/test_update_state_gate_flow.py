@@ -133,7 +133,10 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
             )
             queue = read_yaml(research_dir / "V0" / "TASK_QUEUE.yaml")
             report = read_yaml(research_dir / "V0" / "runs" / "T_G0_001_report.yaml")
+            blocker_path = research_dir / "V0" / "runs" / "T_G0_001_blocker.md"
             status = read_yaml(research_dir / "V0" / "STATUS.yaml")
+            blocker_exists = blocker_path.exists()
+            blocker_text = blocker_path.read_text(encoding="utf-8")
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(queue["gates"][0]["status"], "active")
@@ -144,6 +147,10 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
         self.assertNotEqual(queue["gates"][0]["status"], "falsified")
         self.assertEqual(report["conclusion"]["failure_class"], "execution_failure")
         self.assertFalse(report["conclusion"]["research_interpretation_allowed"])
+        self.assertTrue(blocker_exists)
+        self.assertIn("code-review-first", blocker_text)
+        self.assertIn("implementation defect", blocker_text)
+        self.assertIn("repair and rerun", blocker_text)
 
     def test_blocked_dependency_stops_only_after_no_runnable_tasks_remain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -187,9 +194,16 @@ class UpdateStateGateFlowTests(unittest.TestCase):  # noqa: F405
             )
             queue = read_yaml(queue_path)
             status = read_yaml(epoch_dir / "STATUS.yaml")
+            blocker_path = epoch_dir / "runs" / "T_G0_003_blocker.md"
+            blocker_exists = blocker_path.exists()
+            blocker_text = blocker_path.read_text(encoding="utf-8")
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(queue["queue_status"], "blocked")
         self.assertEqual(queue["gates"][0]["status"], "blocked")
         self.assertIsNone(queue["current_task"])
         self.assertEqual(status["status"], "gate_blocked")
+        self.assertTrue(blocker_exists)
+        self.assertIn("code-review-first", blocker_text)
+        self.assertIn("idea/spec defect", blocker_text)
+        self.assertIn("record blocker or pivot request", blocker_text)

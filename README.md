@@ -224,6 +224,7 @@ docs/research/
     runs/
       TASK_XXX_report.yaml    # 机器可读 YAML 运行报告
       TASK_XXX_report.md      # 人类可读 Markdown 运行报告
+      TASK_XXX_blocker.md     # blocked / failed task 的 code-review-first triage 结论
     artifacts/
     audits/
     wiki/
@@ -366,7 +367,7 @@ Gate-aware 状态枚举：
 - Task status: `pending`、`active`、`completed`、`blocked`、`failed_execution`、`failed_harness`、`skipped`。
 - Gate status: `pending`、`active`、`audit_required`、`audit_failed`、`passed`、`blocked`、`falsified`。
 
-Failure triage 是硬协议：`failed_execution` 和 `failed_harness` 只能进入修复、阻断或审计路径，不能被解释为研究假设失败。只有 harness 成功运行、输出有效、artifact hash 已记录，并经过 Audit 排除代码、数据、指标和 harness 缺陷后，才允许从 `research_falsification_candidate` 升级为 confirmed falsification。
+Failure triage 是硬协议：`blocked`、`failed_execution` 和 `failed_harness` 都只是中间状态。任务一旦卡住，必须先做 code-review-first triage，检查 implementation diff、harness 输出、stdout/stderr、artifact hash 和 spec/plan delta，区分 implementation defect、harness defect 与 idea/spec defect，再决定 repair、pivot 或 human review，并把结论写入 `runs/TASK_XXX_blocker.md`。只有 harness 成功运行、输出有效、artifact hash 已记录，并经过 Audit 排除代码、数据、指标和 harness 缺陷后，才允许从 `research_falsification_candidate` 升级为 confirmed falsification。
 
 ## Version Wiki
 
@@ -446,6 +447,7 @@ Git 是 research-loop 的 checkpoint system。每个版本包含：
 Vn/GIT_STATE.yaml
 Vn/git_log.md
 Vn/runs/TASK_XXX_report.md
+Vn/runs/TASK_XXX_blocker.md
 ```
 
 Task、gate、closeout、Paper Binding 都应记录 branch、pre/post commit、diff stat、commit hash、dirty-tree 状态和 tag。推荐 tag：
@@ -610,7 +612,7 @@ python3 ~/.claude/skills/research/scripts/update_state.py \
 
 ### Goal Mode 自动循环
 
-Codex 与 Claude Code 均以当前版本的 `goal.md` 作为长程目标输入，以 `GOAL_LOCK.yaml` 校验目标是否仍匹配当前 PRD、Spine、RQ-local contracts、Task Queue、Evidence Gate 与状态文件。目标模式不引入独立循环插件；每轮执行以 `TASK_QUEUE.yaml` 为调度真源，默认串行推进当前 active task，但可在 `goal.md` 标出的 `runnable_parallel_set` 内并行推进正交且文件范围不冲突的任务。单个 blocker 只冻结显式依赖它的后继任务；不相关 runnable tasks 应继续执行，直到 stale lock、human review、gate_blocked、closeout 或无可运行任务。
+Codex 与 Claude Code 均以当前版本的 `goal.md` 作为长程目标输入，以 `GOAL_LOCK.yaml` 校验目标是否仍匹配当前 PRD、Spine、RQ-local contracts、Task Queue、Evidence Gate 与状态文件。目标模式不引入独立循环插件；每轮执行以 `TASK_QUEUE.yaml` 为调度真源，默认串行推进当前 active task，但可在 `goal.md` 标出的 `runnable_parallel_set` 内并行推进正交且文件范围不冲突的任务。单个 blocker 只冻结显式依赖它的后继任务；当 task 卡住时，必须先做 code-review-first triage 再决定 repair、pivot 或 human review。不相关 runnable tasks 应继续执行，直到 stale lock、human review、gate_blocked、closeout 或无可运行任务。
 
 ### 执行 Backend / Agent Executor
 

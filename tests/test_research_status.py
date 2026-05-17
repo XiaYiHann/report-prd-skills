@@ -38,6 +38,13 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertIn("statement", payload["rq_progress"][0])
         self.assertEqual(payload["current_experiment"]["active_task"]["id"], "T_G0_001")
         self.assertIn("success_criteria", payload["current_experiment"]["active_task"])
+        self.assertIn("project_summary", payload)
+        self.assertIn("background", payload["project_summary"])
+        self.assertIn("goal", payload["project_summary"])
+        self.assertIn("completed", payload["project_summary"])
+        self.assertIn("remaining", payload["project_summary"])
+        self.assertIn("blockers", payload["project_summary"])
+        self.assertIn("next_step", payload["project_summary"])
         self.assertTrue(payload["next_actions"])
         self.assertIn("plain_language_summary", payload)
         self.assertIn("current_state", payload["plain_language_summary"])
@@ -54,7 +61,10 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("# Research Status", result.stdout)
+        self.assertIn("## Project Overview", result.stdout)
         self.assertIn("## Beginner Summary", result.stdout)
+        self.assertIn("completed_examples", result.stdout)
+        self.assertIn("remaining_examples", result.stdout)
         self.assertIn("missing_or_blocked", result.stdout)
         self.assertIn("next_step", result.stdout)
         self.assertIn("## Current Goal", result.stdout)
@@ -82,6 +92,33 @@ class ResearchStatusTests(unittest.TestCase):  # noqa: F405
         self.assertIn("verify", baseline_blocker)
         self.assertIn("BASELINE_LOCK.yaml", payload["plain_language_summary"]["missing"])
         self.assertIn("baseline-lock-ready", payload["plain_language_summary"]["verify"])
+
+    def test_research_status_blocked_task_prioritizes_code_review_triage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            research_dir = init_workspace_fast(repo)
+            queue_path = research_dir / "V0" / "TASK_QUEUE.yaml"
+            queue = read_yaml(queue_path)
+            for task in queue["tasks"]:
+                if task["id"] == "T_G0_001":
+                    task["status"] = "blocked"
+                elif task["id"] != "T_G0_001":
+                    task["status"] = "pending"
+            write_yaml(queue_path, queue)
+
+            result = run_cmd(["python3", str(STATUS_SCRIPT), "--repo", str(repo), "--json", "--no-validators"])  # noqa: F405
+            payload = json.loads(result.stdout)
+            task_blocker = next(item for item in payload["blockers"] if item["type"] == "task")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(task_blocker["triage"], "code-review-first")
+        self.assertIn("code-review-first triage", task_blocker["problem"])
+        self.assertIn("implementation defect", task_blocker["repair"])
+        self.assertEqual(payload["next_actions"][0]["type"], "review_blocked_code")
+        self.assertIn("implementation/harness defect", payload["next_actions"][0]["description"])
+        self.assertIn("code-review-first triage", payload["plain_language_summary"]["next_step"])
+        self.assertIn("triage", result.stdout)
+        self.assertIn("review_blocked_code", result.stdout)
 
 
 if __name__ == "__main__":
